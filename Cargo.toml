@@ -4,6 +4,7 @@ members = [
     "crates/lumina-core",
     "crates/lumina-config",
     "crates/lumina-platform",
+    "crates/lumina-render",
 ]
 
 [workspace.package]
