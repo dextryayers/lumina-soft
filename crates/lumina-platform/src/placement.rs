@@ -133,6 +133,8 @@ pub fn compute_placement(
 
     let size_w = size_w.round().max(1.0) as i32;
     let size_h = size_h.round().max(1.0) as i32;
+    let size_w_f = size_w as Scalar;
+    let size_h_f = size_h as Scalar;
 
     let offset_x = (offset_x as Scalar * scale).round() as i32;
     let offset_y = (offset_y as Scalar * scale).round() as i32;
@@ -144,22 +146,31 @@ pub fn compute_placement(
     let anchor_y = if position.is_top() { monitor.y } else { monitor.y + monitor.height.round() };
 
     // Center the window on its anchor, then apply the user's offsets.
-    let mut left = (anchor_x - size_w as Scalar / 2.0).round() as i32 + offset_x;
+    let mut left = (anchor_x - size_w_f / 2.0).round() as i32 + offset_x;
     let mut top = if position.is_top() {
-        anchor_y + offset_y
+        anchor_y.round() as i32 + offset_y
     } else {
-        (anchor_y - size_h as Scalar).round() as i32 + offset_y
+        (anchor_y - size_h_f).round() as i32 + offset_y
     };
+
+    let monitor_right = monitor.x.round() as i32 + monitor.width.round() as i32;
+    let monitor_bottom = monitor.y.round() as i32 + monitor.height.round() as i32;
 
     // Keep the window on the monitor. Only applied on the anchored axis: a user
     // who anchors to top-center and pushes the island far left has made a
-    // deliberate choice, whereas letting it drift off the top edge is never
+    // deliberate choice, whereas letting it drift off the screen edge is never
     // what anyone means.
-    let offsets_clamped = clamp_into(&mut left, monitor.x, monitor.x + monitor.width.round() as i32 - size_w, position.horizontal_fraction() == 0.5)
-        | clamp_into(&mut top, monitor.y, monitor.y + monitor.height.round() as i32 - size_h, true);
+    let offsets_clamped =
+        clamp_into(&mut left, monitor.x as i32, monitor_right - size_w, position.horizontal_fraction() == 0.5)
+            | clamp_into(&mut top, monitor.y as i32, monitor_bottom - size_h, true);
 
     Placement {
-        geometry: WindowGeometry { bounds: Rect::new(left as Scalar, top as Scalar, size_w as Scalar, size_h as Scalar), size: (size_w, size_h), monitor_index, scale },
+        geometry: WindowGeometry {
+            bounds: Rect::new(left as f32, top as f32, size_w_f, size_h_f),
+            size: (size_w, size_h),
+            monitor_index,
+            scale,
+        },
         was_clamped,
         offsets_clamped,
     }
