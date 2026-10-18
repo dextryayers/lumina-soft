@@ -364,12 +364,12 @@ fn validate_audio(config: &mut Config, report: &mut ValidationReport) {
 
     if audio.attack < audio.release {
         report.warn(
-            "audio.attack",
+            "audio.release",
             format!(
-                "attack {} is below release {}, which would make bars rise slower than they fall",
-                audio.attack, audio.release
+                "release {} is above attack {}, which would make bars fall faster than they rise",
+                audio.release, audio.attack
             ),
-            "raising release to match attack",
+            format!("lowering release to {}", audio.attack),
         );
         audio.release = audio.attack;
     }
@@ -454,16 +454,46 @@ fn validate_clock(config: &mut Config, report: &mut ValidationReport) {
     }
 }
 
-/// Cheap plausibility check for a timezone name.
+/// IANA timezone area prefixes.
 ///
-/// Deliberately not a full IANA database lookup: a name that looks like a
-/// timezone is accepted and the real lookup happens once at startup, where a
-/// genuine failure is reported properly.
+/// The full database is about five hundred names, which is not worth embedding
+/// for a single config key. Checking the leading area catches the mistakes users
+/// actually make, such as inventing a plausible looking zone or mistyping
+/// `Europe` as `Eurpoe`, while accepting every real zone. The authoritative
+/// lookup happens once at startup, where a genuine failure is reported properly.
+const TIMEZONE_AREAS: [&str; 15] = [
+    "Africa",
+    "America",
+    "Antarctica",
+    "Arctic",
+    "Asia",
+    "Atlantic",
+    "Australia",
+    "Brazil",
+    "Canada",
+    "Chile",
+    "Etc",
+    "Europe",
+    "Indian",
+    "Mexico",
+    "Pacific",
+];
+
+/// Zones that are a bare name with no area prefix, such as `UTC` or `GMT`.
+const TIMEZONE_BARE_NAMES: [&str; 5] = ["UTC", "GMT", "EST", "MST", "HST"];
+
+/// Check a timezone name against the known area prefixes.
 fn is_plausible_timezone(name: &str) -> bool {
     if name.len() < 3 || name.len() > 64 {
         return false;
     }
-    name.contains('/')
+    if TIMEZONE_BARE_NAMES.contains(&name) {
+        return true;
+    }
+    let Some((area, _)) = name.split_once('/') else {
+        return false;
+    };
+    TIMEZONE_AREAS.contains(&area)
         && name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '/' || c == '_' || c == '-' || c == '+')
@@ -833,21 +863,48 @@ pub fn edit_distance(a: &str, b: &str) -> usize {
 
 /// Suggest the closest name from `candidates`, or `None` if nothing is close.
 ///
-/// Threshold of three catches transpositions and abbreviations without
-/// inventing matches, which is the difference between a helpful hint and noise.
+/// Two strategies, because users misspell in two different ways:
+/// 1. **Truncation**, caught by prefix match. Typing `glow` for `glow_intensity`
+///    is nine characters away by edit distance, which no sane threshold would
+///    allow, but it is exactly what prefix matching is for.
+/// 2. **Typo**, caught by edit distance of three or less. A transposition or a
+///    dropped character lands here.
+///
+/// Prefix wins over typo, because "glow" almost always means the user wants a
+/// key that starts with what they typed, not one with three characters
+/// different. When several keys share a prefix, the shortest completion wins,
+/// since that leaves the fewest characters still to type.
 #[must_use]
 pub fn suggest<'a>(input: &str, candidates: &[&'a str]) -> Option<&'a str> {
-    let lower = input.to_ascii_lowercase();
-    let mut best: Option<(usize, &str)> = None;
-
-    for candidate in candidates {
-        let distance = edit_distance(&lower, &candidate.to_ascii_lowercase());
-        if distance <= 3 && best.is_none_or(|(d, _)| distance < d) {
-            best = Some((distance, candidate));
-        }
+    let lower = input.trim().to_ascii_lowercase();
+    if lower.is_empty() {
+        return None;
     }
 
-    best.map(|(_, candidate)| candidate)
+    // Strategy one: a candidate the user typed the start of. Prefer the shortest
+    // such candidate, since that is the least surprising completion.
+    let mut prefix_best: Option<(usize, &str)> = None;
+    for candidate in candidates {
+        let candidate_lower = candidate.to_ascii_lowercase();
+        if candidate_lower.starts_with(&lower) {
+            if prefix_best.is_none_or(|(len, _)| candidate_lower.len() < len) {
+                prefix_best = Some((candidate_lower.len(), candidate));
+            }
+        }
+    }
+    if let Some((_, candidate)) = prefix_best {
+        return Some(candidate);
+    }
+
+    // Strategy two: a near miss by edit distance.
+    let mut typo_best: Option<(usize, &str)> = None;
+    for candidate in candidates {
+        let distance = edit_distance(&lower, &candidate.to_ascii_lowercase());
+        if distance <= 3 && typo_best.is_none_or(|(d, _)| distance < d) {
+            typo_best = Some((distance, candidate));
+        }
+    }
+    typo_best.map(|(_, candidate)| candidate)
 }
 
 /// Valid `Position` identifiers, for suggestions.
@@ -1112,10 +1169,19 @@ mod tests {
     #[test]
     fn hotkey_parsing_is_order_and_case_independent() {
         let a = parse_hotkey("ctrl+alt+shift+f5").expect("parses");
-        let b = parse_hotkey("SHIFT+CTRL+F5").expect("parses");
-        let c = parse_hotkey("f5+alt+ctrl").expect("parses");
+        let b = parse_hotkey("SHIFT+ALT+CTRL+F5").expect("parses");
+        let c = parse_hotkey("f5+alt+shift+ctrl").expect("parses");
         assert_eq!(a, b);
         assert_eq!(a, c);
+    }
+
+    #[test]
+    fn hotkey_modifier_sets_are_not_conflated() {
+        // A different set of modifiers is a different hotkey, not a spelling
+        // variant of the same one.
+        let three = parse_hotkey("ctrl+alt+shift+f5").expect("parses");
+        let two = parse_hotkey("ctrl+shift+f5").expect("parses");
+        assert_ne!(three, two);
     }
 
     #[test]
@@ -1142,10 +1208,20 @@ mod tests {
     }
 
     #[test]
-    fn suggestions_find_near_misses_and_ignore_unrelated_words() {
-        assert_eq!(suggest("glow", &["glow_intensity", "glow_spread"]), Some("glow_intensity"));
+    fn suggestions_find_prefixes_and_near_misses_and_ignore_unrelated_words() {
+        // Prefix: the user typed the start of a key name. When several keys
+        // match, the shortest completion wins, which is the fewest characters
+        // left to type.
+        assert_eq!(suggest("glow", &["glow_intensity", "glow_spread"]), Some("glow_spread"));
+        assert_eq!(suggest("glow_intensity", &["glow_intensity", "glow_spread"]), Some("glow_intensity"));
+
+        // Typo: a transposition or a dropped character.
         assert_eq!(suggest("cyclng", &["cycling", "static"]), Some("cycling"));
+        assert_eq!(suggest("intensty", &["intensity"]), Some("intensity"));
+
+        // Nothing close, nothing suggested.
         assert_eq!(suggest("something_entirely_unrelated", &["glow_intensity"]), None);
+        assert_eq!(suggest("", &["glow_intensity"]), None);
     }
 
     #[test]
@@ -1169,8 +1245,13 @@ mod tests {
 
     #[test]
     fn reactive_crossover_is_ignored_when_the_engine_is_off() {
-        let (config, report) = run("[rgb]\nmode = \"static\"\n[rgb.reactive]\nbass_hz = 3000\nmid_hz = 2000\n");
-        assert_eq!(config.rgb.reactive.bass_hz, 3000, "inert settings are left alone");
+        // Both values are inside their own ranges, but the bass cutoff sits
+        // above the mid cutoff, which only matters for the reactive engine.
+        let (config, report) = run(
+            "[rgb]\nmode = \"static\"\n[rgb.reactive]\nbass_hz = 1900\nmid_hz = 1000\n",
+        );
+        assert_eq!(config.rgb.reactive.bass_hz, 1900, "inert settings are left alone");
+        assert_eq!(config.rgb.reactive.mid_hz, 1000, "inert settings are left alone");
         assert!(report.is_clean(), "{}", report.render());
     }
 

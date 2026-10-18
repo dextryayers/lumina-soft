@@ -18,11 +18,14 @@
 #![deny(missing_docs)]
 
 pub mod defaults;
+pub mod merge;
 pub mod profile;
 pub mod schema;
 pub mod theme;
 pub mod validate;
 pub mod watch;
+
+pub use merge::{expand_dotted, merge_tables, overlay_config};
 
 pub use schema::{
     AppearanceConfig, AdvancedConfig, AudioConfig, AudioBackend, AudioSource, BackdropMode,

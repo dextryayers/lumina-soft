@@ -104,6 +104,15 @@ pub struct ThemeStore {
 }
 
 impl ThemeStore {
+    /// A store with no themes registered.
+    ///
+    /// Useful in tests and when a user has an empty themes directory, where
+    /// only the built-in themes would otherwise be present.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
     /// Load every `.toml` file in `directory`, plus the built-in themes.
     ///
     /// A theme that fails to parse is reported and skipped. One malformed file
@@ -206,33 +215,17 @@ impl ThemeStore {
         // parent's. One level only, matching profiles.
         if !theme.extends.is_empty() && !theme.extends.eq_ignore_ascii_case(name) {
             if let Some(parent) = self.get(&theme.extends) {
-                working = overlay(&working, &parent.overrides);
+                if !parent.overrides.is_empty() {
+                    working = crate::merge::overlay_config(&working, &parent.overrides);
+                }
             }
         }
 
         if !theme.overrides.is_empty() {
-            working = overlay(&working, &theme.overrides);
+            working = crate::merge::overlay_config(&working, &theme.overrides);
         }
 
         working
-    }
-}
-
-/// Merge a partial TOML document over a full configuration.
-fn overlay(base: &Config, partial: &toml::Table) -> Config {
-    // Serialise the base, then append the partial. Because every schema field is
-    // `#[serde(default)]`, absent keys in the partial keep the base value. This
-    // reuses serde rather than hand walking the table, so a theme uses exactly
-    // the same syntax as a profile and there is no third dialect to document.
-    let mut text = base.to_toml_string();
-    text.push('\n');
-
-    match toml::to_string(partial) {
-        Ok(partial_text) if !partial_text.is_empty() => {
-            text.push_str(&partial_text);
-            toml::from_str(&text).unwrap_or_else(|_| base.clone())
-        }
-        _ => base.clone(),
     }
 }
 
@@ -450,11 +443,17 @@ mod tests {
     #[test]
     fn all_builtin_themes_parse_and_validate_clean() {
         for (name, theme) in builtin_themes() {
-            assert!(!theme.is_empty(), "{name} has no content");
+            // The default theme is deliberately empty: it exists so the tray can
+            // offer "back to default" as a real choice, and it must be a no-op.
+            if name == "default" {
+                assert!(theme.is_empty(), "the default theme must change nothing");
+            } else {
+                assert!(!theme.is_empty(), "{name} has no content");
+            }
 
             let base = Config::default();
             let applied = ThemeStore::empty().with_theme(name, theme.clone()).apply(&base, name);
-            let (checked, report) = validate(applied);
+            let (checked, report) = validate(applied.clone());
             assert!(
                 report.is_clean(),
                 "theme {name} produces invalid settings: {}",
@@ -584,7 +583,7 @@ mod tests {
     }
 
     #[test]
-    fn a_theme_with_a_background_still_validates() {
+fn a_theme_with_a_background_still_validates() {
         let theme = theme_from(
             r##"
             name = "WithImage"
@@ -594,15 +593,16 @@ mod tests {
             blur_strength = 0.8
             opacity = 0.4
             mode = "tile"
-        "##,
+            "##,
         );
         assert!(theme.background.is_some());
         let background = theme.background.as_ref().expect("present");
         assert_eq!(background.mode, BackgroundMode::Tile);
 
-        let (checked, report) = validate(ThemeStore::empty().with_theme("t", theme).apply(&Config::default(), "t"));
+        let applied = ThemeStore::empty().with_theme("t", theme).apply(&Config::default(), "t");
+        let (checked, report) = validate(applied.clone());
         assert!(report.is_clean(), "{}", report.render());
-        let _ = checked;
+        assert_eq!(checked, applied, "validation must not alter a valid theme result");
     }
 
     impl ThemeStore {

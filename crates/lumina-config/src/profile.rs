@@ -40,7 +40,9 @@ pub struct Profile {
     /// Overrides, written with dotted paths such as `rgb.mode`.
     ///
     /// A `BTreeMap` rather than a struct so a profile can contain any subset of
-    /// keys, which is the entire point of a profile.
+    /// keys, which is the entire point of a profile. Quoted dotted keys are
+    /// expanded into nested tables before merging, so `"rgb.mode" = "reactive"`
+    /// and `[profiles.name.rgb] mode = "reactive"` mean the same thing.
     #[serde(flatten)]
     pub overrides: BTreeMap<String, toml::Value>,
 }
@@ -175,46 +177,16 @@ impl ProfileStore {
         let Some(profile) = self.profiles.get(&self.active) else {
             return base.clone();
         };
-
-        // Build the overlay as a partial TOML document and let serde fill in the
-        // gaps from the base. Reusing serde here rather than hand walking a map
-        // means the profile syntax is exactly the config syntax, with no second
-        // dialect to document.
-        let mut overlay: BTreeMap<&str, toml::Value> = BTreeMap::new();
-        for (path, value) in &profile.overrides {
-            // Only dotted paths are supported, which keeps the merge simple and
-            // unambiguous.
-            let Some((section, key)) = path.split_once('.') else {
-                continue;
-            };
-            let entry = overlay.entry(section).or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
-            if let toml::Value::Table(table) = entry {
-                table.insert(key.to_string(), value.clone());
-            }
-        }
-
-        if overlay.is_empty() {
+        if profile.overrides.is_empty() {
             return base.clone();
         }
 
-        let overlay_text = toml::to_string(
-            &overlay
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v))
-                .collect::<toml::Table>(),
-        )
-        .unwrap_or_default();
-
-        // Deserialize the overlay on top of the base. Because every field is
-        // `#[serde(default)]`, absent keys keep the base value.
-        let base_text = base.to_toml_string();
-        let mut merged = base_text;
-        if !overlay_text.is_empty() {
-            merged.push('\n');
-            merged.push_str(&overlay_text);
-        }
-
-        toml::from_str(&merged).unwrap_or_else(|_| base.clone())
+        // Rebuild the flat dotted map into a nested TOML document and hand it
+        // to the shared overlay, so profiles and themes layer identically.
+        let flat = toml::Table::from_iter(
+            profile.overrides.iter().map(|(k, v)| (k.clone(), v.clone())),
+        );
+        crate::merge::overlay_config(base, &flat)
     }
 
     /// Resolve the effective configuration for the active profile.
@@ -309,13 +281,15 @@ mod tests {
 
     #[test]
     fn unknown_default_profile_is_reported_not_fatal() {
+        // `default` must come before any `[profiles.x]` table, otherwise TOML
+        // scoping puts it inside that table instead of at the section root.
         let section = section(
             r#"
+            default = "nonexistent"
+
             [profiles.gaming]
             "rgb.mode" = "reactive"
-
-            default = "nonexistent"
-        "#,
+            "#,
         );
         let (store, problems) = ProfileStore::from_section(section);
         assert_eq!(problems.len(), 1);

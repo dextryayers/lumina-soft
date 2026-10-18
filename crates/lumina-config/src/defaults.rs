@@ -57,7 +57,7 @@ pub fn rgb_defaults() -> ColorDefaults {
 /// Text colour defaults.
 #[must_use]
 pub fn text_defaults() -> TextColors {
-    TextColors { color: "#FFFFFFFF", dim_color: "#B3FFFFFFFF" }
+    TextColors { color: "#FFFFFFFF", dim_color: "#B3FFFFFF" }
 }
 
 /// Numeric reference values for the validator's repair messages.

@@ -568,16 +568,22 @@ impl Default for AudioBackend {
 }
 
 /// FFT window size, named because the raw numbers are meaningless to a user.
+///
+/// The variant names carry a digit run that `rename_all = "kebab-case"` cannot
+/// split, so each variant is renamed explicitly rather than by attribute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
 pub enum FftSize {
     /// 1024 samples.
+    #[serde(rename = "size-1024")]
     Size1024,
     /// 2048 samples.
+    #[serde(rename = "size-2048")]
     Size2048,
     /// 4096 samples. The default, which resolves the low end at 48 kHz.
+    #[serde(rename = "size-4096")]
     Size4096,
     /// 8192 samples.
+    #[serde(rename = "size-8192")]
     Size8192,
 }
 
@@ -595,6 +601,17 @@ impl FftSize {
 
     /// All variants.
     pub const ALL: [Self; 4] = [Self::Size1024, Self::Size2048, Self::Size4096, Self::Size8192];
+
+    /// The identifier as it appears in the file.
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Size1024 => "size-1024",
+            Self::Size2048 => "size-2048",
+            Self::Size4096 => "size-4096",
+            Self::Size8192 => "size-8192",
+        }
+    }
 }
 
 impl Default for FftSize {
@@ -771,12 +788,16 @@ pub struct ClockConfig {
 }
 
 /// Clock hour format.
+///
+/// Renamed explicitly because `rename_all = "kebab-case"` would turn `H12`
+/// into `h12`, and users write `12h`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
 pub enum ClockFormat {
     /// 12 hour with an am or pm suffix.
+    #[serde(rename = "12h")]
     H12,
     /// 24 hour.
+    #[serde(rename = "24h")]
     H24,
 }
 
