@@ -27,17 +27,17 @@ pub mod watch;
 
 pub use merge::{expand_dotted, merge_tables, overlay_config};
 
+pub use profile::{resolve, ProfileStore};
 pub use schema::{
-    AppearanceConfig, AdvancedConfig, AudioConfig, AudioBackend, AudioSource, BackdropMode,
+    AdvancedConfig, AppearanceConfig, AudioBackend, AudioConfig, AudioSource, BackdropMode,
     BatteryConfig, ClockConfig, ClockFormat, Config, FftSize, FontWeight, GeneralConfig,
     GpuBackend, HotkeysConfig, LayoutAlign, LayoutConfig, LogLevel, MediaConfig, MetricsConfig,
-    MonitorSelector, MotionConfig, NetworkConfig, NetworkUnit, PomodoroConfig, Position, RgbConfig,
-    RgbMode, ReactiveConfig, ShortcutConfig, ShortcutsConfig, SpectrumConfig, TextConfig, TrayConfig,
-    VisualizerStyle, WeatherConfig, WeatherProvider, WeatherUnits, WidgetConfig, WidgetEntry,
-    WidgetRgb,
+    MonitorSelector, MotionConfig, NetworkConfig, NetworkUnit, PomodoroConfig, Position,
+    ReactiveConfig, RgbConfig, RgbMode, ShortcutConfig, ShortcutsConfig, SpectrumConfig,
+    TextConfig, TrayConfig, VisualizerStyle, WeatherConfig, WeatherProvider, WeatherUnits,
+    WidgetConfig, WidgetEntry, WidgetRgb,
 };
-pub use validate::{Issue, Severity, ValidationReport, validate};
-pub use profile::{ProfileStore, resolve};
+pub use validate::{validate, Issue, Severity, ValidationReport};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

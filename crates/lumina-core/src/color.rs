@@ -1,4 +1,4 @@
-﻿//! Color: sRGB, linear light, OkLab, palette mixing, and WCAG contrast.
+//! Color: sRGB, linear light, OkLab, palette mixing, and WCAG contrast.
 //!
 //! # Why OkLab
 //!
@@ -77,7 +77,11 @@ impl OkLab {
     #[must_use]
     pub fn with_lightness(self, lightness: f32) -> Self {
         // `f32::clamp` propagates NaN, so guard before clamping.
-        let l = if lightness.is_finite() { lightness.clamp(0.0, 1.0) } else { self.l };
+        let l = if lightness.is_finite() {
+            lightness.clamp(0.0, 1.0)
+        } else {
+            self.l
+        };
         Self::new(l, self.a, self.b)
     }
 
@@ -268,7 +272,12 @@ impl Srgb {
     #[must_use]
     pub fn to_premultiplied(self) -> [f32; 4] {
         let a = clamp01(self.a);
-        [clamp01(self.r) * a, clamp01(self.g) * a, clamp01(self.b) * a, a]
+        [
+            clamp01(self.r) * a,
+            clamp01(self.g) * a,
+            clamp01(self.b) * a,
+            a,
+        ]
     }
 
     /// Format as `#RRGGBB` when opaque or `#RRGGBBAA` otherwise.
@@ -330,8 +339,7 @@ impl Palette {
             glow: mix(self.glow, other.glow),
             text: mix(self.text, other.text),
             text_dim: mix(self.text_dim, other.text_dim),
-            glow_intensity: self.glow_intensity
-                + (other.glow_intensity - self.glow_intensity) * t,
+            glow_intensity: self.glow_intensity + (other.glow_intensity - self.glow_intensity) * t,
         }
     }
 
@@ -385,7 +393,11 @@ impl Palette {
         let mut best: Option<(f32, OkLab, OkLab, f32)> = None;
 
         for step in 0..=100 {
-            let l = if lighten { step as f32 / 100.0 } else { 1.0 - step as f32 / 100.0 };
+            let l = if lighten {
+                step as f32 / 100.0
+            } else {
+                1.0 - step as f32 / 100.0
+            };
             let text = original_text.with_lightness(l);
             let dim = original_dim.with_lightness(l);
             let text_srgb = srgb_from_oklab(text, original_text_alpha);
@@ -473,7 +485,11 @@ pub fn parse_hex(input: &str) -> Option<Srgb> {
             let r = expand(chars[0]);
             let g = expand(chars[1]);
             let b = expand(chars[2]);
-            let a = if chars.len() == 4 { expand(chars[3]) } else { 255 };
+            let a = if chars.len() == 4 {
+                expand(chars[3])
+            } else {
+                255
+            };
             Some(Srgb::from_rgba8(r, g, b, a))
         }
         6 | 8 => {
@@ -649,7 +665,10 @@ mod tests {
         for step in 0..=100 {
             let v = step as f32 / 100.0;
             let round = linear_to_srgb(srgb_to_linear(v));
-            assert!((round - v).abs() < 1e-5, "round trip failed at {v}: got {round}");
+            assert!(
+                (round - v).abs() < 1e-5,
+                "round trip failed at {v}: got {round}"
+            );
         }
     }
 
@@ -696,10 +715,10 @@ mod tests {
         // have to produce strictly increasing relative luminance across a range
         // of hues.
         for base in [
-            OkLab::new(0.5, 0.0, 0.0),          // neutral
-            OkLab::new(0.5, 0.15, -0.12),       // violet
-            OkLab::new(0.5, -0.12, 0.10),       // green
-            OkLab::new(0.5, 0.10, 0.14),        // orange
+            OkLab::new(0.5, 0.0, 0.0),    // neutral
+            OkLab::new(0.5, 0.15, -0.12), // violet
+            OkLab::new(0.5, -0.12, 0.10), // green
+            OkLab::new(0.5, 0.10, 0.14),  // orange
         ] {
             let mut previous = f32::NEG_INFINITY;
             for step in 0..=40 {
@@ -729,9 +748,8 @@ mod tests {
         let mut srgb_max_shift: f32 = 0.0;
 
         for factor in [0.4f32, 0.7, 1.0, 1.4, 1.8] {
-            oklab_max_shift = oklab_max_shift.max(
-                (base.scaled_lightness(factor).hue() - base_hue).abs(),
-            );
+            oklab_max_shift =
+                oklab_max_shift.max((base.scaled_lightness(factor).hue() - base_hue).abs());
             srgb_max_shift = srgb_max_shift.max(
                 (Srgb::new(
                     base_rgb[0] * factor,
@@ -742,7 +760,7 @@ mod tests {
                 .to_oklab()
                 .hue()
                     - base_hue)
-                .abs(),
+                    .abs(),
             );
         }
 
@@ -781,7 +799,10 @@ mod tests {
         let start = Srgb::new(0.486, 0.231, 0.929, 1.0).to_oklab();
         for factor in [0.0f32, 0.5, 1.0, 2.0] {
             let scaled = start.scaled_chroma(factor);
-            assert!((scaled.l - start.l).abs() < 1e-5, "saturation changed lightness");
+            assert!(
+                (scaled.l - start.l).abs() < 1e-5,
+                "saturation changed lightness"
+            );
             let expected = start.chroma() * factor;
             assert!((scaled.chroma() - expected).abs() < 1e-4);
         }
@@ -820,14 +841,31 @@ mod tests {
         assert_eq!(parse_hex("#FF0000"), Some(Srgb::from_rgba8(255, 0, 0, 255)));
         assert_eq!(parse_hex("ff0000"), Some(Srgb::from_rgba8(255, 0, 0, 255)));
         assert_eq!(parse_hex("#F00"), Some(Srgb::from_rgba8(255, 0, 0, 255)));
-        assert_eq!(parse_hex("#FF000080").map(|c| (c.a * 255.0).round() as u8), Some(128));
-        assert_eq!(parse_hex("#F00F").map(|c| (c.a * 255.0).round() as u8), Some(255));
-        assert_eq!(parse_hex("  #1A1A2E  "), Some(Srgb::from_rgba8(0x1A, 0x1A, 0x2E, 255)));
+        assert_eq!(
+            parse_hex("#FF000080").map(|c| (c.a * 255.0).round() as u8),
+            Some(128)
+        );
+        assert_eq!(
+            parse_hex("#F00F").map(|c| (c.a * 255.0).round() as u8),
+            Some(255)
+        );
+        assert_eq!(
+            parse_hex("  #1A1A2E  "),
+            Some(Srgb::from_rgba8(0x1A, 0x1A, 0x2E, 255))
+        );
     }
 
     #[test]
     fn parse_hex_rejects_malformed_input() {
-        for bad in ["", "#", "#12345", "#GGGGGG", "#FF00FF0", "rgb(1,2,3)", "#FF00FF "] {
+        for bad in [
+            "",
+            "#",
+            "#12345",
+            "#GGGGGG",
+            "#FF00FF0",
+            "rgb(1,2,3)",
+            "#FF00FF ",
+        ] {
             // Trailing space is trimmed, so "#FF00FF " is valid; check the rest.
             if bad == "#FF00FF " {
                 assert!(parse_hex(bad).is_some());
@@ -955,8 +993,16 @@ mod tests {
 
     #[test]
     fn palette_lerp_hits_both_endpoints() {
-        let a = Palette { fill: Srgb::WHITE, glow: Srgb::BLACK, ..Palette::default() };
-        let b = Palette { fill: Srgb::BLACK, glow: Srgb::WHITE, ..Palette::default() };
+        let a = Palette {
+            fill: Srgb::WHITE,
+            glow: Srgb::BLACK,
+            ..Palette::default()
+        };
+        let b = Palette {
+            fill: Srgb::BLACK,
+            glow: Srgb::WHITE,
+            ..Palette::default()
+        };
 
         // Compare in 8 bit space because a round trip through OkLab is accurate
         // to about 1e-6, which is finer than any color a display can show.
@@ -976,13 +1022,22 @@ mod tests {
         );
         // And the crossing is monotonic: the first quarter stays near white.
         let quarter = a.lerp(b, 0.25);
-        assert!(quarter.fill.to_oklab().l > 0.7, "the first quarter should stay light");
+        assert!(
+            quarter.fill.to_oklab().l > 0.7,
+            "the first quarter should stay light"
+        );
     }
 
     #[test]
     fn palette_lerp_preserves_alpha_endpoints() {
-        let a = Palette { fill: Srgb::new(1.0, 0.0, 0.0, 0.2), ..Palette::default() };
-        let b = Palette { fill: Srgb::new(0.0, 1.0, 0.0, 0.8), ..Palette::default() };
+        let a = Palette {
+            fill: Srgb::new(1.0, 0.0, 0.0, 0.2),
+            ..Palette::default()
+        };
+        let b = Palette {
+            fill: Srgb::new(0.0, 1.0, 0.0, 0.8),
+            ..Palette::default()
+        };
         assert!((a.lerp(b, 0.0).fill.a - 0.2).abs() < 1e-5);
         assert!((a.lerp(b, 1.0).fill.a - 0.8).abs() < 1e-5);
         assert!((a.lerp(b, 0.5).fill.a - 0.5).abs() < 1e-5);
@@ -999,7 +1054,11 @@ mod tests {
 
         let first = extract_dominant_colors(&pixels, 4);
         for _ in 0..5 {
-            assert_eq!(extract_dominant_colors(&pixels, 4), first, "extraction is not deterministic");
+            assert_eq!(
+                extract_dominant_colors(&pixels, 4),
+                first,
+                "extraction is not deterministic"
+            );
         }
         assert_eq!(first.len(), 4);
     }
@@ -1032,7 +1091,10 @@ mod tests {
             .copied()
             .expect("at least one color");
         let [r, g, _] = most_chromatic.to_oklab().to_srgb();
-        assert!(r > 0.6 && g < 0.3, "should have found the red cluster, got {r} {g}");
+        assert!(
+            r > 0.6 && g < 0.3,
+            "should have found the red cluster, got {r} {g}"
+        );
     }
 
     #[test]

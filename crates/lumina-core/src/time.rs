@@ -37,7 +37,9 @@ impl Clock {
     /// Start a clock now.
     #[must_use]
     pub fn new() -> Self {
-        Self { origin: Instant::now() }
+        Self {
+            origin: Instant::now(),
+        }
     }
 
     /// Seconds elapsed since construction.
@@ -82,7 +84,11 @@ impl FixedStepAccumulator {
     /// Construct with an explicit step size and a cap on steps per call.
     #[must_use]
     pub fn new(step: Duration, max_steps: u32) -> Self {
-        Self { step: step.max(Duration::from_micros(100)), accumulator: Duration::ZERO, max_steps: max_steps.max(1) }
+        Self {
+            step: step.max(Duration::from_micros(100)),
+            accumulator: Duration::ZERO,
+            max_steps: max_steps.max(1),
+        }
     }
 
     /// Construct with [`DEFAULT_SIM_STEP`].
@@ -260,7 +266,11 @@ impl Ema {
     /// Lower alpha means more smoothing and more lag.
     #[must_use]
     pub fn new(alpha: f32) -> Self {
-        Self { value: 0.0, alpha: alpha.clamp(0.001, 1.0), initialized: false }
+        Self {
+            value: 0.0,
+            alpha: alpha.clamp(0.001, 1.0),
+            initialized: false,
+        }
     }
 
     /// Feed a sample.
@@ -348,7 +358,11 @@ mod tests {
         let mut acc = FixedStepAccumulator::new(Duration::from_millis(10), 3);
         // A 10 second stall would be 1000 steps without the cap.
         assert_eq!(acc.steps(Duration::from_secs(10)), 3);
-        assert_eq!(acc.remainder(), Duration::ZERO, "leftover must be dropped, not carried");
+        assert_eq!(
+            acc.remainder(),
+            Duration::ZERO,
+            "leftover must be dropped, not carried"
+        );
 
         // And the next frame is not stuck trying to catch up.
         assert_eq!(acc.steps(Duration::from_millis(10)), 1);
@@ -357,7 +371,10 @@ mod tests {
     #[test]
     fn accumulator_rejects_degenerate_step_sizes() {
         let mut acc = FixedStepAccumulator::new(Duration::ZERO, 0);
-        assert!(acc.step() >= Duration::from_micros(100), "zero step must be clamped");
+        assert!(
+            acc.step() >= Duration::from_micros(100),
+            "zero step must be clamped"
+        );
         assert!(acc.steps(Duration::from_millis(1)) <= 1);
     }
 
@@ -368,7 +385,11 @@ mod tests {
         assert_eq!(steps, 0, "9 ms is less than one 10 ms step");
         assert_eq!(acc.remainder(), Duration::from_millis(9));
         acc.set_step(Duration::from_millis(5));
-        assert_eq!(acc.remainder(), Duration::ZERO, "step change must not cause a burst");
+        assert_eq!(
+            acc.remainder(),
+            Duration::ZERO,
+            "step change must not cause a burst"
+        );
     }
 
     #[test]
@@ -438,7 +459,10 @@ mod tests {
         let start = Instant::now();
         pacer.record_submit(start);
         assert!(pacer.time_until_next(start) > Duration::ZERO);
-        assert_eq!(pacer.time_until_next(start + Duration::from_secs(1)), Duration::ZERO);
+        assert_eq!(
+            pacer.time_until_next(start + Duration::from_secs(1)),
+            Duration::ZERO
+        );
     }
 
     #[test]
@@ -461,7 +485,10 @@ mod tests {
     fn ema_ignores_non_finite_samples() {
         let mut ema = Ema::new(0.5);
         ema.update(f32::NAN);
-        assert!(!ema.is_initialized(), "a NaN must not initialize the average");
+        assert!(
+            !ema.is_initialized(),
+            "a NaN must not initialize the average"
+        );
         ema.update(10.0);
         ema.update(f32::INFINITY);
         assert_eq!(ema.value(), 10.0);
@@ -473,7 +500,10 @@ mod tests {
         clamped_low.update(10.0);
         clamped_low.update(0.0);
         // An alpha clamped just above zero keeps almost all of the old value.
-        assert!(clamped_low.value() > 9.0, "alpha 0 should mean almost no movement");
+        assert!(
+            clamped_low.value() > 9.0,
+            "alpha 0 should mean almost no movement"
+        );
 
         let clamped_high = Ema::new(99.0);
         assert!(clamped_high.alpha <= 1.0);

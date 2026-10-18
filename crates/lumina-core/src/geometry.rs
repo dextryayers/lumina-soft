@@ -82,7 +82,10 @@ pub struct Size {
 
 impl Size {
     /// The zero size.
-    pub const ZERO: Self = Self { width: 0.0, height: 0.0 };
+    pub const ZERO: Self = Self {
+        width: 0.0,
+        height: 0.0,
+    };
 
     /// Construct from components.
     #[must_use]
@@ -121,18 +124,33 @@ pub struct Rect {
 
 impl Rect {
     /// A rectangle at the origin with zero extent.
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, width: 0.0, height: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        width: 0.0,
+        height: 0.0,
+    };
 
     /// Construct from origin and size.
     #[must_use]
     pub const fn new(x: Scalar, y: Scalar, width: Scalar, height: Scalar) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     /// Construct from origin and a [`Size`].
     #[must_use]
     pub const fn from_size(origin: Vec2, size: Size) -> Self {
-        Self { x: origin.x, y: origin.y, width: size.width, height: size.height }
+        Self {
+            x: origin.x,
+            y: origin.y,
+            width: size.width,
+            height: size.height,
+        }
     }
 
     /// Left edge.
@@ -228,7 +246,12 @@ impl Rect {
         let top = self.top().min(other.top());
         let right = self.right().max(other.right());
         let bottom = self.bottom().max(other.bottom());
-        Self { x: left, y: top, width: right - left, height: bottom - top }
+        Self {
+            x: left,
+            y: top,
+            width: right - left,
+            height: bottom - top,
+        }
     }
 
     /// Intersection, or [`Rect::ZERO`] when the inputs are disjoint.
@@ -241,7 +264,12 @@ impl Rect {
         if right <= left || bottom <= top {
             return Self::ZERO;
         }
-        Self { x: left, y: top, width: right - left, height: bottom - top }
+        Self {
+            x: left,
+            y: top,
+            width: right - left,
+            height: bottom - top,
+        }
     }
 
     /// True when the rectangles share any area.
@@ -256,7 +284,10 @@ impl Rect {
     /// True when every component is finite.
     #[must_use]
     pub fn is_finite(self) -> bool {
-        self.x.is_finite() && self.y.is_finite() && self.width.is_finite() && self.height.is_finite()
+        self.x.is_finite()
+            && self.y.is_finite()
+            && self.width.is_finite()
+            && self.height.is_finite()
     }
 }
 
@@ -275,18 +306,33 @@ pub struct Insets {
 
 impl Insets {
     /// Zero insets.
-    pub const ZERO: Self = Self { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 };
+    pub const ZERO: Self = Self {
+        left: 0.0,
+        top: 0.0,
+        right: 0.0,
+        bottom: 0.0,
+    };
 
     /// Uniform spacing on all sides.
     #[must_use]
     pub const fn uniform(value: Scalar) -> Self {
-        Self { left: value, top: value, right: value, bottom: value }
+        Self {
+            left: value,
+            top: value,
+            right: value,
+            bottom: value,
+        }
     }
 
     /// Horizontal and vertical spacing.
     #[must_use]
     pub const fn symmetric(horizontal: Scalar, vertical: Scalar) -> Self {
-        Self { left: horizontal, right: horizontal, top: vertical, bottom: vertical }
+        Self {
+            left: horizontal,
+            right: horizontal,
+            top: vertical,
+            bottom: vertical,
+        }
     }
 
     /// Total horizontal extent consumed.
@@ -370,8 +416,18 @@ impl Geometry {
     /// Construct without clamping. Prefer [`Geometry::clamped`] for any value
     /// that originated in user configuration.
     #[must_use]
-    pub const fn new(half_top: Scalar, half_bottom: Scalar, height: Scalar, radius: Scalar) -> Self {
-        Self { half_top, half_bottom, height, radius }
+    pub const fn new(
+        half_top: Scalar,
+        half_bottom: Scalar,
+        height: Scalar,
+        radius: Scalar,
+    ) -> Self {
+        Self {
+            half_top,
+            half_bottom,
+            height,
+            radius,
+        }
     }
 
     /// Half height.
@@ -425,7 +481,10 @@ impl Geometry {
     /// the window must cover to fit the glow without clipping.
     #[must_use]
     pub fn padded_size(self, padding: Scalar) -> Size {
-        Size::new(self.full_width() + padding * 2.0, self.height + padding * 2.0)
+        Size::new(
+            self.full_width() + padding * 2.0,
+            self.height + padding * 2.0,
+        )
     }
 
     /// Corner radius limited to something the shape can actually accommodate.
@@ -435,7 +494,10 @@ impl Geometry {
     /// top half width.
     #[must_use]
     pub fn effective_radius(self) -> Scalar {
-        self.radius.min(self.half_h()).min(self.half_top * 0.5).max(0.0)
+        self.radius
+            .min(self.half_h())
+            .min(self.half_top * 0.5)
+            .max(0.0)
     }
 
     /// Clamp every component into the documented range and repair the inverted
@@ -446,18 +508,34 @@ impl Geometry {
     /// reasoned about.
     #[must_use]
     pub fn clamped(self) -> Self {
-        use limits::{MIN_HALF_WIDTH, MAX_HALF_WIDTH, MIN_HEIGHT, MAX_HEIGHT, MAX_RADIUS};
+        use limits::{MAX_HALF_WIDTH, MAX_HEIGHT, MAX_RADIUS, MIN_HALF_WIDTH, MIN_HEIGHT};
 
         let fallback = Self::default();
 
-        let half_top = if self.half_top.is_finite() { self.half_top } else { fallback.half_top }
-            .clamp(MIN_HALF_WIDTH, MAX_HALF_WIDTH);
-        let half_bottom = if self.half_bottom.is_finite() { self.half_bottom } else { fallback.half_bottom }
-            .clamp(MIN_HALF_WIDTH, MAX_HALF_WIDTH);
-        let height = if self.height.is_finite() { self.height } else { fallback.height }
-            .clamp(MIN_HEIGHT, MAX_HEIGHT);
-        let radius = if self.radius.is_finite() { self.radius } else { fallback.radius }
-            .clamp(0.0, MAX_RADIUS);
+        let half_top = if self.half_top.is_finite() {
+            self.half_top
+        } else {
+            fallback.half_top
+        }
+        .clamp(MIN_HALF_WIDTH, MAX_HALF_WIDTH);
+        let half_bottom = if self.half_bottom.is_finite() {
+            self.half_bottom
+        } else {
+            fallback.half_bottom
+        }
+        .clamp(MIN_HALF_WIDTH, MAX_HALF_WIDTH);
+        let height = if self.height.is_finite() {
+            self.height
+        } else {
+            fallback.height
+        }
+        .clamp(MIN_HEIGHT, MAX_HEIGHT);
+        let radius = if self.radius.is_finite() {
+            self.radius
+        } else {
+            fallback.radius
+        }
+        .clamp(0.0, MAX_RADIUS);
 
         // Enforce the invariant by swapping rather than by clamping one side down.
         // A configuration with `bottom_half_width` wider than `top_half_width`
@@ -470,7 +548,12 @@ impl Geometry {
             (half_bottom, half_top)
         };
 
-        Self { half_top, half_bottom, height, radius: radius.min(height * 0.5).min(half_top * 0.5) }
+        Self {
+            half_top,
+            half_bottom,
+            height,
+            radius: radius.min(height * 0.5).min(half_top * 0.5),
+        }
     }
 
     /// Linearly interpolate every component.
@@ -507,7 +590,12 @@ impl Geometry {
 impl Default for Geometry {
     /// The shipped default: a 124 px wide, 36 px tall island with 18 px corners.
     fn default() -> Self {
-        Self { half_top: 62.0, half_bottom: 54.0, height: 36.0, radius: 18.0 }
+        Self {
+            half_top: 62.0,
+            half_bottom: 54.0,
+            height: 36.0,
+            radius: 18.0,
+        }
     }
 }
 
@@ -525,7 +613,10 @@ mod tests {
 
         assert!(rect.contains(Vec2::new(10.0, 20.0)));
         assert!(rect.contains(Vec2::new(109.9, 69.9)));
-        assert!(!rect.contains(Vec2::new(110.0, 45.0)), "far edge is exclusive");
+        assert!(
+            !rect.contains(Vec2::new(110.0, 45.0)),
+            "far edge is exclusive"
+        );
         assert!(!rect.contains(Vec2::new(9.9, 45.0)));
     }
 
@@ -567,7 +658,10 @@ mod tests {
         // The user typed the two keys the wrong way round.
         let bad = Geometry::new(50.0, 200.0, 40.0, 10.0);
         let fixed = bad.clamped();
-        assert!(fixed.is_inverted_trapezoid(), "top must end up at least as wide as bottom");
+        assert!(
+            fixed.is_inverted_trapezoid(),
+            "top must end up at least as wide as bottom"
+        );
         assert_eq!(
             fixed.half_top, 200.0,
             "swapping preserves the shape the user described rather than discarding a value"

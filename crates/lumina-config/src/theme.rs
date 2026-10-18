@@ -1,4 +1,4 @@
-﻿//! Themes: reusable appearance bundles.
+//! Themes: reusable appearance bundles.
 //!
 //! A theme is a partial configuration file containing only the keys it changes,
 //! plus an optional background image. Users drop a file into the themes
@@ -46,7 +46,10 @@ impl Theme {
         if !self.name.is_empty() {
             return self.name.clone();
         }
-        path.file_stem().map_or_else(|| "Unnamed".to_string(), |s| s.to_string_lossy().into_owned())
+        path.file_stem().map_or_else(
+            || "Unnamed".to_string(),
+            |s| s.to_string_lossy().into_owned(),
+        )
     }
 
     /// True when this theme changes anything at all.
@@ -156,7 +159,8 @@ impl ThemeStore {
     /// Register the themes that ship with Lumina.
     fn add_built_in(&mut self) {
         for (name, theme) in builtin_themes() {
-            self.themes.push((name.to_string(), theme, PathBuf::from(name)));
+            self.themes
+                .push((name.to_string(), theme, PathBuf::from(name)));
         }
     }
 
@@ -168,7 +172,10 @@ impl ThemeStore {
     /// Theme names in menu order.
     #[must_use]
     pub fn names(&self) -> Vec<&str> {
-        self.themes.iter().map(|(name, _, _)| name.as_str()).collect()
+        self.themes
+            .iter()
+            .map(|(name, _, _)| name.as_str())
+            .collect()
     }
 
     /// Look up a theme by name, case insensitive.
@@ -452,14 +459,19 @@ mod tests {
             }
 
             let base = Config::default();
-            let applied = ThemeStore::empty().with_theme(name, theme.clone()).apply(&base, name);
+            let applied = ThemeStore::empty()
+                .with_theme(name, theme.clone())
+                .apply(&base, name);
             let (checked, report) = validate(applied.clone());
             assert!(
                 report.is_clean(),
                 "theme {name} produces invalid settings: {}",
                 report.render()
             );
-            assert_eq!(checked, applied, "theme {name} must not be altered by validation");
+            assert_eq!(
+                checked, applied,
+                "theme {name} must not be altered by validation"
+            );
         }
     }
 
@@ -507,7 +519,10 @@ mod tests {
         assert_eq!(child.rgb.glow_intensity, 1.2);
         // The parent's keys come through.
         assert_eq!(child.appearance.fill, parent.appearance.fill);
-        assert_eq!(child.appearance.corner_radius, parent.appearance.corner_radius);
+        assert_eq!(
+            child.appearance.corner_radius,
+            parent.appearance.corner_radius
+        );
     }
 
     #[test]
@@ -543,7 +558,10 @@ mod tests {
     fn glass_theme_requests_backdrop_blur() {
         let store = ThemeStore::empty().with_theme("glass", glass_theme());
         let themed = store.apply(&Config::default(), "glass");
-        assert_eq!(themed.appearance.backdrop_blur, crate::schema::BackdropMode::On);
+        assert_eq!(
+            themed.appearance.backdrop_blur,
+            crate::schema::BackdropMode::On
+        );
     }
 
     #[test]
@@ -570,7 +588,10 @@ mod tests {
         let unnamed = Theme::default();
         assert_eq!(unnamed.display_name(path), "my-look");
 
-        let named = Theme { name: "Pretty Name".to_string(), ..Theme::default() };
+        let named = Theme {
+            name: "Pretty Name".to_string(),
+            ..Theme::default()
+        };
         assert_eq!(named.display_name(path), "Pretty Name");
     }
 
@@ -583,7 +604,7 @@ mod tests {
     }
 
     #[test]
-fn a_theme_with_a_background_still_validates() {
+    fn a_theme_with_a_background_still_validates() {
         let theme = theme_from(
             r#"
             name = "WithImage"
@@ -599,10 +620,15 @@ fn a_theme_with_a_background_still_validates() {
         let background = theme.background.as_ref().expect("present");
         assert_eq!(background.mode, BackgroundMode::Tile);
 
-        let applied = ThemeStore::empty().with_theme("t", theme).apply(&Config::default(), "t");
+        let applied = ThemeStore::empty()
+            .with_theme("t", theme)
+            .apply(&Config::default(), "t");
         let (checked, report) = validate(applied.clone());
         assert!(report.is_clean(), "{}", report.render());
-        assert_eq!(checked, applied, "validation must not alter a valid theme result");
+        assert_eq!(
+            checked, applied,
+            "validation must not alter a valid theme result"
+        );
     }
 
     impl ThemeStore {

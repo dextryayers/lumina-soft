@@ -1,4 +1,4 @@
-﻿//! Damped harmonic oscillators, the only motion primitive in Lumina.
+//! Damped harmonic oscillators, the only motion primitive in Lumina.
 //!
 //! # Why springs rather than tweens
 //!
@@ -348,11 +348,11 @@ mod tests {
     }
 
     /// Settling test tolerances.
-///
-/// Position is compared against the same one hundredth of a pixel threshold the
-/// rest detector uses, so the test and the production behaviour agree on what
-/// "settled" means.
-#[test]
+    ///
+    /// Position is compared against the same one hundredth of a pixel threshold the
+    /// rest detector uses, so the test and the production behaviour agree on what
+    /// "settled" means.
+    #[test]
     fn settles_on_target_for_every_damping_ratio() {
         const TOLERANCE: f32 = REST_POSITION_EPSILON;
         for damping in [0.3f32, 0.5, 0.78, 1.0, 1.5, 2.5] {
@@ -381,7 +381,10 @@ mod tests {
             s.advance(1.0 / 240.0);
             peak = peak.max(s.position());
         }
-        assert!(peak > 100.0, "expected an overshoot above 100, peak was {peak}");
+        assert!(
+            peak > 100.0,
+            "expected an overshoot above 100, peak was {peak}"
+        );
         // Logarithmic decay of a 0.5 damping spring gives a few percent.
         assert!(peak < 118.0, "overshoot should be modest, peak was {peak}");
     }
@@ -407,7 +410,10 @@ mod tests {
         let at_240 = simulate(Spring::new_moving(0.0, 100.0, 0.34, 0.78), 0.5, 240.0);
 
         let spread = (at_30.position() - at_240.position()).abs();
-        assert!(spread < 1.0, "frame rate changed the trajectory by {spread}");
+        assert!(
+            spread < 1.0,
+            "frame rate changed the trajectory by {spread}"
+        );
         assert!((at_60.position() - at_144.position()).abs() < 1.0);
     }
 
@@ -446,7 +452,11 @@ mod tests {
         let velocity_before = s.velocity();
         s.set_target(-50.0);
         assert_eq!(s.position(), before, "retarget must not move the spring");
-        assert_eq!(s.velocity(), velocity_before, "retarget must not kill velocity");
+        assert_eq!(
+            s.velocity(),
+            velocity_before,
+            "retarget must not kill velocity"
+        );
 
         // The following step must stay within what the physics allows. The peak
         // speed of a step response is bounded by delta * omega / e; across a
@@ -456,7 +466,10 @@ mod tests {
         // that a discontinuity would show.
         s.advance(1.0 / 240.0);
         let moved = (s.position() - before).abs();
-        assert!(moved < 8.0, "one sub-step moved {moved}, which is not physically plausible");
+        assert!(
+            moved < 8.0,
+            "one sub-step moved {moved}, which is not physically plausible"
+        );
         assert!(s.position().is_finite());
     }
 
@@ -502,7 +515,11 @@ mod tests {
         let mut s = Spring::new_moving(0.0, 1000.0, 0.01, 0.1);
         for _ in 0..5000 {
             s.advance(1.0 / 15.0);
-            assert!(s.position().is_finite(), "integrator diverged to {}", s.position());
+            assert!(
+                s.position().is_finite(),
+                "integrator diverged to {}",
+                s.position()
+            );
             assert!(
                 s.position().abs() < 10_000.0,
                 "integrator blew up to {}",
@@ -639,7 +656,10 @@ mod tests {
             peak = peak.max(s.position());
         }
         assert!(peak <= 100.0 + 1e-3, "reduced motion overshot to {peak}");
-        assert!(s.is_at_rest(), "reduced motion should settle within two seconds");
+        assert!(
+            s.is_at_rest(),
+            "reduced motion should settle within two seconds"
+        );
     }
 
     #[test]
@@ -652,6 +672,9 @@ mod tests {
             s.advance(1.0 / 60.0);
             frames += 1;
         }
-        assert!(frames < 120, "took {frames} frames, expected under two seconds at 60 fps");
+        assert!(
+            frames < 120,
+            "took {frames} frames, expected under two seconds at 60 fps"
+        );
     }
 }

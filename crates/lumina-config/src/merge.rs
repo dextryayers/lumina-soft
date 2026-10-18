@@ -1,4 +1,4 @@
-﻿//! Layering partial configuration documents over a complete one.
+//! Layering partial configuration documents over a complete one.
 //!
 //! Profiles and themes both express their overrides the same way: a sparse TOML
 //! document that is layered over the full configuration. This module owns that
@@ -143,31 +143,58 @@ mod tests {
     #[test]
     fn plain_keys_pass_through_unchanged() {
         let expanded = expand_dotted(&table("version = 1\nname = \"x\"\n"));
-        assert_eq!(expanded.get("version").and_then(toml::Value::as_integer), Some(1));
-        assert_eq!(expanded.get("name").and_then(toml::Value::as_str), Some("x"));
+        assert_eq!(
+            expanded.get("version").and_then(toml::Value::as_integer),
+            Some(1)
+        );
+        assert_eq!(
+            expanded.get("name").and_then(toml::Value::as_str),
+            Some("x")
+        );
     }
 
     #[test]
     fn quoted_dotted_keys_expand_into_nested_tables() {
         let expanded = expand_dotted(&table("\"rgb.mode\" = \"cycling\"\n"));
-        let rgb = expanded.get("rgb").and_then(toml::Value::as_table).expect("rgb table");
-        assert_eq!(rgb.get("mode").and_then(toml::Value::as_str), Some("cycling"));
+        let rgb = expanded
+            .get("rgb")
+            .and_then(toml::Value::as_table)
+            .expect("rgb table");
+        assert_eq!(
+            rgb.get("mode").and_then(toml::Value::as_str),
+            Some("cycling")
+        );
     }
 
     #[test]
     fn unquoted_dotted_keys_arrive_already_nested() {
         // TOML expands this one for us, so the expander must leave it alone.
         let expanded = expand_dotted(&table("rgb.mode = \"cycling\"\n"));
-        let rgb = expanded.get("rgb").and_then(toml::Value::as_table).expect("rgb table");
-        assert_eq!(rgb.get("mode").and_then(toml::Value::as_str), Some("cycling"));
+        let rgb = expanded
+            .get("rgb")
+            .and_then(toml::Value::as_table)
+            .expect("rgb table");
+        assert_eq!(
+            rgb.get("mode").and_then(toml::Value::as_str),
+            Some("cycling")
+        );
     }
 
     #[test]
     fn deeply_nested_dotted_keys_expand() {
         let expanded = expand_dotted(&table("\"audio.visualizer.style\" = \"waveform\"\n"));
-        let audio = expanded.get("audio").and_then(toml::Value::as_table).expect("audio");
-        let visualizer = audio.get("visualizer").and_then(toml::Value::as_table).expect("visualizer");
-        assert_eq!(visualizer.get("style").and_then(toml::Value::as_str), Some("waveform"));
+        let audio = expanded
+            .get("audio")
+            .and_then(toml::Value::as_table)
+            .expect("audio");
+        let visualizer = audio
+            .get("visualizer")
+            .and_then(toml::Value::as_table)
+            .expect("visualizer");
+        assert_eq!(
+            visualizer.get("style").and_then(toml::Value::as_str),
+            Some("waveform")
+        );
     }
 
     #[test]
@@ -175,17 +202,29 @@ mod tests {
         // This is the bug a naive expansion has: inserting "rgb.mode" then
         // "rgb.speed" must leave both, not just the second.
         let expanded = expand_dotted(&table("\"rgb.mode\" = \"cycling\"\n\"rgb.speed\" = 2.0\n"));
-        let rgb = expanded.get("rgb").and_then(toml::Value::as_table).expect("rgb table");
+        let rgb = expanded
+            .get("rgb")
+            .and_then(toml::Value::as_table)
+            .expect("rgb table");
         assert_eq!(rgb.len(), 2, "both keys should survive: {rgb:?}");
-        assert_eq!(rgb.get("mode").and_then(toml::Value::as_str), Some("cycling"));
+        assert_eq!(
+            rgb.get("mode").and_then(toml::Value::as_str),
+            Some("cycling")
+        );
         assert_eq!(rgb.get("speed").and_then(toml::Value::as_float), Some(2.0));
     }
 
     #[test]
     fn a_scalar_where_a_table_is_needed_is_replaced() {
         let expanded = expand_dotted(&table("rgb = 5\n\"rgb.mode\" = \"cycling\"\n"));
-        let rgb = expanded.get("rgb").and_then(toml::Value::as_table).expect("rgb becomes a table");
-        assert_eq!(rgb.get("mode").and_then(toml::Value::as_str), Some("cycling"));
+        let rgb = expanded
+            .get("rgb")
+            .and_then(toml::Value::as_table)
+            .expect("rgb becomes a table");
+        assert_eq!(
+            rgb.get("mode").and_then(toml::Value::as_str),
+            Some("cycling")
+        );
     }
 
     #[test]
@@ -253,8 +292,18 @@ mod tests {
         let overlay = table("rgb.mode = \"reactive\"\n");
         merge_tables(&mut base, &overlay);
 
-        let rgb = base.get("rgb").and_then(toml::Value::as_table).expect("rgb");
-        assert_eq!(rgb.get("mode").and_then(toml::Value::as_str), Some("reactive"));
-        assert_eq!(rgb.get("speed").and_then(toml::Value::as_float), Some(1.0), "sibling keys survive");
+        let rgb = base
+            .get("rgb")
+            .and_then(toml::Value::as_table)
+            .expect("rgb");
+        assert_eq!(
+            rgb.get("mode").and_then(toml::Value::as_str),
+            Some("reactive")
+        );
+        assert_eq!(
+            rgb.get("speed").and_then(toml::Value::as_float),
+            Some(1.0),
+            "sibling keys survive"
+        );
     }
 }

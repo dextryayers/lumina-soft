@@ -1,4 +1,4 @@
-﻿//! File watching and debounced reload.
+//! File watching and debounced reload.
 //!
 //! Editors do not write files the way a program expects. A single save from
 //! most editors produces a write, a rename, and sometimes a truncate, which
@@ -68,26 +68,28 @@ impl ConfigWatcher {
             let dir = if path.is_dir() {
                 path.clone()
             } else {
-                path.parent().map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+                path.parent()
+                    .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
             };
             if dir.exists() && !unique_dirs.contains(&dir) {
                 unique_dirs.push(dir);
             }
         }
 
-        let builder = notify::recommended_watcher(
-            move |result: notify::Result<notify::Event>| match result {
-                // Every kind maps to the same signal. The receiver re-reads from
-                // disk, so distinguishing create from write from modify would
-                // add branches without adding information.
-                Ok(_) => {
-                    let _ = debounce_sender.send(WatchEvent::Changed);
-                }
-                Err(e) => {
-                    let _ = debounce_sender.send(WatchEvent::Failed(e.to_string()));
-                }
-            },
-        );
+        let builder =
+            notify::recommended_watcher(
+                move |result: notify::Result<notify::Event>| match result {
+                    // Every kind maps to the same signal. The receiver re-reads from
+                    // disk, so distinguishing create from write from modify would
+                    // add branches without adding information.
+                    Ok(_) => {
+                        let _ = debounce_sender.send(WatchEvent::Changed);
+                    }
+                    Err(e) => {
+                        let _ = debounce_sender.send(WatchEvent::Failed(e.to_string()));
+                    }
+                },
+            );
 
         let mut watcher = match builder {
             Ok(watcher) => watcher,
@@ -106,12 +108,23 @@ impl ConfigWatcher {
             }
         }
 
-        (Self { receiver, _watcher: watcher }, problems)
+        (
+            Self {
+                receiver,
+                _watcher: watcher,
+            },
+            problems,
+        )
     }
 
     /// A watcher that never fires, used when the platform has no watcher.
     fn inert(receiver: Receiver<WatchEvent>) -> Self {
-        Self { receiver, _watcher: notify::recommended_watcher(|_| {}).unwrap_or_else(|_| unreachable!("the first watcher already succeeded or reported failure")) }
+        Self {
+            receiver,
+            _watcher: notify::recommended_watcher(|_| {}).unwrap_or_else(|_| {
+                unreachable!("the first watcher already succeeded or reported failure")
+            }),
+        }
     }
 
     /// Take a pending event if one is ready, without blocking.
@@ -169,7 +182,7 @@ pub fn is_relevant(path: &Path, watched: &[PathBuf]) -> bool {
     watched.iter().any(|w| {
         w.file_name() == path.file_name()
             || w.extension().is_some_and(|e| Some(e) == path.extension())
-            && w.parent() == path.parent()
+                && w.parent() == path.parent()
     })
 }
 
@@ -199,7 +212,10 @@ mod tests {
         let (_watcher, problems) = ConfigWatcher::new(&[missing]);
         // The parent does not exist, so there is nothing to watch. The watcher
         // still constructs and is inert.
-        assert!(problems.is_empty(), "a missing parent is not a watch failure: {problems:?}");
+        assert!(
+            problems.is_empty(),
+            "a missing parent is not a watch failure: {problems:?}"
+        );
     }
 
     #[test]
@@ -227,7 +243,10 @@ mod tests {
         std::fs::write(&file, "version = 1\n# edited\n").expect("rewrite");
 
         let event = watcher.recv_timeout(Duration::from_secs(5));
-        assert!(event.is_some(), "writing the config should produce an event");
+        assert!(
+            event.is_some(),
+            "writing the config should produce an event"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -236,7 +255,10 @@ mod tests {
     fn try_recv_returns_none_when_idle() {
         let dir = temp_dir("watch-idle");
         let (watcher, _) = ConfigWatcher::new(std::slice::from_ref(&dir));
-        assert!(watcher.try_recv().is_none(), "an idle watcher has nothing to report");
+        assert!(
+            watcher.try_recv().is_none(),
+            "an idle watcher has nothing to report"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -250,8 +272,14 @@ mod tests {
         let elapsed = start.elapsed();
 
         assert!(event.is_none());
-        assert!(elapsed >= Duration::from_millis(70), "returned after only {elapsed:?}");
-        assert!(elapsed < Duration::from_secs(2), "waited far too long: {elapsed:?}");
+        assert!(
+            elapsed >= Duration::from_millis(70),
+            "returned after only {elapsed:?}"
+        );
+        assert!(
+            elapsed < Duration::from_secs(2),
+            "waited far too long: {elapsed:?}"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -266,9 +294,8 @@ mod tests {
         tx.send(WatchEvent::Changed).expect("send");
 
         // A hand built stand in for the watcher, exercising the same drain loop.
-        let drain = |receiver: &Receiver<WatchEvent>| {
-            receiver.recv_timeout(Duration::from_millis(50)).ok()
-        };
+        let drain =
+            |receiver: &Receiver<WatchEvent>| receiver.recv_timeout(Duration::from_millis(50)).ok();
 
         assert_eq!(drain(&rx), Some(WatchEvent::Changed));
         // The remaining events are still queued, which is why the real watcher
@@ -280,10 +307,16 @@ mod tests {
 
     #[test]
     fn relevance_filtering_ignores_neighbouring_files() {
-        let watched = vec![PathBuf::from("/cfg/lumina/config.toml"), PathBuf::from("/cfg/lumina/themes/neon.toml")];
+        let watched = vec![
+            PathBuf::from("/cfg/lumina/config.toml"),
+            PathBuf::from("/cfg/lumina/themes/neon.toml"),
+        ];
 
         assert!(is_relevant(Path::new("/cfg/lumina/config.toml"), &watched));
-        assert!(is_relevant(Path::new("/cfg/lumina/themes/neon.toml"), &watched));
+        assert!(is_relevant(
+            Path::new("/cfg/lumina/themes/neon.toml"),
+            &watched
+        ));
         // A different file in the same directory, from another application.
         assert!(!is_relevant(Path::new("/cfg/lumina/notes.txt"), &watched));
         // A file with no name at all.

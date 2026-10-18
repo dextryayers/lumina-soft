@@ -64,7 +64,10 @@ impl ProfileStore {
     #[must_use]
     pub fn from_section(section: ProfileSection) -> (Self, Vec<String>) {
         let mut problems = Vec::new();
-        let ProfileSection { default: requested_default, profiles } = section;
+        let ProfileSection {
+            default: requested_default,
+            profiles,
+        } = section;
 
         // Reject anything that inherits more than one level deep, and anything
         // that inherits from a name that does not exist.
@@ -100,17 +103,30 @@ impl ProfileStore {
         } else if profiles.contains_key(&requested_default) {
             requested_default
         } else {
-            problems.push(format!("default profile {requested_default:?} does not exist, using the base config"));
+            problems.push(format!(
+                "default profile {requested_default:?} does not exist, using the base config"
+            ));
             String::new()
         };
 
-        (Self { active: default_name.clone(), profiles, default_name }, problems)
+        (
+            Self {
+                active: default_name.clone(),
+                profiles,
+                default_name,
+            },
+            problems,
+        )
     }
 
     /// Store with no profiles at all.
     #[must_use]
     pub fn empty() -> Self {
-        Self { active: String::new(), profiles: BTreeMap::new(), default_name: String::new() }
+        Self {
+            active: String::new(),
+            profiles: BTreeMap::new(),
+            default_name: String::new(),
+        }
     }
 
     /// Name of the active profile, empty when only the base config is in use.
@@ -160,7 +176,10 @@ impl ProfileStore {
         if names.is_empty() {
             return &self.active;
         }
-        let position = names.iter().position(|n| *n == self.active).map_or(names.len() - 1, |i| (i + 1) % names.len());
+        let position = names
+            .iter()
+            .position(|n| *n == self.active)
+            .map_or(names.len() - 1, |i| (i + 1) % names.len());
         self.active = names[position].to_string();
         &self.active
     }
@@ -184,7 +203,10 @@ impl ProfileStore {
         // Rebuild the flat dotted map into a nested TOML document and hand it
         // to the shared overlay, so profiles and themes layer identically.
         let flat = toml::Table::from_iter(
-            profile.overrides.iter().map(|(k, v)| (k.clone(), v.clone())),
+            profile
+                .overrides
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone())),
         );
         crate::merge::overlay_config(base, &flat)
     }
@@ -341,7 +363,11 @@ mod tests {
         );
         let (_, problems) = ProfileStore::from_section(section);
         assert_eq!(problems.len(), 1);
-        assert!(problems[0].contains("only one level"), "got: {}", problems[0]);
+        assert!(
+            problems[0].contains("only one level"),
+            "got: {}",
+            problems[0]
+        );
     }
 
     #[test]
@@ -366,7 +392,11 @@ mod tests {
     fn activating_a_missing_profile_returns_false() {
         let (mut store, _) = ProfileStore::from_section(section("[profiles.alpha]\n"));
         assert!(!store.activate("beta"));
-        assert_eq!(store.active(), "alpha", "a failed switch must not change state");
+        assert_eq!(
+            store.active(),
+            "alpha",
+            "a failed switch must not change state"
+        );
         assert!(store.activate("alpha"));
     }
 

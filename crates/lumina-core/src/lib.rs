@@ -24,8 +24,8 @@ pub mod state;
 pub mod time;
 
 pub use geometry::{Geometry, Insets, Rect, Scalar, Size, Vec2};
-pub use state::{IslandState, StateMachine, TransitionSource};
 pub use spring::Spring;
+pub use state::{IslandState, StateMachine, TransitionSource};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

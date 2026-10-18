@@ -1,4 +1,4 @@
-﻿//! Canonical default values.
+//! Canonical default values.
 //!
 //! Every default in the schema is implemented by delegating here. That makes
 //! this module the single source of truth, which is what lets a test assert
@@ -9,7 +9,7 @@
 //! report what it substituted, and reading it from the value being repaired
 //! would report the already-clamped number instead of the original.
 
-use crate::schema::{MediaConfig, Config};
+use crate::schema::{Config, MediaConfig};
 
 /// Island fill and border colours.
 #[derive(Debug, Clone, Copy)]
@@ -47,19 +47,30 @@ pub fn all_default_colors() -> ColorDefaults {
 /// Island fill and border defaults.
 #[must_use]
 pub fn appearance_defaults() -> ColorDefaults {
-    ColorDefaults { fill: "#12121ACC", border_color: "#FFFFFF24", ..all_default_colors() }
+    ColorDefaults {
+        fill: "#12121ACC",
+        border_color: "#FFFFFF24",
+        ..all_default_colors()
+    }
 }
 
 /// Colour engine defaults.
 #[must_use]
 pub fn rgb_defaults() -> ColorDefaults {
-    ColorDefaults { primary: "#7C3AED", secondary: "#06B6D4", ..all_default_colors() }
+    ColorDefaults {
+        primary: "#7C3AED",
+        secondary: "#06B6D4",
+        ..all_default_colors()
+    }
 }
 
 /// Text colour defaults.
 #[must_use]
 pub fn text_defaults() -> TextColors {
-    TextColors { color: "#FFFFFFFF", dim_color: "#B3FFFFFF" }
+    TextColors {
+        color: "#FFFFFFFF",
+        dim_color: "#B3FFFFFF",
+    }
 }
 
 /// Numeric reference values for the validator's repair messages.
@@ -74,7 +85,10 @@ pub struct NumericDefaults {
 /// Numeric defaults shared with the validator.
 #[must_use]
 pub fn numeric_defaults() -> NumericDefaults {
-    NumericDefaults { glow_intensity: 2.0, title_size: 15.0 }
+    NumericDefaults {
+        glow_intensity: 2.0,
+        title_size: 15.0,
+    }
 }
 
 /// Media defaults, exposed so the settings summary and tests share one source.
@@ -114,7 +128,11 @@ mod tests {
     #[test]
     fn defaults_validate_clean() {
         let (config, report) = validate(default_config());
-        assert!(report.is_clean(), "built-in defaults must validate clean: {}", report.render());
+        assert!(
+            report.is_clean(),
+            "built-in defaults must validate clean: {}",
+            report.render()
+        );
         assert_eq!(config, default_config());
     }
 
@@ -134,12 +152,21 @@ mod tests {
             ("primary", all.primary),
             ("secondary", all.secondary),
         ] {
-            assert!(parse_hex(value).is_some(), "default {name} {value:?} does not parse");
+            assert!(
+                parse_hex(value).is_some(),
+                "default {name} {value:?} does not parse"
+            );
         }
 
         let text = text_defaults();
-        assert!(parse_hex(text.color).is_some(), "default text colour does not parse");
-        assert!(parse_hex(text.dim_color).is_some(), "default dim text colour does not parse");
+        assert!(
+            parse_hex(text.color).is_some(),
+            "default text colour does not parse"
+        );
+        assert!(
+            parse_hex(text.dim_color).is_some(),
+            "default dim text colour does not parse"
+        );
     }
 
     #[test]
@@ -152,7 +179,11 @@ mod tests {
     fn shipped_toml_parses_and_validates_clean() {
         let parsed = Config::from_toml_str(DEFAULT_TOML).expect("the shipped file must parse");
         let (_config, report) = validate(parsed);
-        assert!(report.is_clean(), "the shipped file must be valid: {}", report.render());
+        assert!(
+            report.is_clean(),
+            "the shipped file must be valid: {}",
+            report.render()
+        );
     }
 
     #[test]
@@ -160,7 +191,11 @@ mod tests {
         // This is the test that stops the hand written file and the Rust
         // structs from drifting apart.
         let parsed = Config::from_toml_str(DEFAULT_TOML).expect("the shipped file must parse");
-        assert_eq!(parsed, default_config(), "the shipped file has drifted from the compiled defaults");
+        assert_eq!(
+            parsed,
+            default_config(),
+            "the shipped file has drifted from the compiled defaults"
+        );
     }
 
     #[test]
@@ -186,7 +221,10 @@ mod tests {
             "[text]",
             "[advanced]",
         ] {
-            assert!(DEFAULT_TOML.contains(section), "the shipped file is missing {section}");
+            assert!(
+                DEFAULT_TOML.contains(section),
+                "the shipped file is missing {section}"
+            );
         }
     }
 

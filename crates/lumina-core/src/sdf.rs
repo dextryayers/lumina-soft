@@ -77,13 +77,7 @@ fn clamp01(value: f32) -> f32 {
 /// Never. Degenerate inputs (zero or negative height) return a finite value
 /// rather than producing `NaN`.
 #[must_use]
-pub fn sd_trapezoid(
-    px: f32,
-    py: f32,
-    half_bottom: f32,
-    half_top: f32,
-    half_h: f32,
-) -> f32 {
+pub fn sd_trapezoid(px: f32, py: f32, half_bottom: f32, half_top: f32, half_h: f32) -> f32 {
     if half_h <= 0.0 || !half_top.is_finite() || !half_bottom.is_finite() || !half_h.is_finite() {
         return f32::MAX;
     }
@@ -148,7 +142,11 @@ pub fn sd_rounded_trapezoid(
         return f32::MAX;
     }
 
-    let r = radius.max(0.0).min(half_h).min(half_top * 0.5).min(half_bottom * 0.5);
+    let r = radius
+        .max(0.0)
+        .min(half_h)
+        .min(half_top * 0.5)
+        .min(half_bottom * 0.5);
     if r <= 0.0 {
         return sd_trapezoid(px, py, half_bottom, half_top, half_h);
     }
@@ -160,9 +158,19 @@ pub fn sd_rounded_trapezoid(
     // Moving inward by dx changes perpendicular distance by dx * cos(theta).
     let slant_angle = ((half_top - half_bottom) / (2.0 * half_h)).atan();
     let cos_theta = slant_angle.cos();
-    let inset_x = if cos_theta > 0.15 { r / cos_theta } else { r * 6.0 };
+    let inset_x = if cos_theta > 0.15 {
+        r / cos_theta
+    } else {
+        r * 6.0
+    };
 
-    let inner = sd_trapezoid(px, py, half_bottom - inset_x, half_top - inset_x, half_h - inset_y);
+    let inner = sd_trapezoid(
+        px,
+        py,
+        half_bottom - inset_x,
+        half_top - inset_x,
+        half_h - inset_y,
+    );
     inner - r
 }
 
@@ -208,7 +216,11 @@ pub fn sd_capsule(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32, radius: 
     let bax = bx - ax;
     let bay = by - ay;
     let len_sq = bax * bax + bay * bay;
-    let h = if len_sq > 0.0 { clamp01((pax * bax + pay * bay) / len_sq) } else { 0.0 };
+    let h = if len_sq > 0.0 {
+        clamp01((pax * bax + pay * bay) / len_sq)
+    } else {
+        0.0
+    };
     length(pax - bax * h, pay - bay * h) - radius
 }
 
@@ -433,11 +445,16 @@ mod tests {
                 let px = (fx * 2.0 - 1.0) * extent + jx * 0.4;
                 let py = (fy * 2.0 - 1.0) * extent + jy * 0.4;
 
-                let analytic =
-                    sd_rounded_trapezoid(px, py, half_bottom, half_top, half_h, radius);
+                let analytic = sd_rounded_trapezoid(px, py, half_bottom, half_top, half_h, radius);
 
-                let distance =
-                    brute_force_trapezoid_distance(px, py, ref_hb, ref_ht, ref_hh, SAMPLES_PER_EDGE);
+                let distance = brute_force_trapezoid_distance(
+                    px,
+                    py,
+                    ref_hb,
+                    ref_ht,
+                    ref_hh,
+                    SAMPLES_PER_EDGE,
+                );
                 let truth_inside = point_in_trapezoid(px, py, ref_hb, ref_ht, ref_hh);
 
                 // The rounded field is the offset polygon's field minus the
@@ -463,7 +480,10 @@ mod tests {
                 checked += 1;
             }
         }
-        assert!(checked > 500, "expected a meaningful number of samples, got {checked}");
+        assert!(
+            checked > 500,
+            "expected a meaningful number of samples, got {checked}"
+        );
     }
 
     #[test]
@@ -514,8 +534,14 @@ mod tests {
     fn field_is_negative_inside_and_positive_outside() {
         let (hb, ht, hh) = (54.0f32, 62.0f32, 18.0f32);
         assert!(sd_trapezoid(0.0, 0.0, hb, ht, hh) < 0.0, "center is inside");
-        assert!(sd_trapezoid(0.0, hh * 3.0, hb, ht, hh) > 0.0, "far above is outside");
-        assert!(sd_trapezoid(ht * 3.0, 0.0, hb, ht, hh) > 0.0, "far right is outside");
+        assert!(
+            sd_trapezoid(0.0, hh * 3.0, hb, ht, hh) > 0.0,
+            "far above is outside"
+        );
+        assert!(
+            sd_trapezoid(ht * 3.0, 0.0, hb, ht, hh) > 0.0,
+            "far right is outside"
+        );
         assert!(sd_rounded_trapezoid(0.0, 0.0, hb, ht, hh, 12.0) < 0.0);
     }
 
@@ -572,7 +598,10 @@ mod tests {
         assert_eq!(coverage_from_distance(-5.0, 1.0), 1.0);
         assert_eq!(coverage_from_distance(5.0, 1.0), 0.0);
         let mid = coverage_from_distance(0.0, 1.0);
-        assert!((0.5 - mid).abs() < 1e-6, "edge coverage should be 0.5, got {mid}");
+        assert!(
+            (0.5 - mid).abs() < 1e-6,
+            "edge coverage should be 0.5, got {mid}"
+        );
     }
 
     #[test]
@@ -584,7 +613,11 @@ mod tests {
 
     #[test]
     fn border_mask_is_one_on_the_ring_and_zero_inside_and_outside() {
-        assert_eq!(border_mask(-1.0, 1.0, 0.1), 1.0, "ring between the two fields");
+        assert_eq!(
+            border_mask(-1.0, 1.0, 0.1),
+            1.0,
+            "ring between the two fields"
+        );
         assert_eq!(border_mask(5.0, 7.0, 0.1), 0.0, "outside the outer field");
         assert_eq!(border_mask(-5.0, -7.0, 0.1), 0.0, "inside the inner field");
     }
@@ -592,7 +625,10 @@ mod tests {
     #[test]
     fn glow_falls_off_exponentially_and_never_negatives() {
         let at_zero = glow_falloff(0.0, 8.0);
-        assert!((at_zero - 1.0).abs() < 1e-6, "glow starts at full strength on the boundary");
+        assert!(
+            (at_zero - 1.0).abs() < 1e-6,
+            "glow starts at full strength on the boundary"
+        );
 
         let mut previous = 1.0f32;
         for d in [1.0f32, 2.0, 4.0, 8.0, 16.0] {
@@ -611,10 +647,19 @@ mod tests {
     fn circle_and_capsule_agree_on_degenerate_segment() {
         assert!(sd_capsule(3.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0).is_finite());
         assert!((sd_capsule(3.0, 4.0, 0.0, 0.0, 10.0, 0.0, 0.0) - 4.0).abs() < 1e-5);
-        assert!((sd_capsule(3.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0) - 0.0).abs() < 1e-5, "a point on the segment is zero distance away");
-        assert!((sd_capsule(20.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0) - 10.0).abs() < 1e-5, "past the end the distance is measured to the endpoint");
+        assert!(
+            (sd_capsule(3.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0) - 0.0).abs() < 1e-5,
+            "a point on the segment is zero distance away"
+        );
+        assert!(
+            (sd_capsule(20.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0) - 10.0).abs() < 1e-5,
+            "past the end the distance is measured to the endpoint"
+        );
         assert!((sd_capsule(20.0, 3.0, 0.0, 0.0, 10.0, 0.0, 0.0) - 109.0_f32.sqrt()).abs() < 1e-4);
-        assert!((sd_capsule(-5.0, 4.0, 0.0, 0.0, 10.0, 0.0, 0.0) - 41.0_f32.sqrt()).abs() < 1e-4, "before the start the distance is measured to the other endpoint");
+        assert!(
+            (sd_capsule(-5.0, 4.0, 0.0, 0.0, 10.0, 0.0, 0.0) - 41.0_f32.sqrt()).abs() < 1e-4,
+            "before the start the distance is measured to the other endpoint"
+        );
         assert!((sd_circle(3.0, 4.0, 1.0) - 4.0).abs() < 1e-5);
     }
 

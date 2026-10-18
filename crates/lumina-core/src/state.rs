@@ -137,14 +137,54 @@ impl IslandState {
     pub const fn geometry(self) -> Geometry {
         match self {
             // half_top, half_bottom, height, radius
-            Self::Collapsed => Geometry { half_top: 62.0, half_bottom: 54.0, height: 18.0, radius: 9.0 },
-            Self::Hover => Geometry { half_top: 66.0, half_bottom: 56.0, height: 22.0, radius: 11.0 },
-            Self::Media => Geometry { half_top: 180.0, half_bottom: 168.0, height: 40.0, radius: 20.0 },
-            Self::Spectrum => Geometry { half_top: 210.0, half_bottom: 200.0, height: 50.0, radius: 24.0 },
-            Self::Clock => Geometry { half_top: 100.0, half_bottom: 92.0, height: 30.0, radius: 15.0 },
-            Self::Metrics => Geometry { half_top: 120.0, half_bottom: 112.0, height: 28.0, radius: 14.0 },
-            Self::Shortcuts => Geometry { half_top: 170.0, half_bottom: 160.0, height: 34.0, radius: 17.0 },
-            Self::Notify => Geometry { half_top: 200.0, half_bottom: 190.0, height: 28.0, radius: 14.0 },
+            Self::Collapsed => Geometry {
+                half_top: 62.0,
+                half_bottom: 54.0,
+                height: 18.0,
+                radius: 9.0,
+            },
+            Self::Hover => Geometry {
+                half_top: 66.0,
+                half_bottom: 56.0,
+                height: 22.0,
+                radius: 11.0,
+            },
+            Self::Media => Geometry {
+                half_top: 180.0,
+                half_bottom: 168.0,
+                height: 40.0,
+                radius: 20.0,
+            },
+            Self::Spectrum => Geometry {
+                half_top: 210.0,
+                half_bottom: 200.0,
+                height: 50.0,
+                radius: 24.0,
+            },
+            Self::Clock => Geometry {
+                half_top: 100.0,
+                half_bottom: 92.0,
+                height: 30.0,
+                radius: 15.0,
+            },
+            Self::Metrics => Geometry {
+                half_top: 120.0,
+                half_bottom: 112.0,
+                height: 28.0,
+                radius: 14.0,
+            },
+            Self::Shortcuts => Geometry {
+                half_top: 170.0,
+                half_bottom: 160.0,
+                height: 34.0,
+                radius: 17.0,
+            },
+            Self::Notify => Geometry {
+                half_top: 200.0,
+                half_bottom: 190.0,
+                height: 28.0,
+                radius: 14.0,
+            },
         }
     }
 
@@ -158,7 +198,11 @@ impl IslandState {
         match self {
             Self::Collapsed => 0.0,
             Self::Hover => 0.55,
-            Self::Media | Self::Spectrum | Self::Clock | Self::Metrics | Self::Shortcuts
+            Self::Media
+            | Self::Spectrum
+            | Self::Clock
+            | Self::Metrics
+            | Self::Shortcuts
             | Self::Notify => 1.0,
         }
     }
@@ -243,7 +287,6 @@ impl IslandState {
     }
 }
 
-
 impl std::fmt::Display for IslandState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.id())
@@ -294,22 +337,32 @@ impl StateRequest {
     /// A request that expires at the given monotonic timestamp.
     #[must_use]
     pub const fn until(state: IslandState, expires_at_ms: u64) -> Self {
-        Self { state, expires_at_ms: Some(expires_at_ms), pinned: false, source: TransitionSource::Widget }
+        Self {
+            state,
+            expires_at_ms: Some(expires_at_ms),
+            pinned: false,
+            source: TransitionSource::Widget,
+        }
     }
 
     /// A request that lives until cleared.
-///
-/// Pinned requests form their own tier in the arbiter and outrank every
-/// automatic request, because a pin only ever comes from an explicit user
-/// action: a tray click, a hotkey, or an IPC command. A pinned request also
-/// never expires on its own.
-///
-/// The orchestrator is responsible for clearing pins. `idle_timeout_ms` exists
-/// for exactly that: it releases pins once the pointer has been away long enough,
-/// so a pinned widget cannot block notifications forever.
-#[must_use]
-pub const fn persistent(state: IslandState, source: TransitionSource) -> Self {
-        Self { state, expires_at_ms: None, pinned: true, source }
+    ///
+    /// Pinned requests form their own tier in the arbiter and outrank every
+    /// automatic request, because a pin only ever comes from an explicit user
+    /// action: a tray click, a hotkey, or an IPC command. A pinned request also
+    /// never expires on its own.
+    ///
+    /// The orchestrator is responsible for clearing pins. `idle_timeout_ms` exists
+    /// for exactly that: it releases pins once the pointer has been away long enough,
+    /// so a pinned widget cannot block notifications forever.
+    #[must_use]
+    pub const fn persistent(state: IslandState, source: TransitionSource) -> Self {
+        Self {
+            state,
+            expires_at_ms: None,
+            pinned: true,
+            source,
+        }
     }
 
     /// A timed request from a specific source. The duration is applied later with
@@ -317,13 +370,21 @@ pub const fn persistent(state: IslandState, source: TransitionSource) -> Self {
     /// clock to measure from.
     #[must_use]
     pub const fn timed(state: IslandState, source: TransitionSource) -> Self {
-        Self { state, expires_at_ms: None, pinned: false, source }
+        Self {
+            state,
+            expires_at_ms: None,
+            pinned: false,
+            source,
+        }
     }
 
     /// Fill in the expiry relative to `now`.
     #[must_use]
     pub fn with_duration_from(self, now_ms: u64, duration_ms: u64) -> Self {
-        Self { expires_at_ms: Some(now_ms.saturating_add(duration_ms)), ..self }
+        Self {
+            expires_at_ms: Some(now_ms.saturating_add(duration_ms)),
+            ..self
+        }
     }
 
     /// True when the request is still live at `now_ms`.
@@ -333,13 +394,15 @@ pub const fn persistent(state: IslandState, source: TransitionSource) -> Self {
     }
 
     /// Sort key for the arbiter.
-///
-/// Ordering is tier first, then priority, then remaining lifetime. The tier is
-/// what makes an explicit user pin beat a higher priority automatic request: the
-/// user asked for a specific widget, and a spectrum appearing at that moment
-/// should not snatch it away.
-fn sort_key(&self, now_ms: u64) -> (u8, u8, ReverseLifetime) {
-        let remaining = self.expires_at_ms.map_or(u64::MAX, |e| e.saturating_sub(now_ms));
+    ///
+    /// Ordering is tier first, then priority, then remaining lifetime. The tier is
+    /// what makes an explicit user pin beat a higher priority automatic request: the
+    /// user asked for a specific widget, and a spectrum appearing at that moment
+    /// should not snatch it away.
+    fn sort_key(&self, now_ms: u64) -> (u8, u8, ReverseLifetime) {
+        let remaining = self
+            .expires_at_ms
+            .map_or(u64::MAX, |e| e.saturating_sub(now_ms));
         let tier = u8::from(self.pinned);
         (tier, self.state.priority(), ReverseLifetime { remaining })
     }
@@ -557,9 +620,18 @@ mod tests {
         for state in IslandState::ALL {
             assert_eq!(IslandState::from_id(state.id()), Some(state));
         }
-        assert_eq!(IslandState::from_id("  Spectrum "), Some(IslandState::Spectrum));
-        assert_eq!(IslandState::from_id("SPECTRUM"), Some(IslandState::Spectrum));
-        assert_eq!(IslandState::from_id("spectrum"), Some(IslandState::Spectrum));
+        assert_eq!(
+            IslandState::from_id("  Spectrum "),
+            Some(IslandState::Spectrum)
+        );
+        assert_eq!(
+            IslandState::from_id("SPECTRUM"),
+            Some(IslandState::Spectrum)
+        );
+        assert_eq!(
+            IslandState::from_id("spectrum"),
+            Some(IslandState::Spectrum)
+        );
         assert_eq!(IslandState::from_id("nonsense"), None);
         assert_eq!(IslandState::from_id(""), None);
     }
@@ -574,7 +646,10 @@ mod tests {
             );
             assert!(g.height > 0.0, "{state} has no height");
             assert!(g.radius >= 0.0, "{state} has a negative radius");
-            assert!(g.effective_radius() > 0.0, "{state} has a degenerate radius");
+            assert!(
+                g.effective_radius() > 0.0,
+                "{state} has a degenerate radius"
+            );
         }
     }
 
@@ -582,10 +657,13 @@ mod tests {
     fn state_geometries_are_distinct() {
         // Two states sharing geometry would make a transition invisible, which
         // reads as a bug even though it is not one.
-        let mut seen: Vec<(u32, u32)> = IslandState::ALL.iter().map(|s| {
-            let g = s.geometry();
-            (g.half_top.to_bits(), g.height.to_bits())
-        }).collect();
+        let mut seen: Vec<(u32, u32)> = IslandState::ALL
+            .iter()
+            .map(|s| {
+                let g = s.geometry();
+                (g.half_top.to_bits(), g.height.to_bits())
+            })
+            .collect();
         let total = seen.len();
         seen.sort_unstable();
         seen.dedup();
@@ -618,7 +696,10 @@ mod tests {
     fn starts_collapsed() {
         let mut sm = StateMachine::new();
         assert_eq!(sm.current(), IslandState::Collapsed);
-        assert!(!sm.resolve(NOW), "resolving an idle machine is not a change");
+        assert!(
+            !sm.resolve(NOW),
+            "resolving an idle machine is not a change"
+        );
     }
 
     #[test]
@@ -653,7 +734,11 @@ mod tests {
         sm.request(StateRequest::until(IslandState::Media, NOW + 1_000));
         sm.request(StateRequest::until(IslandState::Spectrum, NOW + 9_000));
         sm.resolve(NOW);
-        assert_eq!(sm.current(), IslandState::Spectrum, "longer lived should win the tie");
+        assert_eq!(
+            sm.current(),
+            IslandState::Spectrum,
+            "longer lived should win the tie"
+        );
     }
 
     #[test]
@@ -708,7 +793,11 @@ mod tests {
         sm.hold();
         sm.request(StateRequest::until(IslandState::Notify, NOW + 10_000));
         sm.resolve(NOW);
-        assert_eq!(sm.current(), IslandState::Media, "hold must resist a higher priority request");
+        assert_eq!(
+            sm.current(),
+            IslandState::Media,
+            "hold must resist a higher priority request"
+        );
 
         sm.release_hold();
         sm.resolve(NOW);
@@ -727,7 +816,10 @@ mod tests {
     #[test]
     fn pinned_requests_never_expire() {
         let mut sm = StateMachine::new();
-        sm.request(StateRequest::persistent(IslandState::Shortcuts, TransitionSource::Tray));
+        sm.request(StateRequest::persistent(
+            IslandState::Shortcuts,
+            TransitionSource::Tray,
+        ));
         sm.resolve(NOW);
         assert_eq!(sm.current(), IslandState::Shortcuts);
 
@@ -765,7 +857,11 @@ mod tests {
         let after_forward = sm.current();
         let back = sm.cycle_backward();
         sm.cycle_forward();
-        assert_eq!(sm.current(), after_forward, "forward then back then forward must return");
+        assert_eq!(
+            sm.current(),
+            after_forward,
+            "forward then back then forward must return"
+        );
         let _ = back;
     }
 
@@ -786,7 +882,10 @@ mod tests {
         sm.request(StateRequest::until(IslandState::Media, NOW + 5_000));
         assert!(sm.resolve(NOW), "first resolve is a change");
         for _ in 0..10 {
-            assert!(!sm.resolve(NOW), "steady state resolve must report no change");
+            assert!(
+                !sm.resolve(NOW),
+                "steady state resolve must report no change"
+            );
         }
     }
 
@@ -800,8 +899,16 @@ mod tests {
             sm.request(StateRequest::until(IslandState::Media, NOW + 8_000));
             sm
         };
-        let a = { let mut sm = build(); sm.resolve(NOW); sm.current() };
-        let b = { let mut sm = build(); sm.resolve(NOW); sm.current() };
+        let a = {
+            let mut sm = build();
+            sm.resolve(NOW);
+            sm.current()
+        };
+        let b = {
+            let mut sm = build();
+            sm.resolve(NOW);
+            sm.current()
+        };
         assert_eq!(a, b);
         assert_eq!(a, IslandState::Media);
     }
@@ -809,8 +916,14 @@ mod tests {
     #[test]
     fn requests_for_collapsed_and_hover_are_never_selected() {
         let mut sm = StateMachine::new();
-        sm.request(StateRequest::persistent(IslandState::Collapsed, TransitionSource::Ipc));
-        sm.request(StateRequest::persistent(IslandState::Hover, TransitionSource::Ipc));
+        sm.request(StateRequest::persistent(
+            IslandState::Collapsed,
+            TransitionSource::Ipc,
+        ));
+        sm.request(StateRequest::persistent(
+            IslandState::Hover,
+            TransitionSource::Ipc,
+        ));
         sm.resolve(NOW);
         assert_eq!(sm.current(), IslandState::Collapsed);
     }
@@ -818,8 +931,14 @@ mod tests {
     #[test]
     fn retain_only_drops_everything_else() {
         let mut sm = StateMachine::new();
-        sm.request(StateRequest::persistent(IslandState::Media, TransitionSource::Widget));
-        sm.request(StateRequest::persistent(IslandState::Clock, TransitionSource::Widget));
+        sm.request(StateRequest::persistent(
+            IslandState::Media,
+            TransitionSource::Widget,
+        ));
+        sm.request(StateRequest::persistent(
+            IslandState::Clock,
+            TransitionSource::Widget,
+        ));
         sm.retain_only(&[IslandState::Clock]);
         assert_eq!(sm.requests().len(), 1);
         assert_eq!(sm.requests()[0].state, IslandState::Clock);
@@ -828,7 +947,10 @@ mod tests {
     #[test]
     fn clear_all_returns_to_collapsed() {
         let mut sm = StateMachine::new();
-        sm.request(StateRequest::persistent(IslandState::Media, TransitionSource::Widget));
+        sm.request(StateRequest::persistent(
+            IslandState::Media,
+            TransitionSource::Widget,
+        ));
         sm.resolve(NOW);
         sm.clear_all();
         sm.resolve(NOW);
@@ -839,11 +961,17 @@ mod tests {
     fn content_opacity_is_zero_only_when_contentless() {
         for state in IslandState::ALL {
             let opacity = state.content_opacity();
-            assert!((0.0..=1.0).contains(&opacity), "{state} opacity out of range");
+            assert!(
+                (0.0..=1.0).contains(&opacity),
+                "{state} opacity out of range"
+            );
             if state.is_contentless() {
                 assert_eq!(opacity, 0.0, "{state} is contentless but has opacity");
             } else {
-                assert!(opacity > 0.0, "{state} shows content but is fully transparent");
+                assert!(
+                    opacity > 0.0,
+                    "{state} shows content but is fully transparent"
+                );
             }
         }
     }

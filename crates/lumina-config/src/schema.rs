@@ -197,7 +197,11 @@ impl Position {
             .map(|c| c.to_ascii_lowercase())
             .collect();
         Self::ALL.into_iter().find(|p| {
-            p.id().chars().filter(char::is_ascii_alphanumeric).collect::<String>() == normalized
+            p.id()
+                .chars()
+                .filter(char::is_ascii_alphanumeric)
+                .collect::<String>()
+                == normalized
         })
     }
 
@@ -219,7 +223,6 @@ impl Position {
         }
     }
 }
-
 
 /// Which monitor the island lives on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -327,7 +330,6 @@ impl RgbMode {
     }
 }
 
-
 /// Shape, color, and material.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -377,7 +379,6 @@ pub enum BackdropMode {
     /// Never blur.
     Off,
 }
-
 
 impl Default for AppearanceConfig {
     fn default() -> Self {
@@ -545,7 +546,6 @@ pub enum AudioSource {
     None,
 }
 
-
 /// Capture backend selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -562,13 +562,11 @@ pub enum AudioBackend {
     Wasapi,
 }
 
-
 /// FFT window size, named because the raw numbers are meaningless to a user.
 ///
 /// The variant names carry a digit run that `rename_all = "kebab-case"` cannot
 /// split, so each variant is renamed explicitly rather than by attribute.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum FftSize {
     /// 1024 samples.
     #[serde(rename = "size-1024")]
@@ -598,7 +596,12 @@ impl FftSize {
     }
 
     /// All variants.
-    pub const ALL: [Self; 4] = [Self::Size1024, Self::Size2048, Self::Size4096, Self::Size8192];
+    pub const ALL: [Self; 4] = [
+        Self::Size1024,
+        Self::Size2048,
+        Self::Size4096,
+        Self::Size8192,
+    ];
 
     /// The identifier as it appears in the file.
     #[must_use]
@@ -611,7 +614,6 @@ impl FftSize {
         }
     }
 }
-
 
 /// Spectrum appearance.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -664,7 +666,6 @@ impl VisualizerStyle {
         }
     }
 }
-
 
 impl Default for SpectrumConfig {
     fn default() -> Self {
@@ -781,8 +782,7 @@ pub struct ClockConfig {
 ///
 /// Renamed explicitly because `rename_all = "kebab-case"` would turn `H12`
 /// into `h12`, and users write `12h`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ClockFormat {
     /// 12 hour with an am or pm suffix.
     #[serde(rename = "12h")]
@@ -792,7 +792,6 @@ pub enum ClockFormat {
     #[default]
     H24,
 }
-
 
 impl Default for ClockConfig {
     fn default() -> Self {
@@ -910,7 +909,6 @@ pub enum NetworkUnit {
     Gb,
 }
 
-
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
@@ -989,7 +987,6 @@ pub enum WeatherProvider {
     OpenWeatherMap,
 }
 
-
 /// Measurement system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -1001,7 +998,6 @@ pub enum WeatherUnits {
     /// Fahrenheit and miles per hour.
     Imperial,
 }
-
 
 impl Default for WeatherConfig {
     fn default() -> Self {
@@ -1050,7 +1046,6 @@ pub enum LayoutAlign {
     Bottom,
 }
 
-
 /// Default widget order, shared by the config default and the docs.
 pub const DEFAULT_WIDGET_ORDER: [&str; 8] = [
     "clock",
@@ -1070,7 +1065,10 @@ impl Default for LayoutConfig {
             padding_y: 6.0,
             spacing: 10.0,
             align: LayoutAlign::Center,
-            order: DEFAULT_WIDGET_ORDER.iter().map(|s| (*s).to_string()).collect(),
+            order: DEFAULT_WIDGET_ORDER
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect(),
             max_widgets: 3,
         }
     }
@@ -1199,7 +1197,11 @@ pub struct TrayConfig {
 
 impl Default for TrayConfig {
     fn default() -> Self {
-        Self { enabled: true, show_on_startup: false, icon: "auto".to_string() }
+        Self {
+            enabled: true,
+            show_on_startup: false,
+            icon: "auto".to_string(),
+        }
     }
 }
 
@@ -1272,7 +1274,6 @@ pub enum FontWeight {
     Semibold,
 }
 
-
 impl Default for TextConfig {
     fn default() -> Self {
         Self {
@@ -1334,7 +1335,6 @@ pub enum GpuBackend {
     Gl,
 }
 
-
 /// Log verbosity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -1367,7 +1367,6 @@ impl LogLevel {
         }
     }
 }
-
 
 impl Default for AdvancedConfig {
     fn default() -> Self {
@@ -1448,7 +1447,10 @@ mod tests {
         let config = Config::default();
         let text = config.to_toml_string();
         let parsed = Config::from_toml_str(&text).expect("the serialized default must parse");
-        assert_eq!(config, parsed, "default config must survive a TOML round trip");
+        assert_eq!(
+            config, parsed,
+            "default config must survive a TOML round trip"
+        );
     }
 
     #[test]
@@ -1463,7 +1465,8 @@ mod tests {
 
     #[test]
     fn missing_sections_fall_back_to_defaults() {
-        let parsed = Config::from_toml_str("[rgb]\nmode = \"cycling\"\n").expect("partial file parses");
+        let parsed =
+            Config::from_toml_str("[rgb]\nmode = \"cycling\"\n").expect("partial file parses");
         assert_eq!(parsed.rgb.mode, RgbMode::Cycling);
         assert_eq!(parsed.appearance, AppearanceConfig::default());
         assert_eq!(parsed.general, GeneralConfig::default());
@@ -1475,7 +1478,10 @@ mod tests {
             assert_eq!(Position::from_id(position.id()), Some(position));
         }
         assert_eq!(Position::from_id("Top-Center"), Some(Position::TopCenter));
-        assert_eq!(Position::from_id("  top_center "), Some(Position::TopCenter));
+        assert_eq!(
+            Position::from_id("  top_center "),
+            Some(Position::TopCenter)
+        );
         assert_eq!(Position::from_id("nowhere"), None);
     }
 
@@ -1516,16 +1522,21 @@ mod tests {
         assert_eq!(FftSize::Size1024.samples(), 1024);
         assert_eq!(FftSize::default().samples(), 4096);
         for size in FftSize::ALL {
-            assert!(size.samples().is_power_of_two(), "FFT sizes must be powers of two");
+            assert!(
+                size.samples().is_power_of_two(),
+                "FFT sizes must be powers of two"
+            );
         }
     }
 
     #[test]
     fn appearance_builds_clamped_geometry() {
-        let mut appearance = AppearanceConfig::default();
         // A user who swaps the two widths still gets a valid inverted trapezoid.
-        appearance.top_half_width = 10.0;
-        appearance.bottom_half_width = 900.0;
+        let appearance = AppearanceConfig {
+            top_half_width: 10.0,
+            bottom_half_width: 900.0,
+            ..AppearanceConfig::default()
+        };
         let geometry = appearance.geometry();
         assert!(geometry.is_inverted_trapezoid());
         assert!(geometry.height >= 8.0);
@@ -1582,7 +1593,10 @@ mod tests {
 
         assert_eq!(config.get_path("rgb.mode").as_deref(), Some("cycling"));
         assert_eq!(config.get_path("audio.band_count").as_deref(), Some("48"));
-        assert_eq!(config.get_path("audio.visualizer.style").as_deref(), Some("bars"));
+        assert_eq!(
+            config.get_path("audio.visualizer.style").as_deref(),
+            Some("bars")
+        );
         assert_eq!(config.get_path("rgb.nonexistent"), None);
         assert_eq!(config.get_path("nonexistent.key"), None);
     }
