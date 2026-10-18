@@ -34,9 +34,9 @@ pub mod msdf;
 pub mod shaping;
 
 pub use atlas::{Atlas, GlyphEntry};
-pub use layout::{Layout, TextMetrics};
-pub use msdf::{MsdfShader, coverage_from_msdf};
-pub use shaping::{Shaper, ShapedText};
+pub use layout::Layout;
+pub use msdf::coverage_from_msdf;
+pub use shaping::{Shaper, ShapedText, TextMetrics};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

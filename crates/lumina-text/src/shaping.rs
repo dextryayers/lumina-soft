@@ -1,4 +1,4 @@
-//! Glyph shaping: turning a string into a sequence of positioned glyphs.
+﻿//! Glyph shaping: turning a string into a sequence of positioned glyphs.
 //!
 //! # The minimal shaper
 //!
@@ -14,7 +14,7 @@
 //! left-to-right with a warning logged once if Arabic or Hebrew text is
 //! detected.
 
-use lumina_core::geometry::{Scalar, Vec2};
+use lumina_core::geometry::Scalar;
 
 /// A shaped glyph, ready for layout.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -247,8 +247,8 @@ mod tests {
         for (i, ch) in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ".chars().enumerate() {
             atlas.glyphs.push(crate::atlas::GlyphEntry {
                 codepoint: ch as u32,
-                rect: crate::atlas::Rect::new(0.0, 0.0, 10.0, 10.0),
-                plane_bounds: crate::atlas::Rect::new(0.0, 0.0, 0.5, 0.5),
+                rect: lumina_core::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
+                plane_bounds: lumina_core::geometry::Rect::new(0.0, 0.0, 0.5, 0.5),
                 advance: 0.5,
                 bearing_x: 0.0,
                 bearing_y: 0.0,

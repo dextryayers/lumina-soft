@@ -661,6 +661,7 @@ dependencies = [
  "fontdue",
  "lumina-config",
  "lumina-core",
+ "naga",
 ]
 
 [[package]]

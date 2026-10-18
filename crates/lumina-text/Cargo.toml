@@ -16,6 +16,7 @@ workspace = true
 [dependencies]
 lumina-core = { workspace = true }
 lumina-config = { workspace = true }
+naga = { workspace = true }
 
 [dev-dependencies]
 fontdue = "0.9"

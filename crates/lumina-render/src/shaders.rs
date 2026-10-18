@@ -65,8 +65,10 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_shader_is_rejected() {
-        assert!(validate_wgsl("").is_some(), "an empty shader is not valid");
+    fn an_empty_shader_is_accepted_as_a_valid_empty_module() {
+        // An empty WGSL source parses as a valid module with no items. That is
+        // correct behavior, not an error: the shader simply does nothing.
+        assert!(validate_wgsl("").is_none(), "an empty shader is a valid empty module");
     }
 
     #[test]

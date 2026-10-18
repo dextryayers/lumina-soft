@@ -37,8 +37,9 @@ pub struct PositionedGlyph {
     pub position: Vec2,
     /// Size in logical pixels.
     pub size: Vec2,
-    /// Atlas UV rectangle.
+    /// Atlas UV minimum coordinate.
     pub uv_min: Vec2,
+    /// Atlas UV maximum coordinate.
     pub uv_max: Vec2,
     /// The glyph's advance in ems.
     pub advance: Scalar,
@@ -178,14 +179,21 @@ impl Marquee {
         if self.paused {
             if self.pause_remaining > 0.0 {
                 self.pause_remaining = (self.pause_remaining - dt).max(0.0);
+                if self.pause_remaining <= 0.0 {
+                    self.paused = false;
+                }
                 return self.offset;
             }
             self.paused = false;
         }
 
         self.offset += self.speed * dt.max(0.0);
-        if text_width > 0.0 && self.offset >= text_width + self.gap {
-            self.offset -= text_width + self.gap;
+        // Modulo rather than a single subtraction, because a large dt (after a
+        // stall, or a very fast speed) can carry the offset past the wrap point
+        // several times over.
+        let wrap_at = text_width + self.gap;
+        if wrap_at > 0.0 && self.offset >= wrap_at {
+            self.offset %= wrap_at;
         }
         self.offset
     }
