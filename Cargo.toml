@@ -1,0 +1,75 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lumina-core",
+]
+
+[workspace.package]
+version = "0.1.0-alpha.1"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/lumina-sh/lumina"
+homepage = "https://github.com/lumina-sh/lumina"
+authors = ["Lumina Contributors"]
+categories = ["gui", "multimedia"]
+keywords = ["dynamic-island", "overlay", "widget", "audio-visualizer"]
+
+[workspace.dependencies]
+# Internal crates, path dependencies only.
+lumina-core = { path = "crates/lumina-core", version = "0.1.0-alpha.1" }
+lumina-config = { path = "crates/lumina-config", version = "0.1.0-alpha.1" }
+lumina-platform = { path = "crates/lumina-platform", version = "0.1.0-alpha.1" }
+
+# Serialization and configuration.
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+notify = "6.1"
+toml_edit = "0.22"
+
+# Platform.
+winit = "0.30"
+raw-window-handle = "0.6"
+wgpu = "0.20"
+naga = { version = "0.20", features = ["wgsl-in"] }
+
+[workspace.lints.rust]
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Documented, deliberate exceptions.
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+cast_lossless = "allow"
+similar_names = "allow"
+must_use_candidate = "allow"
+struct_excessive_bools = "allow"
+fn_params_excessive_bools = "allow"
+too_many_lines = "allow"
+# F32 math is intentional throughout the render and animation paths.
+float_cmp = "allow"
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.release-visual]
+inherits = "release"
+opt-level = 3
+debug = true
+panic = "unwind"
+
+[profile.dev]
+opt-level = 1

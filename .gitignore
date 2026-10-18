@@ -1,0 +1,17 @@
+# Build output
+/target
+**/target
+*.pdb
+
+# IDE
+/.idea
+/.vscode
+*.iml
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Local config and logs
+*.log
+/config/local.toml
