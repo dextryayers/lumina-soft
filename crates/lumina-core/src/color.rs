@@ -503,6 +503,71 @@ pub fn parse_hex(input: &str) -> Option<Srgb> {
 /// # Panics
 ///
 /// Never.
+/// Number of Lloyd iterations for [`extract_dominant_colors`].
+///
+/// Eight is well past the point where cluster assignment stops changing for a
+/// 32 by 32 sample, so the result is stable and the cost is irrelevant.
+const KMEANS_ITERATIONS: usize = 8;
+
+/// Deterministic seeding: sort by lightness and take evenly spaced picks.
+#[allow(clippy::items_after_statements)]
+fn seed_centroids(samples: &[OkLab], k: usize) -> Vec<OkLab> {
+    let mut sorted = samples.to_vec();
+    sorted.sort_by(|a, b| a.l.partial_cmp(&b.l).unwrap_or(std::cmp::Ordering::Equal));
+    (0..k)
+        .map(|i| {
+            let idx = (i * sorted.len()).saturating_sub(1).min(sorted.len() - 1);
+            sorted[idx]
+        })
+        .collect()
+}
+
+/// Refine `k` centroids with Lloyd's algorithm until the assignment stabilises.
+///
+/// Separated out from [`extract_dominant_colors`] so the constant and the loop
+/// sit together and the public function reads as a pipeline.
+fn refine_centroids(samples: &[OkLab], mut centroids: Vec<OkLab>) -> Vec<OkLab> {
+    let k = centroids.len();
+    for _ in 0..KMEANS_ITERATIONS {
+        let mut sums = vec![OkLab::BLACK; k];
+        let mut counts = vec![0usize; k];
+
+        for sample in samples {
+            let (idx, _) = nearest_centroid(*sample, &centroids);
+            sums[idx] = OkLab::new(
+                sums[idx].l + sample.l,
+                sums[idx].a + sample.a,
+                sums[idx].b + sample.b,
+            );
+            counts[idx] += 1;
+        }
+
+        for i in 0..k {
+            if counts[i] > 0 {
+                let n = counts[i] as f32;
+                centroids[i] = OkLab::new(sums[i].l / n, sums[i].a / n, sums[i].b / n);
+            }
+        }
+    }
+    centroids
+}
+
+/// Dominant colors of an image, extracted by k-means over a downscaled sample.
+///
+/// Used by the album RGB engine. Implemented here rather than in
+/// `lumina-media` so it has no image decoding dependency and is testable with
+/// synthetic pixel buffers.
+///
+/// Deterministic by construction: the seeds are taken from a sorted sample of
+/// the lightness distribution, not from a random number generator, so the same
+/// cover always yields the same palette frame after frame.
+///
+/// Returns between one and `max_colors` colors, ordered from most to least
+/// chromatic.
+///
+/// # Panics
+///
+/// Never.
 #[must_use]
 pub fn extract_dominant_colors(pixels: &[Srgb], max_colors: usize) -> Vec<Srgb> {
     let k = max_colors.clamp(1, 8);
@@ -523,39 +588,11 @@ pub fn extract_dominant_colors(pixels: &[Srgb], max_colors: usize) -> Vec<Srgb> 
         return vec![Srgb::BLACK];
     }
 
-    // Deterministic seeding: sort by lightness and take evenly spaced picks.
-    let mut sorted = samples.clone();
-    sorted.sort_by(|a, b| a.l.partial_cmp(&b.l).unwrap_or(std::cmp::Ordering::Equal));
-    let mut centroids: Vec<OkLab> = (0..k)
-        .map(|i| {
-            let idx = (i * sorted.len()).saturating_sub(1).min(sorted.len() - 1);
-            sorted[idx]
-        })
-        .collect();
+    let centroids = refine_centroids(&samples, seed_centroids(&samples, k));
 
-    const ITERATIONS: usize = 8;
-    for _ in 0..ITERATIONS {
-        let mut sums = vec![OkLab::BLACK; k];
-        let mut counts = vec![0usize; k];
-
-        for sample in &samples {
-            let (idx, _) = nearest_centroid(*sample, &centroids);
-            sums[idx] = OkLab::new(sums[idx].l + sample.l, sums[idx].a + sample.a, sums[idx].b + sample.b);
-            counts[idx] += 1;
-        }
-
-        for i in 0..k {
-            if counts[i] > 0 {
-                let n = counts[i] as f32;
-                centroids[i] = OkLab::new(sums[i].l / n, sums[i].a / n, sums[i].b / n);
-            }
-        }
-    }
-
+    // Order by chroma descending so the most vivid color leads. This makes the
+    // album engine visually interesting rather than returning three greys.
     let mut result: Vec<Srgb> = centroids.iter().map(|c| srgb_from_oklab(*c, 1.0)).collect();
-
-    // Order by chroma then lightness so the most vivid color leads. This makes
-    // the album engine visually interesting rather than returning three greys.
     result.sort_by(|a, b| {
         let ca = a.to_oklab().chroma();
         let cb = b.to_oklab().chroma();

@@ -57,6 +57,15 @@ fn_params_excessive_bools = "allow"
 too_many_lines = "allow"
 # F32 math is intentional throughout the render and animation paths.
 float_cmp = "allow"
+# The OkLab and WCAG coefficients below are the published reference values,
+# written at full precision so they can be checked against the source document.
+# Truncating them to f32 would hide a transcription error without changing the
+# result, since the extra digits are discarded at compile time anyway.
+excessive_precision = "allow"
+# Brand and specification names read worse in backticks than they do in prose.
+# "OkLab", "sRGB", "WCAG", "MPRIS", and "GSMTC" are proper nouns, not code
+# items, and the lint has no way to express that.
+doc_markdown = "allow"
 
 [profile.release]
 opt-level = "z"

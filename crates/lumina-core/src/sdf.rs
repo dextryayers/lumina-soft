@@ -597,7 +597,7 @@ mod tests {
         let mut previous = 1.0f32;
         for d in [1.0f32, 2.0, 4.0, 8.0, 16.0] {
             let g = glow_falloff(d, 8.0);
-            assert!(g >= 0.0 && g <= 1.0, "glow out of range at d={d}: {g}");
+            assert!((0.0..=1.0).contains(&g), "glow out of range at d={d}: {g}");
             assert!(g < previous, "glow must decay, d={d}");
             previous = g;
         }

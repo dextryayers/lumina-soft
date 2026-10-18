@@ -446,7 +446,7 @@ impl Geometry {
     /// reasoned about.
     #[must_use]
     pub fn clamped(self) -> Self {
-        use limits::*;
+        use limits::{MIN_HALF_WIDTH, MAX_HALF_WIDTH, MIN_HEIGHT, MAX_HEIGHT, MAX_RADIUS};
 
         let fallback = Self::default();
 

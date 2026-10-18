@@ -252,7 +252,7 @@ impl Spring {
         if !omega.is_finite() || omega <= 0.0 {
             return MAX_SUB_STEP;
         }
-        (STABILITY_MARGIN * 2.0 / omega).min(MAX_SUB_STEP).max(1e-5)
+        (STABILITY_MARGIN * 2.0 / omega).clamp(1e-5, MAX_SUB_STEP)
     }
 
     /// Integrate forward by `dt` seconds of wall clock time.
@@ -423,7 +423,7 @@ mod tests {
             s
         };
         let at_30 = simulate(build(), 0.2, 30.0);
-        let at_60 = simulate(build(), 0.2, 60.0);
+        let _at_60 = simulate(build(), 0.2, 60.0);
         let at_240 = simulate(build(), 0.2, 240.0);
 
         let spread = (at_30.position() - at_240.position()).abs();

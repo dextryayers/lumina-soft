@@ -29,8 +29,10 @@ use crate::geometry::Geometry;
 /// renderer scales them by the monitor scale factor before uploading uniforms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum IslandState {
     /// At rest. The default and the lowest priority.
+    #[default]
     Collapsed,
     /// Pointer is inside the island and nothing more important is live.
     Hover,
@@ -99,7 +101,7 @@ impl IslandState {
         let normalized: String = input
             .trim()
             .chars()
-            .filter(|c| c.is_ascii_alphanumeric())
+            .filter(char::is_ascii_alphanumeric)
             .map(|c| c.to_ascii_lowercase())
             .collect();
         Self::ALL.into_iter().find(|s| s.id() == normalized)
@@ -147,13 +149,17 @@ impl IslandState {
     }
 
     /// Content opacity in this state, used by the content fade spring.
+    ///
+    /// `Collapsed` shows the shape alone, so its content is fully transparent.
+    /// `Hover` shows dimmed icons, so it is partially visible. Everything else
+    /// is a full content state.
     #[must_use]
     pub const fn content_opacity(self) -> f32 {
         match self {
             Self::Collapsed => 0.0,
             Self::Hover => 0.55,
-            Self::Media | Self::Spectrum | Self::Clock | Self::Metrics | Self::Shortcuts => 1.0,
-            Self::Notify => 1.0,
+            Self::Media | Self::Spectrum | Self::Clock | Self::Metrics | Self::Shortcuts
+            | Self::Notify => 1.0,
         }
     }
 
@@ -237,11 +243,6 @@ impl IslandState {
     }
 }
 
-impl Default for IslandState {
-    fn default() -> Self {
-        Self::Collapsed
-    }
-}
 
 impl std::fmt::Display for IslandState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -339,7 +340,7 @@ pub const fn persistent(state: IslandState, source: TransitionSource) -> Self {
 /// should not snatch it away.
 fn sort_key(&self, now_ms: u64) -> (u8, u8, ReverseLifetime) {
         let remaining = self.expires_at_ms.map_or(u64::MAX, |e| e.saturating_sub(now_ms));
-        let tier = if self.pinned { 1u8 } else { 0u8 };
+        let tier = u8::from(self.pinned);
         (tier, self.state.priority(), ReverseLifetime { remaining })
     }
 }
@@ -678,7 +679,7 @@ mod tests {
         assert_eq!(sm.current(), IslandState::Notify);
         sm.resolve(NOW + 1_000);
         assert_eq!(sm.current(), IslandState::Collapsed);
-        assert!(sm.requests().is_empty());
+        assert_eq!(sm.requests(), []);
     }
 
     #[test]
