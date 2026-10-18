@@ -1,9 +1,9 @@
-//! The calendar widget: a month grid with today highlighted.
+﻿//! The calendar widget: a month grid with today highlighted.
 
 use lumina_core::geometry::{Rect, Size, Vec2};
 use lumina_core::state::{IslandState, StateRequest};
 
-use crate::trait::{DrawList, Quad, Widget, WidgetContext, WidgetInput};
+use crate::widget::{DrawList, Quad, Widget, WidgetContext, WidgetInput};
 
 /// The calendar widget.
 #[derive(Debug, Clone)]
@@ -34,7 +34,7 @@ impl CalendarWidget {
             1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
             4 | 6 | 9 | 11 => 30,
             2 => {
-                if is_leap_year(year) {
+                if Self::is_leap_year(year) {
                     29
                 } else {
                     28
@@ -50,7 +50,7 @@ impl CalendarWidget {
     #[must_use]
     pub fn first_weekday_of_month(year: i32, month: u32) -> u32 {
         if month < 3 {
-            return first_weekday_of_month(year - 1, month + 12);
+            return Self::first_weekday_of_month(year - 1, month + 12);
         }
         let k = (year % 100) as u32;
         let j = (year / 100) as u32;
@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn the_first_weekday_of_a_known_date_is_correct() {
         // 2026-10-19 is a Monday. With 0 = Sunday, that is 1.
-        assert_eq!(CalendarWidget::first_weekday_of_month(2026, 10), 1);
+        assert_eq!(CalendarWidget::first_weekday_of_month(2026, 10), 4, "October 2026 starts on a Thursday");
     }
 
     #[test]

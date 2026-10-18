@@ -1,4 +1,4 @@
-//! Widget framework for Lumina.
+﻿//! Widget framework for Lumina.
 //!
 //! # What this crate provides
 //!
@@ -24,12 +24,12 @@
 pub mod calendar;
 pub mod clock;
 pub mod layout;
-pub mod trait;
+pub mod widget;
 
 pub use calendar::CalendarWidget;
 pub use clock::ClockWidget;
 pub use layout::{layout_row, FlexLayout};
-pub use trait::{DrawList, Quad, Widget, WidgetContext, WidgetInput, WidgetRegistry};
+pub use widget::{DrawList, Quad, Widget, WidgetContext, WidgetInput, WidgetRegistry};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -1,4 +1,4 @@
-//! Flex row layout: the single layout model Lumina needs.
+﻿//! Flex row layout: the single layout model Lumina needs.
 //!
 //! # The model
 //!
@@ -63,18 +63,11 @@ impl FlexLayout {
         let mut rects = Vec::with_capacity(self.items.len());
 
         if total_desired <= available || self.items.is_empty() {
-            // Everything fits. Distribute the surplus by flex weight.
-            let surplus = available - total_desired;
-            let total_flex: Scalar = self.items.iter().map(|i| i.flex).sum();
+            // Everything fits. Place at desired width, left-aligned, so the island
+            // wraps its content instead of stretching widgets to fill the screen.
             for item in &self.items {
-                let extra = if total_flex > 0.0 {
-                    surplus * (item.flex / total_flex)
-                } else {
-                    0.0
-                };
-                let width = item.desired.width + extra;
-                rects.push(Rect::new(self.cursor, 0.0, width, self.available.height));
-                self.cursor += width + item.margin_leading;
+                rects.push(Rect::new(self.cursor, 0.0, item.desired.width, self.available.height));
+                self.cursor += item.desired.width + item.margin_leading;
             }
         } else {
             // Shrink proportionally to (min_width, desired_width).

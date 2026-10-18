@@ -1,9 +1,9 @@
-//! The clock widget: time, date, and an optional second timezone.
+﻿//! The clock widget: time, date, and an optional second timezone.
 
 use lumina_core::geometry::{Rect, Size, Vec2};
 use lumina_core::state::{IslandState, StateRequest};
 
-use crate::trait::{DrawList, Quad, Widget, WidgetContext, WidgetInput};
+use crate::widget::{DrawList, Quad, Widget, WidgetContext, WidgetInput};
 
 /// The clock widget.
 #[derive(Debug, Clone)]
@@ -232,20 +232,20 @@ mod tests {
     }
 
     #[test]
-    fn 24_hour_format_pads_the_hour() {
+    fn pads_the_hour_in_24_hour_format() {
         let clock = ClockWidget::new();
         assert_eq!(clock.format_time(9, 5, 3), "09:05");
     }
 
     #[test]
-    fn 24_hour_format_shows_seconds_when_configured() {
+    fn shows_seconds_when_configured() {
         let mut clock = ClockWidget::new();
         clock.show_seconds = true;
         assert_eq!(clock.format_time(9, 5, 3), "09:05:03");
     }
 
     #[test]
-    fn 12_hour_format_converts_midnight_and_noon() {
+    fn converts_midnight_and_noon_in_12_hour_format() {
         let mut clock = ClockWidget::new();
         clock.format_24h = false;
         assert_eq!(clock.format_time(0, 0, 0), "12:00 AM");
@@ -254,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn 12_hour_format_can_omit_the_leading_zero() {
+    fn omits_the_leading_zero_in_12_hour_format() {
         let mut clock = ClockWidget::new();
         clock.format_24h = false;
         clock.hour_leading_zero = false;

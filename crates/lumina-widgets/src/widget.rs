@@ -1,4 +1,4 @@
-//! Widget trait, registry, and the draw list.
+﻿//! Widget trait, registry, and the draw list.
 //!
 //! # The trait
 //!
@@ -197,7 +197,7 @@ impl Quad {
 ///
 /// Owns all widgets and drives their lifecycle. The orchestrator holds one registry
 /// and calls [`WidgetRegistry::layout`] and [`WidgetRegistry::draw`] each frame.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct WidgetRegistry {
     widgets: Vec<Box<dyn Widget>>,
 }
@@ -221,8 +221,8 @@ impl WidgetRegistry {
     }
 
     /// Look up a widget by id, mutably.
-    pub fn get_mut(&mut self, id: &str) -> Option<&mut dyn Widget> {
-        self.widgets.iter_mut().find(|w| w.id() == id).map(AsMut::as_mut)
+    pub fn get_mut(&mut self, id: &str) -> Option<&mut (dyn Widget + 'static)> {
+        self.widgets.iter_mut().find(|w| w.id() == id).map(|b| &mut **b)
     }
 
     /// All registered widgets.
