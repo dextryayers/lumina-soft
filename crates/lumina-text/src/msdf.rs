@@ -101,7 +101,6 @@ pub fn coverage_from_msdf(r: f32, g: f32, b: f32, screen_px_range: f32) -> f32 {
     let t = ((d + pixel_range) / (2.0 * pixel_range)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
