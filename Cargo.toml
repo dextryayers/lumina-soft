@@ -1,7 +1,8 @@
-[workspace]
+﻿[workspace]
 resolver = "2"
 members = [
     "crates/lumina-core",
+    "crates/lumina-config",
 ]
 
 [workspace.package]
