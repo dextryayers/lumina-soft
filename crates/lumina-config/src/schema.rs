@@ -1335,10 +1335,10 @@ impl std::fmt::Display for GpuBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
             Self::Auto => "auto",
-            Self::Vulkan => "vulkan",
-            Self::Dx12 => "dx12",
-            Self::Metal => "metal",
-            Self::Gl => "gl",
+            Self::Vulkan => "Vulkan",
+            Self::Dx12 => "DX12",
+            Self::Metal => "Metal",
+            Self::Gl => "GL",
         };
         f.write_str(name)
     }

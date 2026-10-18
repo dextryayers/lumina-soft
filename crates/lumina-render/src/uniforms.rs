@@ -15,6 +15,9 @@ use lumina_core::state::IslandState;
 ///
 /// Marked `#[repr(C)]` so the field order is guaranteed. Every field is `f32`
 /// or a fixed array of `f32`, so there is no padding surprise.
+///
+/// The struct is 136 bytes, comfortably inside the 64 KB uniform buffer limit,
+/// and is uploaded with a single `write_buffer` per frame.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(C)]
 pub struct IslandUniforms {
@@ -64,6 +67,8 @@ pub struct IslandUniforms {
 }
 
 impl IslandUniforms {
+    /// Build the uniforms for one frame.
+
     /// Total size in bytes, which is what `wgpu` needs for the buffer.
     pub const SIZE: u64 = std::mem::size_of::<Self>() as u64;
 

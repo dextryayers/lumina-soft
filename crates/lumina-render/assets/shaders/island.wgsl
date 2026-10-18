@@ -192,7 +192,9 @@ fn fs_main(@builtin(position) frag_coord: vec2<f32>) -> FragmentOutput {
 
     var color = fill;
     color = mix(color, vec4<f32>(u.glow_rgb, 1.0), clamp(glow_amount, 0.0, 1.0) * coverage(shape, glow_start));
-    color.rgb = color.rgb + noise;
+    color.r = color.r + noise;
+    color.g = color.g + noise;
+    color.b = color.b + noise;
 
     // Outside the shape and outside the glow, discard entirely. Writing a
     // transparent pixel instead would still cost a blend.

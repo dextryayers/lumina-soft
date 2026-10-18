@@ -148,7 +148,6 @@ impl GpuDevice {
             let adapter = instance
                 .request_adapter(&request)
                 .await
-                .map_err(|e| GpuError::Device(format!("request_adapter failed for {backend}: {e}")))
                 .ok_or_else(|| GpuError::NoAdapter(backend))?;
 
             let info = adapter.get_info();
