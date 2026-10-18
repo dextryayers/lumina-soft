@@ -1,0 +1,383 @@
+# Lumina V0.1.0-Alpha configuration
+#
+# Every key below is optional. Delete any line to return it to its default.
+# Changes apply immediately, no restart needed.
+#
+#   Validate this file:   lumina --check-config
+#   Print the environment: lumina --diagnostics
+#
+# Colours accept #RGB, #RGBA, #RRGGBB, and #RRGGBBAA.
+# Sizes are logical pixels and scale automatically with your display's DPI.
+
+version = 1
+
+[general]
+# Which edge or corner of the screen the island sits on.
+# One of: top-center, top-left, top-right, bottom-center, bottom-left, bottom-right
+position = "top-center"
+# Horizontal offset from that anchor. Positive is to the right.
+offset_x = 0
+# Vertical offset from that anchor. Positive is downward.
+offset_y = 12
+# Which screen to use. One of: "primary", "cursor", or a 0 based index.
+monitor = "primary"
+# Fade the island out when nothing is happening.
+auto_hide = false
+# How long to wait before fading out, in milliseconds.
+auto_hide_delay_ms = 3000
+# Keep the island clickable even while it is collapsed.
+always_clickable = false
+# Collapse after this long with nothing happening. 0 never collapses on its own.
+idle_timeout_ms = 5000
+# Let mouse clicks reach the window underneath while the island is collapsed.
+click_through_when_collapsed = true
+# Start with the island hidden, for example when autostarting at login.
+start_hidden = false
+# Refuse to run a second copy of Lumina.
+single_instance = true
+
+[appearance]
+# Background colour. The alpha channel controls how see-through it is.
+fill = "#12121ACC"
+# Gradient strength from the fill colour toward the RGB secondary colour. 0 is flat.
+fill_gradient = 0.0
+# Corner radius. 18 matches the shipped look.
+corner_radius = 18.0
+# Half width of the wider, top edge. The shape is 2x this across.
+top_half_width = 62.0
+# Half width of the narrower, bottom edge.
+bottom_half_width = 54.0
+# Full height, not half.
+height = 36.0
+# true gives the island its inverted trapezoid. false gives a regular trapezoid.
+inverted_trapezoid = true
+# Border thickness. 0 removes the border entirely.
+border_width = 1.0
+# Border colour.
+border_color = "#FFFFFF24"
+# How far the glow reaches, in pixels.
+glow_spread = 8.0
+# How quickly the glow fades. Larger is tighter and more intense.
+glow_falloff = 8.0
+# Drop shadow under the island. 0 removes it.
+shadow_opacity = 0.28
+# Blur whatever is behind the island.
+# One of: auto (use the system's blur when there is one), on (always blur ourselves), off.
+backdrop_blur = "auto"
+# How much to darken the blurred background, which is what makes text readable.
+backdrop_darken = 0.15
+# Dither noise. Removes the banding you would otherwise see in gradients on an
+# 8 bit display. Raise slightly if you still see banding.
+noise_strength = 0.012
+
+[rgb]
+# Which colour engine to use.
+# One of: static, breathing, cycling, reactive, album
+#   static    one fixed colour
+#   breathing slow brightness pulse
+#   cycling   hue rotates through the spectrum
+#   reactive  colour follows whatever is playing
+#   album     colour is taken from the current cover art
+mode = "breathing"
+# The base colour every engine builds on.
+primary = "#7C3AED"
+# The second colour, used by gradients and by the cycling engine.
+secondary = "#06B6D4"
+# Global speed multiplier for whichever engine is running.
+speed = 1.0
+# Lightness multiplier applied to the final colour.
+brightness = 1.0
+# Colour intensity multiplier. Lower values wash the colours out.
+saturation = 0.9
+# Breathing engine: full cycles per second.
+breath_rate_hz = 0.25
+# Breathing engine: how much of the lightness range to swing through.
+breath_depth = 0.18
+# How bright the glow is.
+glow_intensity = 0.6
+# Cycling engine: degrees of hue rotation per second. 360 is one second per full turn.
+cycle_degrees_per_second = 40.0
+# How long the colour takes to crossfade when switching modes or profiles.
+transition_ms = 300
+
+[rgb.reactive]
+# Overall sensitivity of the reactive engine.
+gain = 1.0
+# Baseline amount of effect even in silence, so the island is never completely dead.
+floor = 0.12
+# Upper edge of the bass band, in hertz. Bass drives the glow.
+bass_hz = 250
+# Upper edge of the mid band, in hertz. Mid drives the border brightness.
+mid_hz = 2000
+# How far treble energy rotates the hue, in degrees.
+hue_spread_degrees = 90.0
+# How strongly bass energy pushes the glow.
+glow_from_bass = 0.55
+
+[audio]
+# Master switch for audio capture and the spectrum.
+enabled = true
+# Where to listen.
+# One of: system (whatever you are playing), microphone (captures room audio), none
+source = "system"
+# Device name substring, or "default" for the system default.
+device = "default"
+# Capture backend. "auto" probes in the order PulseAudio, PipeWire, WASAPI.
+# One of: auto, pulse, pipewire, wasapi
+backend = "auto"
+# FFT window size. Larger resolves low frequencies better and costs more CPU.
+# One of: size-1024, size-2048, size-4096, size-8192
+fft_size = "size-4096"
+# How many bars the spectrum is divided into.
+band_count = 32
+# Overall sensitivity. Raise it if the spectrum looks too quiet.
+sensitivity = 1.8
+# How fast bars rise. Higher is snappier.
+attack = 0.35
+# How fast bars fall. Higher is twitchier. Must not exceed attack.
+release = 0.08
+# Level below which the spectrum fades out completely, in dBFS.
+silence_threshold_db = -60.0
+# Extra low frequency tilt, in dB per octave. Music has more energy down there,
+# so without a tilt the spectrum looks flat.
+bass_tilt_db_per_octave = 3.0
+# Track a rolling maximum so quiet tracks still show a full spectrum.
+normalize = true
+
+[audio.visualizer]
+# How to draw the spectrum.
+# One of: bars, mirror (symmetric about the centre), waveform, dots
+style = "bars"
+# Gap between bars.
+bar_spacing = 2
+# Bar corner radius.
+bar_radius = 3
+# How long the peak marker above each bar lingers, in milliseconds.
+peak_hold_ms = 400
+# Hue rotation across the band range, in degrees. 0 makes every bar the same colour.
+hue_spread_degrees = 120.0
+# Brighten bars that reach the top of the spectrum.
+hot_tip = true
+# Draw a baseline so silent bands are still visible as small ticks.
+baseline = true
+
+[media]
+# Master switch for media player control. Works with Spotify, YouTube Music in a
+# browser, VLC, mpv, and anything else that publishes a system media session.
+enabled = true
+# How long the media panel stays open after playback stops, in milliseconds.
+hold_ms = 6000
+# Show cover art.
+show_album_art = true
+# Cover art edge length.
+album_art_size = 52
+# Cover art corner radius.
+album_art_corner_radius = 8
+# Show the progress bar along the bottom of the island.
+show_progress = true
+# Progress bar thickness.
+progress_height = 3
+# Allow seeking by clicking the progress bar.
+scrub_on_click = true
+# Show a volume slider.
+show_volume = false
+# Scroll titles that are too long to fit.
+marquee = true
+# Marquee speed in pixels per second.
+marquee_speed_px_per_s = 40.0
+# Gap between the end of a title and its next repetition.
+marquee_gap_px = 48
+# How long the marquee pauses while the pointer is over the island, so you can
+# actually read it. 0 disables pausing.
+marquee_pause_on_hover_ms = 1800
+# Player names to prefer, most wanted first. Matching is case insensitive and
+# substring based. Leave empty for automatic ranking.
+preferred_players = []
+
+[clock]
+enabled = true
+# One of: 12h, 24h
+format = "24h"
+show_seconds = false
+show_date = true
+# Any strftime format string. https://man7.org/linux/man-pages/man3/strftime.3.html
+date_format = "%d %b"
+show_weekday = false
+# A second timezone as an IANA name such as "Europe/Berlin". Empty for none.
+second_timezone = ""
+hour_leading_zero = true
+
+[metrics]
+enabled = false
+# Sampling interval in milliseconds.
+interval_ms = 1000
+show_cpu = true
+show_ram = true
+# Graphics load, where the driver exposes it.
+show_gpu = false
+show_network = false
+# How many samples the sparkline keeps.
+sparkline_bars = 24
+# Raise the island above this load level, 0 to 1. 0 disables the alert.
+alert_on_threshold = 0.0
+
+[battery]
+enabled = false
+interval_ms = 5000
+show_percentage = true
+show_time_remaining = true
+# Show a bolt icon while charging, so charging does not rely on colour alone.
+show_charging_bolt = true
+
+[network]
+enabled = false
+interval_ms = 1000
+show_upload = true
+show_download = true
+# Wireless network name. Linux only, and needs permission to read it.
+show_ssid = false
+# One of: auto, b, kb, mb, gb
+unit = "auto"
+
+[pomodoro]
+enabled = false
+focus_minutes = 25
+short_break_minutes = 5
+long_break_minutes = 15
+# How many focus phases before a long break.
+rounds_before_long = 4
+# Announce each phase change through the notification panel.
+notify_phases = true
+
+[weather]
+# The only widget that makes a network request, and only when enabled.
+enabled = false
+# One of: open-meteo (no API key needed), openweathermap (needs api_key)
+provider = "open-meteo"
+# Required by openweathermap, ignored by open-meteo.
+api_key = ""
+latitude = 0.0
+longitude = 0.0
+# One of: metric, imperial
+units = "metric"
+# How long a cached reading stays fresh, in minutes.
+cache_ttl_minutes = 15
+# How often to refresh, in milliseconds.
+interval_ms = 900000
+
+[layout]
+# Padding inside the island edges.
+padding_x = 12.0
+padding_y = 6.0
+# Gap between widgets.
+spacing = 10.0
+# Vertical alignment of widgets. One of: top, center, bottom
+align = "center"
+# Which widgets are enabled and in what order they appear.
+order = ["clock", "media", "spectrum", "metrics", "battery", "network", "pomodoro", "shortcuts"]
+# How many widgets may be visible at the same time.
+max_widgets = 3
+
+[hotkeys]
+# Format is modifier+key, case insensitive, order does not matter.
+# Modifiers: ctrl, alt, shift, super, meta
+# Examples: "ctrl+alt+l", "super+space", "ctrl+shift+f12"
+# An empty string means unbound.
+#
+# On Wayland, global hotkeys need the GlobalShortcuts portal. Where that is
+# unavailable, hotkeys only work while the island has keyboard focus.
+toggle_visibility = "ctrl+alt+l"
+cycle_widget = "ctrl+alt+tab"
+cycle_back = "ctrl+shift+tab"
+rgb_next_mode = "ctrl+alt+r"
+profile_next = "ctrl+alt+p"
+media_play_pause = ""
+media_next = ""
+media_previous = ""
+media_stop = ""
+cycle_players = ""
+collapse_now = ""
+reload_config = ""
+toggle_debug_overlay = "ctrl+alt+d"
+
+# Actions you define. Each needs at least an id and a command.
+#
+# [[shortcuts.list]]
+# id = "screenshot"                       # required, used by the IPC command
+# label = "Take a screenshot"              # required, shown as a tooltip
+# icon = "camera"                          # bundled icon name, or a path to your own svg
+# command = "flameshot gui"                # required
+# args = []                                # optional, preferred over quoting the command
+# cwd = ""                                 # optional working directory
+# hotkey = "ctrl+alt+s"                    # optional global hotkey for this action
+# show_in_island = true
+# ipc_only = false                         # true means clicking does nothing
+
+[tray]
+enabled = true
+# Show the tray icon immediately rather than only once the island is hidden.
+show_on_startup = false
+# "auto" picks an icon that reflects the current state.
+icon = "auto"
+
+[motion]
+# Turn off springs and overshoot entirely. Also detected from the operating
+# system's reduced motion setting.
+reduced = false
+# Global animation speed. Lower is slower.
+master_scale = 1.0
+# How long a shape morph takes, in seconds. This is the main feel control.
+morph_response_s = 0.34
+# Spring damping. Below 0.7 bounces, 1.0 is critically damped, above is sluggish.
+morph_damping = 0.78
+# How long widget content takes to crossfade.
+content_fade_ms = 160
+# Animate the island in on startup.
+startup_reveal = true
+
+[text]
+# Base font size. The minimum is 12 for legibility.
+font_size = 14.0
+# Which bundled weight to use. One of: regular, semibold
+font_weight = "regular"
+# Track title size.
+title_size = 15.0
+# Artist name size.
+artist_size = 13.0
+# Path to your own TrueType font. Empty uses the bundled Inter.
+font_file = ""
+# Primary text colour.
+color = "#FFFFFFFF"
+# Secondary text colour.
+dim_color = "#B3FFFFFF"
+# Scroll text that does not fit.
+marquee = true
+# Use a hard edge instead of smooth anti-aliasing. Crisper, less pretty.
+sharp = false
+# Extra spacing between letters.
+letter_spacing = 0.0
+
+[advanced]
+# Frame rate ceiling when not waiting for the display refresh.
+target_fps = 60
+# Wait for the display's vertical blank before presenting. Costs a frame of
+# latency, saves tearing and power.
+vsync = true
+# Graphics API. "auto" picks the best available.
+# One of: auto, vulkan, dx12, metal, gl
+gpu_backend = "auto"
+# One of: error, warn, info, debug, trace
+log_level = "info"
+# Log file path. Empty uses the platform default.
+log_file = ""
+# Control socket, used by lumina-send and the language bindings.
+ipc_enabled = true
+# Socket or pipe name. Empty uses the platform default.
+ipc_name = ""
+# Allows the `execute` IPC command, which runs arbitrary shell commands from any
+# local process. Leave this off unless you specifically need it.
+ipc_allow_exec = false
+# Request the low power graphics profile and cap the frame rate.
+power_saving = true
+# Path to a WGSL file overriding the island effect. See docs/themes.md.
+experimental_wgsl = ""
