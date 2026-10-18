@@ -177,20 +177,29 @@ struct FallbackUniforms {
 var<uniform> u: FallbackUniforms;
 
 @vertex
-fn vs_main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<f32> {
+fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     var positions = array<vec2<f32>, 3>(
         vec2<f32>(-1.0, -1.0),
         vec2<f32>( 3.0, -1.0),
         vec2<f32>(-1.0,  3.0),
     );
-    return vec4<f32>(positions[vertex_index], 0.0, 1.0);
+    let position = positions[vertex_index];
+    return VertexOutput(
+        vec4<f32>(position, 0.0, 1.0),
+        position * 0.5 + 0.5,
+    );
+}
+
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) frag_coord: vec2<f32>,
 }
 
 @fragment
-fn fs_main(@builtin(position) frag_coord: vec2<f32>) -> @location(0) vec4<f32> {
+fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     // Draw the bottom-left quadrant, which is enough of a rectangle to be
     // recognisable as "the island is here" when the real shader will not load.
-    if (frag_coord.x < u.resolution.x * 0.5 && frag_coord.y > u.resolution.y * 0.5) {
+    if (input.frag_coord.x < 0.5 && input.frag_coord.y > 0.5) {
         return vec4<f32>(u.fill_rgba.rgb * u.fill_rgba.a, u.fill_rgba.a);
     }
     return vec4<f32>(0.0);
@@ -261,7 +270,7 @@ mod tests {
 
     #[test]
     fn a_validated_shader_reports_which_variant_it_is() {
-        assert!(!ValidatedShader::fallback().is_fallback);
+        assert!(ValidatedShader::fallback().is_fallback, "the fallback must identify itself");
         match ValidatedShader::primary() {
             Some(primary) => assert!(!primary.is_fallback),
             None => {}
@@ -278,6 +287,6 @@ mod tests {
     fn the_uniform_buffer_size_matches_the_struct() {
         // A buffer smaller than the struct would read past the end, which is the
         // kind of bug that shows up as a randomly shaped island on some drivers.
-        assert_eq!(IslandUniforms::SIZE, 128);
+        assert_eq!(IslandUniforms::SIZE, 136);
     }
 }

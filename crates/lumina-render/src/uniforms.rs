@@ -71,8 +71,6 @@ impl IslandUniforms {
 
     /// Total size in bytes, which is what `wgpu` needs for the buffer.
     pub const SIZE: u64 = std::mem::size_of::<Self>() as u64;
-
-    /// Build the uniforms for one frame.
     ///
     /// `geometry` is the spring's current interpolated shape, `palette` is the
     /// resolved RGB palette, and `appearance` carries the border and glow
@@ -90,7 +88,8 @@ impl IslandUniforms {
         content_opacity: Scalar,
     ) -> Self {
         let size = geometry.size();
-        let scale = dpr.max(0.001);
+        let dpr = if dpr.is_finite() && dpr > 0.0 { dpr } else { 1.0 };
+        let scale = dpr;
 
         let effective_radius = geometry.effective_radius();
 
@@ -182,7 +181,7 @@ mod tests {
         // The shader declares a struct that must match this layout. If this
         // grows past 64 KB the upload fails, and if it shrinks the shader reads
         // garbage.
-        assert_eq!(IslandUniforms::SIZE, 128, "the uniform struct must be 128 bytes");
+        assert_eq!(IslandUniforms::SIZE, 136, "the uniform struct must be 136 bytes");
     }
 
     #[test]

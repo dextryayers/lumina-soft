@@ -44,7 +44,7 @@ struct Uniforms {
 var<uniform> u: Uniforms;
 
 @vertex
-fn vs_main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<f32> {
+fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     // Three vertices covering the whole target. No vertex buffer, no attributes.
     var positions = array<vec2<f32>, 3>(
         vec2<f32>(-1.0, -1.0),
@@ -52,7 +52,15 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<
         vec2<f32>(-1.0,  3.0),
     );
     let position = positions[vertex_index];
-    return vec4<f32>(position, 0.0, 1.0);
+    return VertexOutput(
+        vec4<f32>(position, 0.0, 1.0),
+        vec2<f32>(position.x * 0.5 + 0.5, 0.5 - position.y * 0.5),
+    );
+}
+
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) shape_coord: vec2<f32>,
 }
 
 // Signed distance to an isosceles trapezoid.
@@ -143,8 +151,9 @@ struct FragmentOutput {
 }
 
 @fragment
-fn fs_main(@builtin(position) frag_coord: vec2<f32>) -> FragmentOutput {
+fn fs_main(input: VertexOutput) -> FragmentOutput {
     // Shape space: origin at the island center, +y up.
+    let frag_coord = input.shape_coord;
     let pixel = 1.0 / max(u.dpr, 0.001);
     let p = vec2<f32>(
         (frag_coord.x - u.origin_px.x) * u.inv_extent.x * 0.5,
@@ -188,7 +197,7 @@ fn fs_main(@builtin(position) frag_coord: vec2<f32>) -> FragmentOutput {
     }
 
     // Dither noise, which removes gradient banding on an 8 bit display.
-    let noise = (hash(floor(frag_coord / max(u.dpr, 1.0))) - 0.5) * u.noise_strength;
+    let noise = (hash(floor(input.shape_coord / max(u.dpr, 1.0))) - 0.5) * u.noise_strength;
 
     var color = fill;
     color = mix(color, vec4<f32>(u.glow_rgb, 1.0), clamp(glow_amount, 0.0, 1.0) * coverage(shape, glow_start));
