@@ -613,6 +613,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
+name = "lumina-app"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "lumina-config",
+ "lumina-core",
+ "lumina-platform",
+ "lumina-render",
+ "lumina-text",
+]
+
+[[package]]
 name = "lumina-config"
 version = "0.1.0-alpha.1"
 dependencies = [
@@ -662,6 +673,15 @@ dependencies = [
  "lumina-config",
  "lumina-core",
  "naga",
+]
+
+[[package]]
+name = "lumina-widgets"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "lumina-config",
+ "lumina-core",
+ "lumina-text",
 ]
 
 [[package]]

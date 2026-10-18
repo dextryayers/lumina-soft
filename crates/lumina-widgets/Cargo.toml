@@ -1,0 +1,21 @@
+[package]
+name = "lumina-widgets"
+description = "Widget trait, registry, flex layout, and the clock and calendar widgets for Lumina."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lumina-core = { workspace = true }
+lumina-config = { workspace = true }
+lumina-text = { workspace = true }
+
+[dev-dependencies]

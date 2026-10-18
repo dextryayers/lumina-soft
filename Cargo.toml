@@ -6,6 +6,8 @@ members = [
     "crates/lumina-platform",
     "crates/lumina-render",
     "crates/lumina-text",
+    "crates/lumina-app",
+    "crates/lumina-widgets",
 ]
 
 [workspace.package]
@@ -24,6 +26,8 @@ keywords = ["dynamic-island", "overlay", "widget", "audio-visualizer"]
 lumina-core = { path = "crates/lumina-core", version = "0.1.0-alpha.1" }
 lumina-config = { path = "crates/lumina-config", version = "0.1.0-alpha.1" }
 lumina-platform = { path = "crates/lumina-platform", version = "0.1.0-alpha.1" }
+lumina-render = { path = "crates/lumina-render", version = "0.1.0-alpha.1" }
+lumina-text = { path = "crates/lumina-text", version = "0.1.0-alpha.1" }
 
 # Serialization and configuration.
 serde = { version = "1.0", features = ["derive"] }

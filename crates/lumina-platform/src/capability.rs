@@ -26,6 +26,27 @@ pub enum Platform {
 }
 
 impl Platform {
+    /// Detect the current platform at runtime.
+    #[must_use]
+    pub fn detect() -> Self {
+        #[cfg(target_os = "windows")]
+        {
+            Self::Windows
+        }
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+                Self::WaylandLayerShell
+            } else {
+                Self::X11
+            }
+        }
+        #[cfg(not(any(target_os = "windows", all(unix, not(target_os = "macos")))))]
+        {
+            Self::Unsupported
+        }
+    }
+
     /// True when a window can actually be created.
     #[must_use]
     pub const fn has_window(self) -> bool {
