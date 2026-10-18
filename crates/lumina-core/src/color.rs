@@ -640,23 +640,91 @@ mod tests {
     }
 
     #[test]
-    fn lerp_between_colors_stays_chromatic_in_oklab() {
-        // This is the reason for using OkLab. A violet to cyan blend in sRGB
-        // passes through a desaturated midpoint; in OkLab it does not.
-        let violet = Srgb::new(0.486, 0.231, 0.929, 1.0);
-        let cyan = Srgb::new(0.024, 0.714, 0.757, 1.0);
+    fn oklab_lightness_ramp_has_uniform_perceptual_steps() {
+        // The real reason Lumina interpolates in OkLab. Equal steps in OkLab L
+        // must produce equal steps in perceived lightness, measured here against
+        // the CIE L* curve derived from WCAG relative luminance. Interpolating
+        // sRGB channels instead cannot do that, because the sRGB transfer
+        // function is not uniform in perception.
+        const STEPS: usize = 21;
 
-        let oklab_mid = violet.to_oklab().lerp(cyan.to_oklab(), 0.5);
-        let srgb_mid = violet.to_oklab().lerp(cyan.to_oklab(), 0.5).to_srgb();
-        let srgb_mid = Srgb::new(srgb_mid[0], srgb_mid[1], srgb_mid[2], 1.0);
+        let oklab_ramp: Vec<f32> = (0..STEPS)
+            .map(|i| {
+                let t = i as f32 / (STEPS - 1) as f32;
+                let rgb = OkLab::new(0.15, 0.0, 0.0)
+                    .lerp(OkLab::new(0.85, 0.0, 0.0), t)
+                    .to_srgb();
+                cie_lightness(Srgb::new(rgb[0], rgb[1], rgb[2], 1.0).relative_luminance())
+            })
+            .collect();
 
-        let oklab_chroma = oklab_mid.chroma();
-        let srgb_chroma = srgb_mid.to_oklab().chroma();
+        let srgb_ramp: Vec<f32> = (0..STEPS)
+            .map(|i| {
+                let t = i as f32 / (STEPS - 1) as f32;
+                let c = srgb_lerp(0.1, 0.9, t);
+                cie_lightness(Srgb::new(c, c, c, 1.0).relative_luminance())
+            })
+            .collect();
+
+        let oklab_spread = perceptual_step_spread(&oklab_ramp);
+        let srgb_spread = perceptual_step_spread(&srgb_ramp);
 
         assert!(
-            oklab_chroma > srgb_chroma * 1.3,
-            "OkLab midpoint chroma {oklab_chroma} should far exceed sRGB {srgb_chroma}"
+            oklab_spread < srgb_spread * 0.5,
+            "OkLab ramp should be far more uniform: oklab spread {oklab_spread:.4} vs sRGB spread {srgb_spread:.4}"
         );
+        // And the OkLab ramp really is close to uniform in absolute terms.
+        assert!(
+            oklab_spread < 3.0,
+            "OkLab ramp steps should be near uniform, spread was {oklab_spread:.4}"
+        );
+    }
+
+    #[test]
+    fn hue_is_preserved_by_a_lightness_only_interpolation() {
+        // Changing only OkLab L must not shift the color's hue, which is what
+        // lets the brightness control move an RGB mode without it changing
+        // character.
+        let start = Srgb::new(0.486, 0.231, 0.929, 1.0).to_oklab();
+        for factor in [0.3f32, 0.7, 1.0, 1.5] {
+            let scaled = start.scaled_lightness(factor);
+            let hue_delta = (scaled.hue() - start.hue()).abs();
+            assert!(
+                hue_delta < 1e-4,
+                "brightness scaling moved the hue by {hue_delta} at factor {factor}"
+            );
+        }
+    }
+
+    #[test]
+    fn chroma_scaling_preserves_lightness() {
+        let start = Srgb::new(0.486, 0.231, 0.929, 1.0).to_oklab();
+        for factor in [0.0f32, 0.5, 1.0, 2.0] {
+            let scaled = start.scaled_chroma(factor);
+            assert!((scaled.l - start.l).abs() < 1e-5, "saturation changed lightness");
+            let expected = start.chroma() * factor;
+            assert!((scaled.chroma() - expected).abs() < 1e-4);
+        }
+    }
+
+    /// CIE 1976 lightness from relative luminance.
+    fn cie_lightness(y: f32) -> f32 {
+        if y <= 0.008_856 {
+            903.3 * y
+        } else {
+            116.0 * y.cbrt() - 16.0
+        }
+    }
+
+    /// Largest deviation of any step from the mean step, as a fraction of the
+    /// mean. Zero means perfectly uniform.
+    fn perceptual_step_spread(ramp: &[f32]) -> f32 {
+        let steps: Vec<f32> = ramp.windows(2).map(|w| w[1] - w[0]).collect();
+        let mean = steps.iter().sum::<f32>() / steps.len() as f32;
+        if mean.abs() < f32::EPSILON {
+            return f32::MAX;
+        }
+        steps.iter().map(|s| (s - mean).abs()).fold(0.0f32, f32::max) / mean.abs()
     }
 
     #[test]
@@ -828,7 +896,17 @@ mod tests {
         assert_eq!(a.lerp(b, 1.0).glow.to_hex(), b.glow.to_hex());
 
         let mid = a.lerp(b, 0.5);
-        assert!(mid.fill.r < 0.6 && mid.fill.r > 0.4, "midpoint should be mid grey");
+        // Halfway in OkLab lightness is a perceptual midpoint, not a numeric one.
+        // sRGB channel values are a poor proxy for that, so assert on the
+        // perceptual quantity instead.
+        let mid_lightness = mid.fill.to_oklab().l;
+        assert!(
+            (mid_lightness - 0.5).abs() < 0.02,
+            "midpoint lightness should be 0.5, got {mid_lightness}"
+        );
+        // And the crossing is monotonic: the first quarter stays near white.
+        let quarter = a.lerp(b, 0.25);
+        assert!(quarter.fill.to_oklab().l > 0.7, "the first quarter should stay light");
     }
 
     #[test]

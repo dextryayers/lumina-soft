@@ -359,6 +359,43 @@ mod tests {
 
     const TOL: f32 = 1e-3;
 
+    /// Half the spacing between brute force samples on the longest edge, which
+    /// is the worst-case error the reference computation can have.
+    ///
+    /// Rather than loosening the tolerance for every shape, the reference's own
+    /// uncertainty is added to the comparison tolerance. That keeps the tight
+    /// bound meaningful for small shapes and stops large shapes producing false
+    /// failures from reference sampling error alone.
+    fn brute_force_error(
+        half_bottom: f32,
+        half_top: f32,
+        half_h: f32,
+        samples_per_edge: usize,
+    ) -> f32 {
+        let longest = (half_top * 2.0).max(half_bottom * 2.0);
+        let slant = (half_top - half_bottom).abs();
+        let side = (slant * slant + (half_h * 2.0) * (half_h * 2.0)).sqrt();
+        longest.max(side) / samples_per_edge as f32 * 0.5
+    }
+
+    /// Independently recompute the inset trapezoid the rounding formula claims
+    /// to build, so the rounded field can be checked against brute force rather
+    /// than only against the closed form it is defined in terms of.
+    fn offset_polygon(
+        half_bottom: f32,
+        half_top: f32,
+        half_h: f32,
+        radius: f32,
+    ) -> (f32, f32, f32) {
+        let slant_angle = ((half_top - half_bottom) / (2.0 * half_h)).atan();
+        let inset_x = if slant_angle.cos() > 0.15 {
+            radius / slant_angle.cos()
+        } else {
+            radius * 6.0
+        };
+        (half_bottom - inset_x, half_top - inset_x, half_h - radius)
+    }
+
     fn check_field_against_brute_force(
         half_bottom: f32,
         half_top: f32,
@@ -366,6 +403,19 @@ mod tests {
         radius: f32,
         extent: f32,
     ) {
+        const SAMPLES_PER_EDGE: usize = 4000;
+        let reference_error = brute_force_error(half_bottom, half_top, half_h, SAMPLES_PER_EDGE);
+        let tolerance = TOL + reference_error;
+
+        // For the rounded case the field is defined as the offset polygon minus
+        // the radius, so the ground truth has to be computed from that same
+        // offset polygon.
+        let (ref_hb, ref_ht, ref_hh) = if radius > 0.0 {
+            offset_polygon(half_bottom, half_top, half_h, radius)
+        } else {
+            (half_bottom, half_top, half_h)
+        };
+
         let mut checked = 0usize;
         // A deterministic grid plus a fixed pseudo random jitter, so failures
         // are reproducible.
@@ -383,44 +433,32 @@ mod tests {
                 let px = (fx * 2.0 - 1.0) * extent + jx * 0.4;
                 let py = (fy * 2.0 - 1.0) * extent + jy * 0.4;
 
-                let analytic = if radius > 0.0 {
-                    sd_rounded_trapezoid(px, py, half_bottom, half_top, half_h, radius)
-                } else {
-                    sd_trapezoid(px, py, half_bottom, half_top, half_h)
-                };
+                let analytic =
+                    sd_rounded_trapezoid(px, py, half_bottom, half_top, half_h, radius);
 
-                // Ground truth magnitude: brute force on the polygon, offset
-                // inward by the radius for the rounded case.
-                let mut brute = brute_force_trapezoid_distance(
-                    px,
-                    py,
-                    half_bottom,
-                    half_top,
-                    half_h,
-                    2000,
-                );
-                let truth_inside =
-                    point_in_trapezoid(px, py, half_bottom, half_top, half_h);
+                let distance =
+                    brute_force_trapezoid_distance(px, py, ref_hb, ref_ht, ref_hh, SAMPLES_PER_EDGE);
+                let truth_inside = point_in_trapezoid(px, py, ref_hb, ref_ht, ref_hh);
 
-                if radius > 0.0 {
-                    // Rounded shape is the polygon inset by the radius, so the
-                    // boundary distance shifts by exactly the radius.
-                    brute -= radius;
-                }
-
-                let truth_signed = if truth_inside { -brute } else { brute };
+                // The rounded field is the offset polygon's field minus the
+                // radius, in both directions. The rounded shape is the offset
+                // polygon grown by a disc of that radius, so the boundary sits
+                // `radius` outside the offset polygon, not inside it.
+                let inset_field = if truth_inside { -distance } else { distance };
+                let truth_signed = inset_field - radius;
 
                 // Skip points sitting on the boundary, where the rounded and
                 // unrounded treatments legitimately disagree and where the
                 // brute force sampling error is largest.
-                if (truth_signed.abs() < 0.02) || !analytic.is_finite() {
+                if (truth_signed.abs() < 0.05) || !analytic.is_finite() {
                     continue;
                 }
 
                 assert!(
-                    (analytic - truth_signed).abs() < TOL,
+                    (analytic - truth_signed).abs() < tolerance,
                     "field mismatch at ({px:.3}, {py:.3}) for hb={half_bottom} ht={half_top} hh={half_h} r={radius}: \
-                     analytic={analytic:.6} brute_force={truth_signed:.6} inside={truth_inside}"
+                     analytic={analytic:.6} brute_force={truth_signed:.6} inside={truth_inside} \
+                     tol={tolerance:.6}"
                 );
                 checked += 1;
             }

@@ -48,6 +48,20 @@ pub enum IslandState {
     Notify,
 }
 
+/// The states a user can cycle through, in presentation order.
+///
+/// Deliberately not the enum's declaration order. Presentation order is what
+/// the cycle hotkey follows, and it is an independent decision from which
+/// variant the compiler happens to lay out first.
+pub const CYCLE_ORDER: [IslandState; 6] = [
+    IslandState::Clock,
+    IslandState::Media,
+    IslandState::Spectrum,
+    IslandState::Metrics,
+    IslandState::Shortcuts,
+    IslandState::Notify,
+];
+
 impl IslandState {
     /// All states, in declaration order.
     pub const ALL: [Self; 8] = [
@@ -164,28 +178,62 @@ impl IslandState {
         }
     }
 
-    /// The next state in cycle order, skipping `Collapsed` and `Hover` because
-    /// neither is a meaningful stop for a user-initiated cycle.
+    /// Position in [`CYCLE_ORDER`], or `None` for states that are not part of
+    /// the cycle because the user never targets them directly.
     #[must_use]
-    pub const fn cycle_next(self) -> Self {
-        const CYCLE: [IslandState; 6] = [
-            IslandState::Clock,
-            IslandState::Media,
-            IslandState::Spectrum,
-            IslandState::Metrics,
-            IslandState::Shortcuts,
-            IslandState::Notify,
-        ];
-        let current = self.index();
+    pub const fn cycle_slot(self) -> Option<usize> {
         let mut i = 0;
-        while i < CYCLE.len() {
-            if CYCLE[i].index() > current {
-                return CYCLE[i];
+        while i < CYCLE_ORDER.len() {
+            if matches!(
+                (CYCLE_ORDER[i], self),
+                (IslandState::Clock, IslandState::Clock)
+                    | (IslandState::Media, IslandState::Media)
+                    | (IslandState::Spectrum, IslandState::Spectrum)
+                    | (IslandState::Metrics, IslandState::Metrics)
+                    | (IslandState::Shortcuts, IslandState::Shortcuts)
+                    | (IslandState::Notify, IslandState::Notify)
+            ) {
+                return Some(i);
             }
             i += 1;
         }
-        // Past the end of the cycle, wrap to the beginning.
-        CYCLE[0]
+        None
+    }
+
+    /// The next state in cycle order.
+    ///
+    /// Wraps from the last entry to the first. [`IslandState::Collapsed`] and
+    /// [`IslandState::Hover`] are not part of the cycle, so cycling into them
+    /// from anywhere lands on the first real widget.
+    #[must_use]
+    pub const fn cycle_next(self) -> Self {
+        // A state outside the cycle behaves as if it sat just before the first
+        // entry, so the next state wraps to the first widget.
+        let mut current: usize = CYCLE_ORDER.len() - 1;
+        let mut i = 0;
+        while i < CYCLE_ORDER.len() {
+            if CYCLE_ORDER[i] as u8 == self as u8 {
+                current = i;
+            }
+            i += 1;
+        }
+        CYCLE_ORDER[(current + 1) % CYCLE_ORDER.len()]
+    }
+
+    /// The previous state in cycle order, wrapping from first to last.
+    #[must_use]
+    pub const fn cycle_previous(self) -> Self {
+        // A state outside the cycle behaves as if it were the first entry, so
+        // the previous state is the last widget.
+        let mut current: usize = 0;
+        let mut i = 0;
+        while i < CYCLE_ORDER.len() {
+            if CYCLE_ORDER[i] as u8 == self as u8 {
+                current = i;
+            }
+            i += 1;
+        }
+        CYCLE_ORDER[(current + CYCLE_ORDER.len() - 1) % CYCLE_ORDER.len()]
     }
 }
 
@@ -470,26 +518,7 @@ impl StateMachine {
 
     /// Cycle backwards through the widget states.
     pub fn cycle_backward(&mut self) -> IslandState {
-        const CYCLE: [IslandState; 6] = [
-            IslandState::Clock,
-            IslandState::Media,
-            IslandState::Spectrum,
-            IslandState::Metrics,
-            IslandState::Shortcuts,
-            IslandState::Notify,
-        ];
-        let current = self.current.index();
-        let mut slot = CYCLE.len();
-        while slot > 0 {
-            slot -= 1;
-            if CYCLE[slot].index() < current {
-                let next = CYCLE[slot];
-                self.request(StateRequest::persistent(next, TransitionSource::Hotkey));
-                self.force(next);
-                return next;
-            }
-        }
-        let next = CYCLE[CYCLE.len() - 1];
+        let next = self.current.cycle_previous();
         self.request(StateRequest::persistent(next, TransitionSource::Hotkey));
         self.force(next);
         next
