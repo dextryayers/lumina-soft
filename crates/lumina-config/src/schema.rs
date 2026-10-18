@@ -1331,6 +1331,19 @@ pub enum GpuBackend {
     Gl,
 }
 
+impl std::fmt::Display for GpuBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::Auto => "auto",
+            Self::Vulkan => "vulkan",
+            Self::Dx12 => "dx12",
+            Self::Metal => "metal",
+            Self::Gl => "gl",
+        };
+        f.write_str(name)
+    }
+}
+
 /// Log verbosity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]

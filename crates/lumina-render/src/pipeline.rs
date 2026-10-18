@@ -53,7 +53,7 @@ impl IslandPipeline {
     ///
     /// Never.
     #[must_use]
-    pub fn build(device: &wgpu::Device, format: wgpu::TextureFormat) -> Result<Self, String> {
+    pub async fn build(device: &wgpu::Device, format: wgpu::TextureFormat) -> Result<Self, String> {
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("lumina-island-uniforms"),
             size: IslandUniforms::SIZE,
@@ -124,13 +124,13 @@ impl IslandPipeline {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &module,
-                entry_point: Some("vs_main"),
+                entry_point: "vs_main",
                 buffers: &[],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &module,
-                entry_point: Some("fs_main"),
+                entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
@@ -145,8 +145,7 @@ impl IslandPipeline {
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
-            cache: None,
-        });
+            });
 
         Ok(Self { pipeline, bind_group, uniform_buffer, is_fallback })
     }

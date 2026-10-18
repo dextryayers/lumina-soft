@@ -92,13 +92,16 @@ impl IslandUniforms {
         Self {
             half_bottom: geometry.half_bottom,
             half_top: geometry.half_top,
-            half_h: geometry.half_h,
+            half_h: geometry.half_h(),
             radius: effective_radius,
             fill_rgba: palette.fill.to_premultiplied(),
             fill_accent_rgba: palette.fill_accent.to_premultiplied(),
             border_rgba: palette.border.to_premultiplied(),
             border_width: appearance.border_width.max(0.0) * scale,
-            glow_rgb: palette.glow.to_srgb(),
+            glow_rgb: {
+                let rgb = palette.glow.to_oklab().to_srgb();
+                [rgb[0], rgb[1], rgb[2]]
+            },
             glow_intensity: palette.glow_intensity.max(0.0),
             glow_falloff: appearance.glow_falloff.max(0.5) * scale,
             glow_spread: appearance.glow_spread.max(0.0) * scale,
