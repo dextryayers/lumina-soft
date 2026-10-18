@@ -1,88 +1,80 @@
-//! Canonical default values.
+﻿//! Canonical default values.
 //!
 //! Every default in the schema is implemented by delegating here. That makes
-//! this module the single source of truth, which is what lets
-//! `--check-config` assert that the shipped defaults validate clean: there is
-//! exactly one set of numbers to check, not two that can drift.
+//! this module the single source of truth, which is what lets a test assert
+//! that the shipped defaults validate clean: there is exactly one set of
+//! numbers to check, not two that can drift.
 //!
 //! The accessors exist because the validator needs a *reference* default to
 //! report what it substituted, and reading it from the value being repaired
-//! would report the clamped value instead of the original.
+//! would report the already-clamped number instead of the original.
 
 use crate::schema::*;
 
-/// Built-in color defaults.
+/// Island fill and border colours.
 pub struct ColorDefaults {
     /// Default island fill.
     pub fill: &'static str,
-    /// Default border.
+    /// Default border colour.
     pub border_color: &'static str,
     /// Default primary accent.
     pub primary: &'static str,
     /// Default secondary accent.
     pub secondary: &'static str,
-    /// Default text color.
-    pub text: &'static str,
-    /// Default dimmed text color.
+}
+
+/// The two text colours, which have different names from the rest.
+pub struct TextColors {
+    /// Primary text.
+    pub color: &'static str,
+    /// Secondary, dimmer text.
     pub dim_color: &'static str,
+}
+
+/// Every shipped colour, for tests that assert they all parse.
+#[must_use]
+pub fn all_default_colors() -> ColorDefaults {
+    ColorDefaults {
+        fill: "#12121ACC",
+        border_color: "#FFFFFF24",
+        primary: "#7C3AED",
+        secondary: "#06B6D4",
+    }
 }
 
 /// Island fill and border defaults.
 #[must_use]
 pub fn appearance_defaults() -> ColorDefaults {
-    ColorDefaults {
-        fill: "#12121ACC",
-        border_color: "#FFFFFF24",
-        ..color_defaults()
-    }
+    ColorDefaults { fill: "#12121ACC", border_color: "#FFFFFF24", ..all_default_colors() }
 }
 
-/// Text color defaults.
-#[must_use]
-pub fn text_defaults() -> ColorDefaults {
-    ColorDefaults {
-        color: "#FFFFFFFF",
-        dim_color: "#B3FFFFFF",
-        ..color_defaults()
-    }
-}
-
-/// Color engine defaults.
+/// Colour engine defaults.
 #[must_use]
 pub fn rgb_defaults() -> ColorDefaults {
-    ColorDefaults {
-        primary: "#7C3AED",
-        secondary: "#06B6D4",
-        ..color_defaults()
-    }
+    ColorDefaults { primary: "#7C3AED", secondary: "#06B6D4", ..all_default_colors() }
 }
 
-fn color_defaults() -> ColorDefaults {
-    ColorDefaults {
-        fill: "#12121ACC",
-        border_color: "#FFFFFF24",
-        primary: "#7C3AED",
-        secondary: "#06B6D4",
-        text: "#FFFFFFFF",
-        dim_color: "#B3FFFFFF",
-    }
+/// Text colour defaults.
+#[must_use]
+pub fn text_defaults() -> TextColors {
+    TextColors { color: "#FFFFFFFF", dim_color: "#B3FFFFFFFF" }
 }
 
-/// Numeric reference values for sections that need a repair target.
+/// Numeric reference values for the validator's repair messages.
 pub struct NumericDefaults {
     /// Maximum glow intensity.
     pub glow_intensity: f32,
-    /// Maximum text size.
+    /// Default track title size.
     pub title_size: f32,
 }
 
-/// Numeric defaults shared with the validator's repair messages.
+/// Numeric defaults shared with the validator.
 #[must_use]
 pub fn numeric_defaults() -> NumericDefaults {
     NumericDefaults { glow_intensity: 2.0, title_size: 15.0 }
 }
 
-/// Media defaults, exposed for tests and for the settings summary.
+/// Media defaults, exposed so the settings summary and tests share one source.
 #[must_use]
 pub fn media_defaults() -> MediaConfig {
     MediaConfig::default()
@@ -99,22 +91,22 @@ pub fn default_config() -> Config {
 /// The first-run configuration file, with a comment above every key.
 ///
 /// Hand maintained rather than generated from the struct, because a comment
-/// explaining why a key exists is worth more than a comment restating its type.
-/// A test asserts that every key in this file also exists in the schema, so the
-/// two cannot drift.
+/// explaining *why* a key exists is worth more than a comment restating its
+/// type. Two tests below keep it honest: one asserts it parses and validates
+/// clean, the other asserts it still describes exactly the compiled defaults.
 #[must_use]
 pub fn default_toml() -> String {
-    let _ = default_config();
     DEFAULT_TOML.to_string()
 }
 
-/// Static first-run file.
+/// Static first-run file, embedded at compile time.
 const DEFAULT_TOML: &str = include_str!("../assets/default.toml");
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::validate::{validate, ValidationReport};
+    use lumina_core::color::parse_hex;
 
     #[test]
     fn defaults_validate_clean() {
@@ -131,19 +123,26 @@ mod tests {
     }
 
     #[test]
-    fn color_defaults_all_parse() {
-        use lumina_core::color::parse_hex;
-        let all = color_defaults();
+    fn every_default_color_parses() {
+        let all = all_default_colors();
         for (name, value) in [
             ("fill", all.fill),
             ("border_color", all.border_color),
             ("primary", all.primary),
             ("secondary", all.secondary),
-            ("text", all.text),
-            ("dim_color", all.dim_color),
         ] {
             assert!(parse_hex(value).is_some(), "default {name} {value:?} does not parse");
         }
+
+        let text = text_defaults();
+        assert!(parse_hex(text.color).is_some(), "default text colour does not parse");
+        assert!(parse_hex(text.dim_color).is_some(), "default dim text colour does not parse");
+    }
+
+    #[test]
+    fn default_toml_is_not_empty_and_starts_with_a_header() {
+        assert!(DEFAULT_TOML.starts_with("# Lumina"));
+        assert!(DEFAULT_TOML.contains("lumina --check-config"));
     }
 
     #[test]
@@ -151,8 +150,14 @@ mod tests {
         let parsed = Config::from_toml_str(DEFAULT_TOML).expect("the shipped file must parse");
         let (config, report) = validate(parsed);
         assert!(report.is_clean(), "the shipped file must be valid: {}", report.render());
-        // And it must describe the same thing the compiled defaults do.
-        assert_eq!(config, default_config(), "the shipped file must match the compiled defaults");
+    }
+
+    #[test]
+    fn shipped_toml_describes_exactly_the_compiled_defaults() {
+        // This is the test that stops the hand written file and the Rust
+        // structs from drifting apart.
+        let parsed = Config::from_toml_str(DEFAULT_TOML).expect("the shipped file must parse");
+        assert_eq!(parsed, default_config(), "the shipped file has drifted from the compiled defaults");
     }
 
     #[test]
@@ -173,7 +178,6 @@ mod tests {
             "[weather]",
             "[layout]",
             "[hotkeys]",
-            "[shortcuts]",
             "[tray]",
             "[motion]",
             "[text]",
@@ -185,7 +189,8 @@ mod tests {
 
     #[test]
     fn shipped_toml_carries_a_comment_for_most_keys() {
-        // A shipped file with no comments is a documentation failure.
+        // A shipped file with no explanations is a documentation failure, so
+        // the comment count is held at or above the key count.
         let key_lines = DEFAULT_TOML
             .lines()
             .filter(|l| {
@@ -193,10 +198,15 @@ mod tests {
                 !t.is_empty() && !t.starts_with('#') && !t.starts_with('[') && t.contains('=')
             })
             .count();
-        let comment_lines = DEFAULT_TOML.lines().filter(|l| l.trim_start().starts_with('#')).count();
+        let comment_lines = DEFAULT_TOML
+            .lines()
+            .filter(|l| l.trim_start().starts_with('#'))
+            .count();
+
         assert!(
             comment_lines >= key_lines,
-            "the shipped file has {comment_lines} comments for {key_lines} keys, expected at least one per key"
+            "the shipped file has {comment_lines} comment lines for {key_lines} keys; \
+             every key should be explained"
         );
     }
 
@@ -208,10 +218,10 @@ mod tests {
     }
 
     #[test]
-    fn report_is_clean_for_the_shipped_file() {
+    fn clean_report_is_reachable_from_the_shipped_file() {
         let parsed = Config::from_toml_str(DEFAULT_TOML).expect("parses");
         let (_, report) = validate(parsed);
-        assert!(report.has_issues() == false, "{}", report.render());
-        let _: ValidationReport = ValidationReport::clean();
+        assert!(!report.has_issues(), "{}", report.render());
+        assert_eq!(report.render(), ValidationReport::clean().render());
     }
 }

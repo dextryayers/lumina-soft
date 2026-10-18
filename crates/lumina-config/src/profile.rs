@@ -75,11 +75,12 @@ impl ProfileStore {
                     "profile {name:?} inherits from {:?}, which does not exist",
                     profile.inherit
                 ));
-            } else if profiles[&profile.inherit].inherit == name {
-                problems.push(format!("profile {name:?} and {:?} inherit from each other", profile.inherit));
             } else if !profiles[&profile.inherit].inherit.is_empty() {
+                // Covers both a two level chain and a direct cycle, and names
+                // the offending profile so the message is actionable.
                 problems.push(format!(
-                    "profile {name:?} inherits from {:?}, which itself has an inherit; only one level is supported",
+                    "profile {name:?} inherits from {:?}, which itself has an inherit; \
+                     only one level is supported and cycles are not allowed",
                     profile.inherit
                 ));
             }

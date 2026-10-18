@@ -1,4 +1,4 @@
-//! Per-key validation and repair.
+﻿//! Per-key validation and repair.
 //!
 //! # The contract
 //!
@@ -17,8 +17,8 @@
 use lumina_core::color::parse_hex;
 
 use crate::schema::{
-    AudioConfig, BackdropMode, Config, FftSize, GeneralConfig, HotkeysConfig, LayoutConfig,
-    MediaConfig, MotionConfig, Position, RgbMode, TextConfig, VisualizerStyle,
+    AudioConfig, Config, FftSize, GeneralConfig, HotkeysConfig, LayoutConfig, MediaConfig,
+    MotionConfig, Position, RgbMode, TextConfig, VisualizerStyle,
 };
 
 /// How serious a problem is.
@@ -920,7 +920,7 @@ mod tests {
     #[test]
     fn one_bad_value_does_not_discard_the_rest_of_the_file() {
         // This is the central guarantee of the crate.
-        let text = r#"
+        let text = r##"
             [rgb]
             mode = "cycling"
             primary = "#FF00AA"
@@ -929,7 +929,7 @@ mod tests {
 
             [general]
             offset_y = 24
-        "#;
+        "##;
         let (config, report) = run(text);
 
         assert_eq!(config.rgb.mode, RgbMode::Cycling, "valid values must survive");
@@ -1176,7 +1176,7 @@ mod tests {
 
     #[test]
     fn a_file_with_many_problems_reports_all_of_them_in_one_pass() {
-        let text = r#"
+        let text = r##"
             [rgb]
             primary = "purple"
             glow_intensity = 100.0
@@ -1194,7 +1194,7 @@ mod tests {
 
             [layout]
             order = ["clock", "teleporter", "clock"]
-        "#;
+        "##;
         let (config, report) = run(text);
 
         // Every problem named above is reported in a single pass, so a user

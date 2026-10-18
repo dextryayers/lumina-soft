@@ -25,10 +25,13 @@ pub mod validate;
 pub mod watch;
 
 pub use schema::{
-    AppearanceConfig, AudioConfig, BatteryConfig, Config, GeneralConfig, HotkeysConfig, LayoutConfig,
-    MediaConfig, MetricsConfig, MotionConfig, NetworkConfig, Placement, Position, PomodoroConfig,
-    RgbConfig, ShortcutConfig, SpectrumConfig, TextConfig, TrayConfig, VisualizerStyle, WeatherConfig,
-    WidgetConfig,
+    AppearanceConfig, AdvancedConfig, AudioConfig, AudioBackend, AudioSource, BackdropMode,
+    BatteryConfig, ClockConfig, ClockFormat, Config, FftSize, FontWeight, GeneralConfig,
+    GpuBackend, HotkeysConfig, LayoutAlign, LayoutConfig, LogLevel, MediaConfig, MetricsConfig,
+    MonitorSelector, MotionConfig, NetworkConfig, NetworkUnit, PomodoroConfig, Position, RgbConfig,
+    RgbMode, ReactiveConfig, ShortcutConfig, ShortcutsConfig, SpectrumConfig, TextConfig, TrayConfig,
+    VisualizerStyle, WeatherConfig, WeatherProvider, WeatherUnits, WidgetConfig, WidgetEntry,
+    WidgetRgb,
 };
 pub use validate::{Issue, Severity, ValidationReport, validate};
 pub use profile::{ProfileStore, resolve};

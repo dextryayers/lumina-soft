@@ -12,6 +12,7 @@
 //! mutates configuration state. Keeping the watcher dumb is what makes it safe
 //! to run on its own thread without locks.
 
+use notify::Watcher as _;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
@@ -60,25 +61,6 @@ impl ConfigWatcher {
         let debounce_sender = sender.clone();
         let mut problems = Vec::new();
 
-        let mut builder = notify::recommended_watcher(
-            move |result: notify::Result<notify::Event>| match result {
-                Ok(event) => {
-                    let removed = matches!(
-                        event.kind,
-                        notify::EventKind::Remove(_) | notify::EventKind::Any
-                    );
-                    if removed {
-                        let _ = debounce_sender.send(WatchEvent::Changed);
-                    } else {
-                        let _ = debounce_sender.send(WatchEvent::Changed);
-                    }
-                }
-                Err(e) => {
-                    let _ = debounce_sender.send(WatchEvent::Failed(e.to_string()));
-                }
-            },
-        );
-
         // Watch the parent directory of each file so that save-by-rename, which
         // replaces the inode, is still observed.
         let mut unique_dirs: Vec<PathBuf> = Vec::new();
@@ -93,23 +75,43 @@ impl ConfigWatcher {
             }
         }
 
-        for dir in &unique_dirs {
-            if let Err(e) = builder.watch(dir, notify::RecursiveMode::NonRecursive) {
-                problems.push(format!("cannot watch {}: {e}", dir.display()));
-            }
-        }
+        let builder = notify::recommended_watcher(
+            move |result: notify::Result<notify::Event>| match result {
+                // Every kind maps to the same signal. The receiver re-reads from
+                // disk, so distinguishing create from write from modify would
+                // add branches without adding information.
+                Ok(_) => {
+                    let _ = debounce_sender.send(WatchEvent::Changed);
+                }
+                Err(e) => {
+                    let _ = debounce_sender.send(WatchEvent::Failed(e.to_string()));
+                }
+            },
+        );
 
-        match builder {
-            Ok(watcher) => (Self { receiver, _watcher: watcher }, problems),
+        let mut watcher = match builder {
+            Ok(watcher) => watcher,
             Err(e) => {
                 // Constructing a watcher can fail outright on an unsupported
                 // platform. Report it and hand back an inert watcher rather than
                 // taking down the application.
                 problems.push(format!("cannot create a file watcher: {e}"));
-                let (_tx, rx) = std::sync::mpsc::channel();
-                (Self { receiver: rx, _watcher: notify::recommended_watcher(|_| {}).ok().expect("a second watcher cannot fail here") }, problems)
+                return (Self::inert(receiver), problems);
+            }
+        };
+
+        for dir in &unique_dirs {
+            if let Err(e) = watcher.watch(dir, notify::RecursiveMode::NonRecursive) {
+                problems.push(format!("cannot watch {}: {e}", dir.display()));
             }
         }
+
+        (Self { receiver, _watcher: watcher }, problems)
+    }
+
+    /// A watcher that never fires, used when the platform has no watcher.
+    fn inert(receiver: Receiver<WatchEvent>) -> Self {
+        Self { receiver, _watcher: notify::recommended_watcher(|_| {}).unwrap_or_else(|_| unreachable!("the first watcher already succeeded or reported failure")) }
     }
 
     /// Take a pending event if one is ready, without blocking.
