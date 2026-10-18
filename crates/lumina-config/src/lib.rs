@@ -18,6 +18,7 @@
 #![deny(missing_docs)]
 
 pub mod defaults;
+pub mod diff;
 pub mod merge;
 pub mod profile;
 pub mod schema;
@@ -25,6 +26,7 @@ pub mod theme;
 pub mod validate;
 pub mod watch;
 
+pub use diff::{diff_config, ConfigChange, ConfigDiff, Section};
 pub use merge::{expand_dotted, merge_tables, overlay_config};
 
 pub use profile::{resolve, ProfileStore};

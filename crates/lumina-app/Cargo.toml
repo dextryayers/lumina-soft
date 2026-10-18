@@ -1,0 +1,25 @@
+[package]
+name = "lumina-app"
+description = "Lumina binary: CLI entry point, config validation, diagnostics."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "lumina"
+path = "src/main.rs"
+
+[dependencies]
+lumina-core = { workspace = true }
+lumina-config = { workspace = true }
+lumina-platform = { workspace = true }
+lumina-render = { workspace = true }
+lumina-text = { workspace = true }
