@@ -37,7 +37,10 @@ impl NullBackend {
     /// a successful startup.
     #[must_use]
     pub fn new() -> Self {
-        Self { visible: true, ..Self::default() }
+        Self {
+            visible: true,
+            ..Self::default()
+        }
     }
 
     /// The last geometry applied, for tests.
@@ -155,9 +158,14 @@ mod tests {
                 0,
                 0,
             );
-            backend.apply_geometry(&placement.geometry).expect("applies");
+            backend
+                .apply_geometry(&placement.geometry)
+                .expect("applies");
             assert_eq!(backend.current_scale(), ScaleFactor::new(scale));
-            assert_eq!(backend.last_geometry().expect("recorded").size, placement.size());
+            assert_eq!(
+                backend.last_geometry().expect("recorded").size,
+                placement.size()
+            );
         }
     }
 
@@ -177,7 +185,10 @@ mod tests {
         let mut backend = NullBackend::new();
         backend.shutdown();
         backend.shutdown();
-        assert!(backend.is_visible(), "shutdown must not change observable state here");
+        assert!(
+            backend.is_visible(),
+            "shutdown must not change observable state here"
+        );
     }
 
     impl NullBackend {

@@ -112,11 +112,23 @@ pub fn compute_placement(
     offset_x: i32,
     offset_y: i32,
 ) -> Placement {
-    let scale = if scale.is_finite() && scale > 0.0 { scale.clamp(0.25, 8.0) } else { 1.0 };
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale.clamp(0.25, 8.0)
+    } else {
+        1.0
+    };
 
     let (logical_w, logical_h) = logical_size;
-    let logical_w = if logical_w.is_finite() && logical_w > 0.0 { logical_w } else { 1.0 };
-    let logical_h = if logical_h.is_finite() && logical_h > 0.0 { logical_h } else { 1.0 };
+    let logical_w = if logical_w.is_finite() && logical_w > 0.0 {
+        logical_w
+    } else {
+        1.0
+    };
+    let logical_h = if logical_h.is_finite() && logical_h > 0.0 {
+        logical_h
+    } else {
+        1.0
+    };
 
     let wanted_w = logical_w * scale;
     let wanted_h = logical_h * scale;
@@ -131,8 +143,10 @@ pub fn compute_placement(
         monitor.height.max(1.0),
     );
 
-    let size_w = size_w.round().max(1.0) as i32;
-    let size_h = size_h.round().max(1.0) as i32;
+    // A window smaller than this cannot show anything useful, and some window
+    // managers misbehave with tiny surfaces, so placement never produces one.
+    let size_w = (size_w.round() as i32).max(MIN_SURFACE_SIZE);
+    let size_h = (size_h.round() as i32).max(MIN_SURFACE_SIZE);
     let size_w_f = size_w as Scalar;
     let size_h_f = size_h as Scalar;
 
@@ -143,7 +157,11 @@ pub fn compute_placement(
     // matching on the position enum, so adding a position later cannot get this
     // wrong by omission.
     let anchor_x = monitor.x + (monitor.width * position.horizontal_fraction()).round();
-    let anchor_y = if position.is_top() { monitor.y } else { monitor.y + monitor.height.round() };
+    let anchor_y = if position.is_top() {
+        monitor.y
+    } else {
+        monitor.y + monitor.height.round()
+    };
 
     // Center the window on its anchor, then apply the user's offsets.
     let mut left = (anchor_x - size_w_f / 2.0).round() as i32 + offset_x;
@@ -160,9 +178,12 @@ pub fn compute_placement(
     // who anchors to top-center and pushes the island far left has made a
     // deliberate choice, whereas letting it drift off the screen edge is never
     // what anyone means.
-    let offsets_clamped =
-        clamp_into(&mut left, monitor.x as i32, monitor_right - size_w, position.horizontal_fraction() == 0.5)
-            | clamp_into(&mut top, monitor.y as i32, monitor_bottom - size_h, true);
+    let offsets_clamped = clamp_into(
+        &mut left,
+        monitor.x as i32,
+        monitor_right - size_w,
+        position.horizontal_fraction() == 0.5,
+    ) | clamp_into(&mut top, monitor.y as i32, monitor_bottom - size_h, true);
 
     Placement {
         geometry: WindowGeometry {
@@ -214,7 +235,7 @@ pub fn fit_inside(
     max_width: Scalar,
     max_height: Scalar,
 ) -> (Scalar, Scalar, bool) {
-    let (mut w, mut h) = (width.max(0.0), bottom_h.max(0.0));
+    let (w, h) = (width.max(0.0), bottom_h.max(0.0));
     if max_width <= 0.0 || max_height <= 0.0 {
         return (w, h, false);
     }
@@ -246,7 +267,11 @@ pub fn surface_size_for(
     glow_spread: Scalar,
     glow_margin: Scalar,
 ) -> (Scalar, Scalar) {
-    let scale = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
     let padding = (glow_spread + glow_margin).max(0.0) + 2.0;
     let sized = shape.padded_size(padding);
     (sized.width * scale, sized.height * scale)
@@ -286,7 +311,10 @@ mod tests {
 
         // Centered horizontally on 1920 with a width of 124.
         assert_eq!(placement.geometry.bounds.x, (1920.0 - 124.0) / 2.0);
-        assert_eq!(placement.geometry.bounds.y, 12.0, "the y offset pushes it down from the edge");
+        assert_eq!(
+            placement.geometry.bounds.y, 12.0,
+            "the y offset pushes it down from the edge"
+        );
         assert_eq!(placement.size(), (124, 36));
         assert!(!placement.was_clamped);
         assert!(!placement.offsets_clamped);
@@ -306,13 +334,23 @@ mod tests {
             5000,
         );
         assert_eq!(placement.geometry.bounds.y, 5000.0);
-        assert!(!placement.offsets_clamped, "a centre anchor is never dragged back");
+        assert!(
+            !placement.offsets_clamped,
+            "a centre anchor is never dragged back"
+        );
     }
 
     #[test]
     fn top_left_aligns_to_the_left_edge() {
-        let placement =
-            compute_placement(monitor_1080p(), 0, 1.0, Position::TopLeft, (124.0, 36.0), 0, 0);
+        let placement = compute_placement(
+            monitor_1080p(),
+            0,
+            1.0,
+            Position::TopLeft,
+            (124.0, 36.0),
+            0,
+            0,
+        );
 
         assert_eq!(placement.geometry.bounds.x, 0.0);
         assert_eq!(placement.geometry.bounds.y, 0.0);
@@ -320,8 +358,15 @@ mod tests {
 
     #[test]
     fn top_right_aligns_to_the_right_edge() {
-        let placement =
-            compute_placement(monitor_1080p(), 0, 1.0, Position::TopRight, (124.0, 36.0), 0, 0);
+        let placement = compute_placement(
+            monitor_1080p(),
+            0,
+            1.0,
+            Position::TopRight,
+            (124.0, 36.0),
+            0,
+            0,
+        );
 
         assert_eq!(placement.geometry.bounds.x, 1920.0 - 124.0);
         assert_eq!(placement.geometry.bounds.y, 0.0);
@@ -348,9 +393,24 @@ mod tests {
 
     #[test]
     fn bottom_center_is_centered_like_top_center() {
-        let top = compute_placement(monitor_1080p(), 0, 1.0, Position::TopCenter, (124.0, 36.0), 0, 0);
-        let bottom =
-            compute_placement(monitor_1080p(), 0, 1.0, Position::BottomCenter, (124.0, 36.0), 0, 0);
+        let top = compute_placement(
+            monitor_1080p(),
+            0,
+            1.0,
+            Position::TopCenter,
+            (124.0, 36.0),
+            0,
+            0,
+        );
+        let bottom = compute_placement(
+            monitor_1080p(),
+            0,
+            1.0,
+            Position::BottomCenter,
+            (124.0, 36.0),
+            0,
+            0,
+        );
         assert_eq!(top.geometry.bounds.x, bottom.geometry.bounds.x);
     }
 
@@ -361,23 +421,52 @@ mod tests {
                 compute_placement(monitor_1080p(), 0, 1.0, position, (124.0, 36.0), 0, 0);
 
             let b = placement.geometry.bounds;
-            assert!(b.x >= 0.0, "{position} starts left of the monitor at {}", b.x);
+            assert!(
+                b.x >= 0.0,
+                "{position} starts left of the monitor at {}",
+                b.x
+            );
             assert!(b.y >= 0.0, "{position} starts above the monitor at {}", b.y);
-            assert!(b.right() <= 1920.0, "{position} runs off the right at {}", b.right());
-            assert!(b.bottom() <= 1080.0, "{position} runs off the bottom at {}", b.bottom());
+            assert!(
+                b.right() <= 1920.0,
+                "{position} runs off the right at {}",
+                b.right()
+            );
+            assert!(
+                b.bottom() <= 1080.0,
+                "{position} runs off the bottom at {}",
+                b.bottom()
+            );
         }
     }
 
     #[test]
     fn scale_multiplies_the_surface_size_and_the_offsets() {
-        let at_1x =
-            compute_placement(monitor_1080p(), 0, 1.0, Position::TopCenter, (124.0, 36.0), 10, 12);
-        let at_2x =
-            compute_placement(monitor_1080p(), 0, 2.0, Position::TopCenter, (124.0, 36.0), 10, 12);
+        let at_1x = compute_placement(
+            monitor_1080p(),
+            0,
+            1.0,
+            Position::TopCenter,
+            (124.0, 36.0),
+            10,
+            12,
+        );
+        let at_2x = compute_placement(
+            monitor_1080p(),
+            0,
+            2.0,
+            Position::TopCenter,
+            (124.0, 36.0),
+            10,
+            12,
+        );
 
         assert_eq!(at_1x.size(), (124, 36));
         assert_eq!(at_2x.size(), (248, 72), "2x scaling doubles the surface");
-        assert_eq!(at_2x.geometry.bounds.y, 24, "2x scaling doubles the offset");
+        assert_eq!(
+            at_2x.geometry.bounds.y, 24.0,
+            "2x scaling doubles the offset"
+        );
         assert_eq!(at_2x.geometry.scale, 2.0);
     }
 
@@ -386,10 +475,20 @@ mod tests {
         // 1.5x is the most common non integer scaling and the one that catches
         // rounding mistakes, because 124 * 1.5 = 186 is whole but 100 * 1.5
         // produces half pixels that must not reach the window manager.
-        let placement =
-            compute_placement(monitor_1080p(), 0, 1.5, Position::TopCenter, (124.0, 36.0), 0, 0);
+        let placement = compute_placement(
+            monitor_1080p(),
+            0,
+            1.5,
+            Position::TopCenter,
+            (124.0, 36.0),
+            0,
+            0,
+        );
         assert_eq!(placement.size(), (186, 54));
-        assert!(placement.geometry.bounds.x.fract() == 0.0 || true, "x may be fractional");
+        assert!(
+            placement.geometry.bounds.x.fract() == 0.0 || true,
+            "x may be fractional"
+        );
         assert_eq!(placement.geometry.bounds.width, 186.0);
     }
 
@@ -408,15 +507,29 @@ mod tests {
     #[test]
     fn a_monitor_above_the_primary_keeps_its_negative_origin() {
         let upper_monitor = Rect::new(0.0, -1080.0, 1920.0, 1080.0);
-        let placement =
-            compute_placement(upper_monitor, 1, 1.0, Position::TopLeft, (124.0, 36.0), 0, 0);
+        let placement = compute_placement(
+            upper_monitor,
+            1,
+            1.0,
+            Position::TopLeft,
+            (124.0, 36.0),
+            0,
+            0,
+        );
         assert_eq!(placement.geometry.bounds.y, -1080.0);
     }
 
     #[test]
     fn placement_is_correct_on_a_secondary_monitor() {
-        let placement =
-            compute_placement(monitor_secondary(), 1, 1.0, Position::TopCenter, (124.0, 36.0), 0, 12);
+        let placement = compute_placement(
+            monitor_secondary(),
+            1,
+            1.0,
+            Position::TopCenter,
+            (124.0, 36.0),
+            0,
+            12,
+        );
 
         // Centered on the secondary, which is not centered on the desktop.
         let expected_x = 1920.0 + (2560.0 - 124.0) / 2.0;
@@ -436,7 +549,10 @@ mod tests {
             0,
         );
 
-        assert!(placement.was_clamped, "an oversized island must report clamping");
+        assert!(
+            placement.was_clamped,
+            "an oversized island must report clamping"
+        );
         assert!(placement.geometry.bounds.width <= 1920.0);
         assert!(placement.geometry.bounds.height <= 1080.0);
     }
@@ -467,13 +583,23 @@ mod tests {
         // the height ratio is 1.0, so the width governs and the height shrinks
         // proportionally. Reversing this is the classic bug where a short island
         // gets stretched tall.
-        let placement =
-            compute_placement(monitor_1080p(), 0, 1.0, Position::TopCenter, (4000.0, 36.0), 0, 0);
+        let placement = compute_placement(
+            monitor_1080p(),
+            0,
+            1.0,
+            Position::TopCenter,
+            (4000.0, 36.0),
+            0,
+            0,
+        );
 
         let width_ratio = placement.geometry.bounds.width / 4000.0;
         let height_ratio = placement.geometry.bounds.height / 36.0;
         assert!((width_ratio - height_ratio).abs() < 0.01);
-        assert!(placement.geometry.bounds.height < 36.0, "height should shrink with the width");
+        assert!(
+            placement.geometry.bounds.height < 36.0,
+            "height should shrink with the width"
+        );
     }
 
     #[test]
@@ -488,33 +614,86 @@ mod tests {
                 0,
                 0,
             );
-            assert_eq!(placement.size(), (124, 36), "scale {scale} should fall back to 1.0");
+            assert_eq!(
+                placement.size(),
+                (124, 36),
+                "scale {scale} should fall back to 1.0"
+            );
         }
     }
 
     #[test]
     fn absurd_scales_are_clamped_to_a_usable_range() {
-        let tiny = compute_placement(monitor_1080p(), 0, 0.001, Position::TopCenter, (100.0, 50.0), 0, 0);
+        let tiny = compute_placement(
+            monitor_1080p(),
+            0,
+            0.001,
+            Position::TopCenter,
+            (100.0, 50.0),
+            0,
+            0,
+        );
         assert_eq!(tiny.geometry.scale, 0.25, "0.001 should clamp up to 0.25");
 
-        let huge = compute_placement(monitor_1080p(), 0, 1000.0, Position::TopCenter, (100.0, 50.0), 0, 0);
+        let huge = compute_placement(
+            monitor_1080p(),
+            0,
+            1000.0,
+            Position::TopCenter,
+            (100.0, 50.0),
+            0,
+            0,
+        );
         assert_eq!(huge.geometry.scale, 8.0, "1000 should clamp down to 8");
     }
 
     #[test]
-    fn degenerate_sizes_produce_a_usable_window() {
+    fn degenerate_sizes_produce_a_minimum_sized_window() {
+        // A zero or negative configured size must not produce a zero sized
+        // window. Some window managers misbehave with those, so placement floors
+        // the result at the minimum rather than passing the nonsense through.
         for size in [(0.0, 0.0), (-10.0, -10.0), (f32::NAN, f32::NAN)] {
             let placement =
                 compute_placement(monitor_1080p(), 0, 1.0, Position::TopCenter, size, 0, 0);
-            assert_eq!(placement.size(), (1, 1), "size {size:?} should become 1x1");
-            assert!(placement.geometry.bounds.width >= 1.0);
+            assert_eq!(
+                placement.size(),
+                (MIN_SURFACE_SIZE, MIN_SURFACE_SIZE),
+                "size {size:?} should floor at the minimum"
+            );
+            assert!(placement.geometry.bounds.width >= MIN_SURFACE_SIZE as Scalar);
+            assert!(placement.geometry.bounds.x.is_finite());
         }
     }
 
     #[test]
+    fn a_tiny_but_valid_size_is_left_alone_when_it_exceeds_the_minimum() {
+        let placement = compute_placement(
+            monitor_1080p(),
+            0,
+            1.0,
+            Position::TopCenter,
+            (20.0, 20.0),
+            0,
+            0,
+        );
+        assert_eq!(
+            placement.size(),
+            (20, 20),
+            "20 px is above the floor and must be preserved"
+        );
+    }
+
+    #[test]
     fn surface_size_is_never_smaller_than_the_minimum() {
-        let placement =
-            compute_placement(monitor_1080p(), 0, 1.0, Position::TopCenter, (0.5, 0.5), 0, 0);
+        let placement = compute_placement(
+            monitor_1080p(),
+            0,
+            1.0,
+            Position::TopCenter,
+            (0.5, 0.5),
+            0,
+            0,
+        );
         assert!(placement.size().0 >= MIN_SURFACE_SIZE);
         assert!(placement.size().1 >= MIN_SURFACE_SIZE);
     }
@@ -528,7 +707,10 @@ mod tests {
         // wider and taller than the shape, or the glow gets clipped.
         let (w, h) = surface_size_for(shape, 1.0, 8.0, 4.0);
         assert!(w > bare_w + 20.0, "glow needs room: {w} vs {bare_w}");
-        assert!(h > bare_h + 20.0, "glow needs vertical room too: {h} vs {bare_h}");
+        assert!(
+            h > bare_h + 20.0,
+            "glow needs vertical room too: {h} vs {bare_h}"
+        );
     }
 
     #[test]
@@ -536,7 +718,10 @@ mod tests {
         let shape = lumina_core::Geometry::default();
         let (w1, _) = surface_size_for(shape, 1.0, 8.0, 4.0);
         let (w2, _) = surface_size_for(shape, 2.0, 8.0, 4.0);
-        assert!((w2 - w1 * 2.0).abs() < 0.01, "2x should double the reserved width");
+        assert!(
+            (w2 - w1 * 2.0).abs() < 0.01,
+            "2x should double the reserved width"
+        );
     }
 
     #[test]
@@ -550,8 +735,11 @@ mod tests {
     fn a_negative_glow_spread_is_treated_as_none() {
         let shape = lumina_core::Geometry::default();
         let (w, h) = surface_size_for(shape, 1.0, -100.0, 0.0);
-        assert!(w > shape.full_width(), "padding must never shrink below the shape");
-        assert!(h > shape.height());
+        assert!(
+            w > shape.full_width(),
+            "padding must never shrink below the shape"
+        );
+        assert!(h > shape.height);
     }
 
     #[test]
@@ -564,7 +752,11 @@ mod tests {
     #[test]
     fn fit_inside_handles_a_zero_limit() {
         let (w, h, changed) = fit_inside(100.0, 50.0, 0.0, 0.0);
-        assert_eq!((w, h), (100.0, 50.0), "a zero limit must not divide by zero");
+        assert_eq!(
+            (w, h),
+            (100.0, 50.0),
+            "a zero limit must not divide by zero"
+        );
         assert!(!changed);
     }
 
@@ -579,8 +771,24 @@ mod tests {
 
     #[test]
     fn placement_is_deterministic() {
-        let a = compute_placement(monitor_1080p(), 0, 1.25, Position::TopRight, (200.0, 60.0), 7, 11);
-        let b = compute_placement(monitor_1080p(), 0, 1.25, Position::TopRight, (200.0, 60.0), 7, 11);
+        let a = compute_placement(
+            monitor_1080p(),
+            0,
+            1.25,
+            Position::TopRight,
+            (200.0, 60.0),
+            7,
+            11,
+        );
+        let b = compute_placement(
+            monitor_1080p(),
+            0,
+            1.25,
+            Position::TopRight,
+            (200.0, 60.0),
+            7,
+            11,
+        );
         assert_eq!(a, b);
     }
 
@@ -596,18 +804,14 @@ mod tests {
         for monitor in monitors {
             for position in Position::ALL {
                 for scale in [1.0, 1.25, 1.5, 2.0] {
-                    let placement = compute_placement(
-                        monitor,
-                        0,
-                        scale,
-                        position,
-                        (124.0, 36.0),
-                        0,
-                        0,
-                    );
+                    let placement =
+                        compute_placement(monitor, 0, scale, position, (124.0, 36.0), 0, 0);
 
                     let b = placement.geometry.bounds;
-                    assert!(b.width > 0.0 && b.height > 0.0, "{position} at {scale} has no area");
+                    assert!(
+                        b.width > 0.0 && b.height > 0.0,
+                        "{position} at {scale} has no area"
+                    );
                     assert!(
                         b.right() <= monitor.right() + 0.5,
                         "{position} at {scale} overruns right: {} vs {}",

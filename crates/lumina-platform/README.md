@@ -19,7 +19,7 @@ issuing platform calls.
 
 ## Layering
 
-```
+```text
                       lumina-app
                            |
              +-------------+-------------+

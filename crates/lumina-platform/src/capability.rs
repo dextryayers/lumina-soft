@@ -63,6 +63,12 @@ impl Platform {
     }
 }
 
+impl std::fmt::Display for Platform {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.display_name())
+    }
+}
+
 /// The capability matrix, resolved for the running system.
 ///
 /// Built once at startup and thereafter read only.
@@ -326,20 +332,37 @@ mod tests {
     fn unsupported_can_do_nothing() {
         let caps = Capabilities::for_platform(Platform::Unsupported);
         assert!(!caps.platform.has_window());
-        assert!(caps.limitations().len() >= 10, "everything should be listed as a limitation");
+        assert!(
+            caps.limitations().len() >= 10,
+            "everything should be listed as a limitation"
+        );
     }
 
     #[test]
-    fn windows_supports_the_full_matrix() {
-        let caps = Capabilities::for_platform(Platform::Windows);
-        assert!(caps.limitations().is_empty(), "Windows should have no limitations, got: {:?}", caps.limitations());
+    fn windows_reports_only_the_one_thing_it_cannot_do() {
+        // Windows genuinely cannot reserve an exclusive zone, so a maximised
+        // window does extend under the island. That is a real limitation and the
+        // matrix must say so rather than claiming parity.
+        let limitations = Capabilities::for_platform(Platform::Windows).limitations();
+        assert_eq!(
+            limitations.len(),
+            1,
+            "expected only the exclusive zone note, got {limitations:?}"
+        );
+        assert!(limitations[0].contains("maximised"));
     }
 
     #[test]
     fn x11_is_honest_about_backdrop_blur() {
         let caps = Capabilities::for_platform(Platform::X11);
-        assert!(!caps.native_backdrop_blur, "there is no portable X11 blur API");
-        assert!(caps.limitations().iter().any(|l| l.contains("backdrop blur")));
+        assert!(
+            !caps.native_backdrop_blur,
+            "there is no portable X11 blur API"
+        );
+        assert!(caps
+            .limitations()
+            .iter()
+            .any(|l| l.contains("backdrop blur")));
     }
 
     #[test]
@@ -357,7 +380,10 @@ mod tests {
         assert!(!caps.always_on_top);
         assert!(!caps.precise_positioning);
         assert!(!caps.click_through);
-        assert!(caps.per_pixel_alpha, "transparency still works without layer-shell");
+        assert!(
+            caps.per_pixel_alpha,
+            "transparency still works without layer-shell"
+        );
     }
 
     #[test]
@@ -398,7 +424,8 @@ mod tests {
             assert_eq!(
                 Capabilities::for_platform(platform).global_hotkeys,
                 platform.has_global_hotkeys(),
-                "{platform} disagrees with itself"
+                "{} disagrees with itself",
+                platform.display_name()
             );
         }
     }
@@ -420,14 +447,47 @@ mod tests {
 
     #[test]
     fn backdrop_request_maps_from_the_config_enum() {
-        assert_eq!(BackdropRequest::from(lumina_config::BackdropMode::Auto), BackdropRequest::Auto);
-        assert_eq!(BackdropRequest::from(lumina_config::BackdropMode::On), BackdropRequest::On);
-        assert_eq!(BackdropRequest::from(lumina_config::BackdropMode::Off), BackdropRequest::Off);
+        assert_eq!(
+            BackdropRequest::from(lumina_config::BackdropMode::Auto),
+            BackdropRequest::Auto
+        );
+        assert_eq!(
+            BackdropRequest::from(lumina_config::BackdropMode::On),
+            BackdropRequest::On
+        );
+        assert_eq!(
+            BackdropRequest::from(lumina_config::BackdropMode::Off),
+            BackdropRequest::Off
+        );
     }
 
     #[test]
-    fn limitations_are_empty_when_everything_works() {
-        assert!(Capabilities::for_platform(Platform::Windows).limitations().is_empty());
+    fn limitations_are_empty_only_when_nothing_is_missing() {
+        for platform in [
+            Platform::Windows,
+            Platform::X11,
+            Platform::WaylandLayerShell,
+            Platform::WaylandNoLayerShell,
+            Platform::Unsupported,
+        ] {
+            let caps = Capabilities::for_platform(platform);
+            let everything = caps.always_on_top
+                && caps.hidden_from_switcher
+                && caps.per_pixel_alpha
+                && caps.click_through
+                && caps.native_backdrop_blur
+                && caps.exclusive_zone
+                && caps.precise_positioning
+                && caps.global_hotkeys
+                && caps.never_takes_focus
+                && caps.multi_monitor
+                && caps.per_monitor_dpi;
+            assert_eq!(
+                caps.limitations().is_empty(),
+                everything,
+                "{platform}: the limitation list disagrees with the capability flags"
+            );
+        }
     }
 
     #[test]

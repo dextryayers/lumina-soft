@@ -107,6 +107,10 @@ pub fn merge_tables(base: &mut toml::Table, overlay: &toml::Table) {
 /// deserialise. Every one of those is a recoverable case that should degrade to
 /// "no override" rather than lose the user's whole configuration.
 ///
+/// The merge happens on the document tree, not on the text. Appending the
+/// overlay as text would emit a second `[rgb]` header after the base's own,
+/// which TOML rejects as a duplicate table definition.
+///
 /// # Panics
 ///
 /// Never.
@@ -116,19 +120,18 @@ pub fn overlay_config(base: &Config, partial: &toml::Table) -> Config {
         return base.clone();
     }
 
-    // Convert to a document and merge structurally. Doing this on text instead
-    // would mean appending `[rgb]` after the base's own `[rgb]`, which TOML
-    // rejects as a duplicate table definition.
     let Ok(mut document) = toml::Table::try_from(base.clone()) else {
         return base.clone();
     };
-
     merge_tables(&mut document, &expand_dotted(partial));
 
-    let Ok(value) = toml::Value::try_from(document) else {
+    // One document in, one document out. Going through `toml::Value` instead
+    // would need a `TryFrom<Value>` impl that this crate does not have, and
+    // silently falling back would be worse than an explicit round trip.
+    let Ok(text) = toml::to_string(&document) else {
         return base.clone();
     };
-    value.try_into().unwrap_or_else(|_| base.clone())
+    toml::from_str(&text).unwrap_or_else(|_| base.clone())
 }
 
 #[cfg(test)]

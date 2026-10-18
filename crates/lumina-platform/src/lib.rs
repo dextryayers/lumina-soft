@@ -63,7 +63,7 @@ pub mod null;
 pub use capability::{Capabilities, Platform, PlatformKind};
 pub use monitor::{Monitor, MonitorSource, ScaleFactor};
 pub use overlay::{OverlayBackend, OverlayError};
-pub use placement::{Placement, WindowGeometry, compute_placement, fit_inside};
+pub use placement::{compute_placement, fit_inside, Placement, WindowGeometry};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

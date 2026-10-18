@@ -143,9 +143,8 @@ fn render_toml_value(value: &toml::Value) -> String {
 }
 
 /// Where the island sits relative to its monitor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum Position {
     /// Centered on the top edge.
     #[default]
@@ -224,6 +223,14 @@ impl Position {
     }
 }
 
+impl std::fmt::Display for Position {
+    /// Prints the same identifier the config file uses, so a diagnostic message
+    /// can be copied straight into the file to reproduce it.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.id())
+    }
+}
+
 /// Which monitor the island lives on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -283,9 +290,8 @@ impl Default for GeneralConfig {
 }
 
 /// The color engine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum RgbMode {
     /// A single fixed color.
     Static,
@@ -367,9 +373,8 @@ pub struct AppearanceConfig {
 }
 
 /// Backdrop blur policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum BackdropMode {
     /// Use the platform's blur if it has one, otherwise fall back to ours.
     #[default]
@@ -533,9 +538,8 @@ pub struct AudioConfig {
 }
 
 /// Where audio is captured from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum AudioSource {
     /// Whatever the system is playing.
     #[default]
@@ -547,9 +551,8 @@ pub enum AudioSource {
 }
 
 /// Capture backend selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum AudioBackend {
     /// Probe in preference order.
     #[default]
@@ -636,9 +639,8 @@ pub struct SpectrumConfig {
 }
 
 /// Spectrum drawing style.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum VisualizerStyle {
     /// Vertical bars from the bottom.
     #[default]
@@ -892,9 +894,8 @@ pub struct NetworkConfig {
 }
 
 /// Throughput unit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum NetworkUnit {
     /// Scale automatically between units.
     #[default]
@@ -976,9 +977,8 @@ pub struct WeatherConfig {
 }
 
 /// Weather provider.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum WeatherProvider {
     /// Open-Meteo, which needs no key.
     #[default]
@@ -988,9 +988,8 @@ pub enum WeatherProvider {
 }
 
 /// Measurement system.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum WeatherUnits {
     /// Celsius and kilometres per hour.
     #[default]
@@ -1033,9 +1032,8 @@ pub struct LayoutConfig {
 }
 
 /// Vertical widget alignment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum LayoutAlign {
     /// Against the top edge.
     Top,
@@ -1263,9 +1261,8 @@ pub struct TextConfig {
 }
 
 /// Bundled font weight.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum FontWeight {
     /// Regular weight.
     #[default]
@@ -1318,9 +1315,8 @@ pub struct AdvancedConfig {
 }
 
 /// Graphics API selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum GpuBackend {
     /// Probe in preference order.
     #[default]
@@ -1336,16 +1332,16 @@ pub enum GpuBackend {
 }
 
 /// Log verbosity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[derive(Default)]
 pub enum LogLevel {
     /// Nothing but failures.
     Error,
-    /// Failures and recoverable problems.
+    /// Failures and recoverable problems. The default, because a missing log file
+    /// or an unreadable path should be visible without being alarming.
+    #[default]
     Warn,
     /// Lifecycle milestones.
-    #[default]
     Info,
     /// Per subsystem detail.
     Debug,

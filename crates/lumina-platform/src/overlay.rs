@@ -105,10 +105,18 @@ mod tests {
 
     #[test]
     fn overlay_errors_render_readable_messages() {
-        assert!(OverlayError::NoWindowHandle.to_string().contains("window handle"));
-        assert!(OverlayError::Platform("code 5".into()).to_string().contains("code 5"));
-        assert!(OverlayError::Unsupported("layer-shell").to_string().contains("layer-shell"));
-        assert!(OverlayError::NoDisplay("no $DISPLAY".into()).to_string().contains("no $DISPLAY"));
+        assert!(OverlayError::NoWindowHandle
+            .to_string()
+            .contains("window handle"));
+        assert!(OverlayError::Platform("code 5".into())
+            .to_string()
+            .contains("code 5"));
+        assert!(OverlayError::Unsupported("layer-shell")
+            .to_string()
+            .contains("layer-shell"));
+        assert!(OverlayError::NoDisplay("no $DISPLAY".into())
+            .to_string()
+            .contains("no $DISPLAY"));
     }
 
     #[test]
@@ -148,19 +156,31 @@ mod tests {
             0,
         )
         .geometry;
-        backend.apply_geometry(&geometry).expect("null backend accepts geometry");
+        backend
+            .apply_geometry(&geometry)
+            .expect("null backend accepts geometry");
 
-        backend.set_click_through(true).expect("null backend accepts this");
+        backend
+            .set_click_through(true)
+            .expect("null backend accepts this");
         assert!(backend.click_through());
-        backend.set_click_through(false).expect("null backend accepts this");
+        backend
+            .set_click_through(false)
+            .expect("null backend accepts this");
         assert!(!backend.click_through());
 
-        backend.set_visible(false).expect("null backend accepts this");
+        backend
+            .set_visible(false)
+            .expect("null backend accepts this");
         assert!(!backend.is_visible());
-        backend.set_visible(true).expect("null backend accepts this");
+        backend
+            .set_visible(true)
+            .expect("null backend accepts this");
         assert!(backend.is_visible());
 
-        backend.enforce_topmost().expect("null backend accepts this");
+        backend
+            .enforce_topmost()
+            .expect("null backend accepts this");
         backend.tick().expect("null backend accepts this");
         assert_eq!(backend.current_scale(), ScaleFactor::unscaled());
         assert!(backend.monitors().is_empty());
@@ -186,12 +206,16 @@ mod tests {
             8,
         )
         .geometry;
-        backend.apply_geometry(&geometry).expect("null backend accepts geometry");
+        backend
+            .apply_geometry(&geometry)
+            .expect("null backend accepts geometry");
 
         assert_eq!(backend.last_geometry(), Some(geometry));
         assert_eq!(backend.current_scale(), ScaleFactor::new(2.0));
         assert_eq!(backend.enforce_count(), 0);
-        backend.enforce_topmost().expect("null backend accepts this");
+        backend
+            .enforce_topmost()
+            .expect("null backend accepts this");
         assert_eq!(backend.enforce_count(), 1);
     }
 }

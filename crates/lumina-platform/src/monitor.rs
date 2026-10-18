@@ -94,7 +94,14 @@ impl Monitor {
     /// Construct with defaults for everything but the essentials.
     #[must_use]
     pub fn new(index: usize, name: impl Into<String>, bounds: Rect, is_primary: bool) -> Self {
-        Self { index, name: name.into(), bounds, scale: ScaleFactor::unscaled(), refresh_hz: 0, is_primary }
+        Self {
+            index,
+            name: name.into(),
+            bounds,
+            scale: ScaleFactor::unscaled(),
+            refresh_hz: 0,
+            is_primary,
+        }
     }
 
     /// True when this monitor contains the given virtual desktop point.
@@ -160,19 +167,28 @@ pub trait MonitorSource: Send {
     }
 }
 
-/// Fall back to the monitor nearest the desktop origin when no monitor is
-/// flagged primary.
+/// Fall back to a monitor near the desktop origin when no monitor is flagged
+/// primary.
 ///
-/// Users expect "primary" to mean the one they are looking at, and the display
-/// nearest the origin with the largest area is a better guess than the first one
-/// enumerated, whose order is arbitrary.
+/// Rule, in order:
+/// 1. Smallest Manhattan distance of the monitor's origin from the desktop
+///    origin. Users read "primary" as "the one with the menu bar", and the menu
+///    bar is at the top left, so a monitor whose top left corner is near the
+///    desktop origin is the one they mean.
+/// 2. Largest area, as the tie break, because two monitors at the same distance
+///    means a stacked arrangement and the larger one is the main one.
+///
+/// Getting this wrong puts the island on the wrong screen, which is exactly the
+/// kind of bug that makes an overlay feel untrustworthy.
 #[must_use]
 pub fn pick_primary_by_proximity(monitors: &[Monitor]) -> Option<Monitor> {
     monitors
         .iter()
         .min_by(|a, b| {
-            let distance = |m: &Monitor| (m.bounds.x.abs() + m.bounds.y.abs(), -m.area());
-            distance(a).partial_cmp(&distance(b)).unwrap_or(std::cmp::Ordering::Equal)
+            let rank = |m: &Monitor| (m.bounds.x.abs() + m.bounds.y.abs(), -m.area());
+            rank(a)
+                .partial_cmp(&rank(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
         .cloned()
 }
@@ -197,8 +213,14 @@ pub fn resolve_selector(
     }
 
     match index {
-        Some(i) => monitors.get(i).cloned().or_else(|| monitors.get(primary_index).cloned()),
-        None => monitors.get(primary_index).cloned().or_else(|| pick_primary_by_proximity(monitors)),
+        Some(i) => monitors
+            .get(i)
+            .cloned()
+            .or_else(|| monitors.get(primary_index).cloned()),
+        None => monitors
+            .get(primary_index)
+            .cloned()
+            .or_else(|| pick_primary_by_proximity(monitors)),
     }
 }
 
@@ -207,10 +229,14 @@ mod tests {
     use super::*;
     use lumina_config::MonitorSelector;
 
-    fn monitor(index: usize, x: f32, y: f32, w: f32, h: f32, primary: bool) -> Monitor {
-        let mut m = Monitor::new(index, format!("monitor-{index}"), Rect::new(x, y, w, h), primary);
-        m.index = index;
-        m
+    /// Build a fixed monitor for tests, with explicit coordinates.
+    fn at(index: usize, x: f32, y: f32, width: f32, height: f32, primary: bool) -> Monitor {
+        Monitor::new(
+            index,
+            format!("monitor-{index}"),
+            Rect::new(x, y, width, height),
+            primary,
+        )
     }
 
     struct Fixed(Vec<Monitor>);
@@ -223,7 +249,11 @@ mod tests {
 
     #[test]
     fn scale_factor_rejects_unusable_values() {
-        assert_eq!(ScaleFactor::new(0.0).value(), 1.0, "zero falls back to unscaled");
+        assert_eq!(
+            ScaleFactor::new(0.0).value(),
+            1.0,
+            "zero falls back to unscaled"
+        );
         assert_eq!(ScaleFactor::new(-1.0).value(), 1.0);
         assert_eq!(ScaleFactor::new(f32::NAN).value(), 1.0);
         assert_eq!(ScaleFactor::new(f32::INFINITY).value(), 1.0);
@@ -233,7 +263,11 @@ mod tests {
     fn scale_factor_clamps_to_the_usable_range() {
         assert_eq!(ScaleFactor::new(0.01).value(), ScaleFactor::MIN);
         assert_eq!(ScaleFactor::new(1000.0).value(), ScaleFactor::MAX);
-        assert_eq!(ScaleFactor::new(1.5).value(), 1.5, "a usable value is untouched");
+        assert_eq!(
+            ScaleFactor::new(1.5).value(),
+            1.5,
+            "a usable value is untouched"
+        );
     }
 
     #[test]
@@ -253,14 +287,17 @@ mod tests {
 
     #[test]
     fn monitor_containment_handles_negative_origins() {
-        let left = monitor(1, -1920.0, 0.0, 1920.0, 1080.0, false);
+        // A monitor to the left of the primary spans negative x, from -1920 to 0.
+        let left = at(1, -1920.0, 0.0, 1920.0, 1080.0, false);
         assert!(left.contains(-1900.0, 500.0));
-        assert!(!left.contains(-100.0, 500.0), "that point is on the primary");
+        assert!(left.contains(-10.0, 500.0));
+        assert!(!left.contains(10.0, 500.0), "positive x is on the primary");
+        assert!(!left.contains(-1900.0, 2000.0), "below the monitor");
     }
 
     #[test]
     fn monitor_logical_size_divides_by_the_scale() {
-        let mut m = monitor(0, 0.0, 0.0, 3840.0, 2160.0, true);
+        let mut m = at(0, 0.0, 0.0, 3840.0, 2160.0, true);
         m.scale = ScaleFactor::new(2.0);
         assert_eq!(m.logical_width(), 1920.0);
         assert_eq!(m.logical_height(), 1080.0);
@@ -269,39 +306,68 @@ mod tests {
     #[test]
     fn primary_is_the_flagged_monitor() {
         let source = Fixed(vec![
-            monitor(0, -1920.0, 0.0, 1920.0, 1080.0, false),
-            monitor(1, 0.0, 0.0, 1920.0, 1080.0, true),
+            at(0, -1920.0, 0.0, 1920.0, 1080.0, false),
+            at(1, 0.0, 0.0, 1920.0, 1080.0, true),
         ]);
         assert_eq!(source.primary().map(|m| m.index), Some(1));
     }
 
     #[test]
-    fn primary_falls_back_to_the_largest_near_the_origin() {
-        // No monitor is flagged, which happens on some X11 setups.
+    fn primary_falls_back_to_the_one_nearest_the_desktop_origin() {
+        // No monitor is flagged, which happens on some X11 setups. The one whose
+        // top left corner is at the origin is the one with the menu bar.
         let source = Fixed(vec![
-            monitor(0, -1920.0, 0.0, 1920.0, 1080.0, false),
-            monitor(1, 0.0, 0.0, 1280.0, 720.0, false),
+            at(0, -1920.0, 0.0, 1920.0, 1080.0, false),
+            at(1, 0.0, 0.0, 1280.0, 720.0, false),
         ]);
         let primary = source.primary().expect("one monitor should be chosen");
-        assert_eq!(primary.index, 0, "the 1080p monitor at the origin wins over the 720p one");
+        assert_eq!(
+            primary.index, 1,
+            "the monitor at the origin wins over the one to its left"
+        );
+    }
+
+    #[test]
+    fn proximity_beats_area_when_the_two_disagree() {
+        // A large monitor to the right does not become the primary just because
+        // it is large. Proximity is the stronger signal.
+        let source = Fixed(vec![
+            at(0, 0.0, 0.0, 800.0, 600.0, false),
+            at(1, 100.0, 0.0, 3840.0, 2160.0, false),
+        ]);
+        assert_eq!(source.primary().map(|m| m.index), Some(0));
+    }
+
+    #[test]
+    fn area_breaks_the_tie_between_equally_close_monitors() {
+        // Two monitors stacked at the same distance from the origin: the larger
+        // one is the main one.
+        let source = Fixed(vec![
+            at(0, 0.0, 0.0, 800.0, 600.0, false),
+            at(1, 0.0, 0.0, 3840.0, 2160.0, false),
+        ]);
+        assert_eq!(source.primary().map(|m| m.index), Some(1));
     }
 
     #[test]
     fn monitor_at_finds_the_display_under_a_point() {
         let source = Fixed(vec![
-            monitor(0, 0.0, 0.0, 1920.0, 1080.0, true),
-            monitor(1, 1920.0, 0.0, 2560.0, 1440.0, false),
+            at(0, 0.0, 0.0, 1920.0, 1080.0, true),
+            at(1, 1920.0, 0.0, 2560.0, 1440.0, false),
         ]);
         assert_eq!(source.monitor_at(100.0, 100.0).map(|m| m.index), Some(0));
         assert_eq!(source.monitor_at(2000.0, 100.0).map(|m| m.index), Some(1));
-        assert!(source.monitor_at(-500.0, -500.0).is_none(), "off every display");
+        assert!(
+            source.monitor_at(-500.0, -500.0).is_none(),
+            "off every display"
+        );
     }
 
     #[test]
     fn selector_index_wins_when_in_range() {
         let monitors = vec![
-            monitor(0, 0.0, 0.0, 1920.0, 1080.0, true),
-            monitor(1, 1920.0, 0.0, 2560.0, 1440.0, false),
+            at(0, 0.0, 0.0, 1920.0, 1080.0, true),
+            at(1, 1920.0, 0.0, 2560.0, 1440.0, false),
         ];
         let chosen = resolve_selector(&monitors, 0, Some(1), None).expect("a monitor");
         assert_eq!(chosen.index, 1);
@@ -310,20 +376,25 @@ mod tests {
     #[test]
     fn selector_cursor_wins_over_index() {
         let monitors = vec![
-            monitor(0, 0.0, 0.0, 1920.0, 1080.0, true),
-            monitor(1, 1920.0, 0.0, 2560.0, 1440.0, false),
+            at(0, 0.0, 0.0, 1920.0, 1080.0, true),
+            at(1, 1920.0, 0.0, 2560.0, 1440.0, false),
         ];
-        let chosen = resolve_selector(&monitors, 0, Some(0), Some((2000.0, 10.0))).expect("a monitor");
-        assert_eq!(chosen.index, 1, "the cursor is on monitor 1, so that is where the island goes");
+        let chosen =
+            resolve_selector(&monitors, 0, Some(0), Some((2000.0, 10.0))).expect("a monitor");
+        assert_eq!(
+            chosen.index, 1,
+            "the cursor is on monitor 1, so that is where the island goes"
+        );
     }
 
     #[test]
     fn cursor_off_every_display_falls_back_to_the_index() {
         let monitors = vec![
-            monitor(0, 0.0, 0.0, 1920.0, 1080.0, true),
-            monitor(1, 1920.0, 0.0, 2560.0, 1440.0, false),
+            at(0, 0.0, 0.0, 1920.0, 1080.0, true),
+            at(1, 1920.0, 0.0, 2560.0, 1440.0, false),
         ];
-        let chosen = resolve_selector(&monitors, 0, Some(1), Some((-9000.0, -9000.0))).expect("a monitor");
+        let chosen =
+            resolve_selector(&monitors, 0, Some(1), Some((-9000.0, -9000.0))).expect("a monitor");
         assert_eq!(chosen.index, 1);
     }
 
@@ -331,7 +402,7 @@ mod tests {
     fn an_out_of_range_index_falls_back_to_primary() {
         // A user who unplugged the display their config named should still get
         // their island, on the primary, rather than nothing.
-        let monitors = vec![monitor(0, 0.0, 0.0, 1920.0, 1080.0, true)];
+        let monitors = vec![at(0, 0.0, 0.0, 1920.0, 1080.0, true)];
         let chosen = resolve_selector(&monitors, 0, Some(7), None).expect("a monitor");
         assert_eq!(chosen.index, 0);
     }
@@ -347,8 +418,8 @@ mod tests {
         // The config enum and the resolution function have to agree, so this
         // checks the mapping rather than the enum in isolation.
         let monitors = vec![
-            monitor(0, 0.0, 0.0, 1920.0, 1080.0, true),
-            monitor(1, 1920.0, 0.0, 2560.0, 1440.0, false),
+            at(0, 0.0, 0.0, 1920.0, 1080.0, true),
+            at(1, 1920.0, 0.0, 2560.0, 1440.0, false),
         ];
 
         let for_selector = |selector: MonitorSelector| {
@@ -360,24 +431,35 @@ mod tests {
             resolve_selector(&monitors, 0, index, cursor)
         };
 
-        assert_eq!(for_selector(MonitorSelector::Primary).map(|m| m.index), Some(0));
-        assert_eq!(for_selector(MonitorSelector::Index(1)).map(|m| m.index), Some(1));
-        assert_eq!(for_selector(MonitorSelector::Cursor).map(|m| m.index), Some(1));
+        assert_eq!(
+            for_selector(MonitorSelector::Primary).map(|m| m.index),
+            Some(0)
+        );
+        assert_eq!(
+            for_selector(MonitorSelector::Index(1)).map(|m| m.index),
+            Some(1)
+        );
+        assert_eq!(
+            for_selector(MonitorSelector::Cursor).map(|m| m.index),
+            Some(1)
+        );
     }
 
     #[test]
     fn intersection_detects_overlapping_monitors() {
-        let a = monitor(0, 0.0, 0.0, 1920.0, 1080.0, true);
+        let a = at(0, 0.0, 0.0, 1920.0, 1080.0, true);
         assert!(a.intersects(Rect::new(1900.0, 1000.0, 100.0, 100.0)));
         assert!(!a.intersects(Rect::new(2000.0, 100.0, 100.0, 100.0)));
     }
 
     #[test]
-    fn primary_proximity_prefers_area_over_order() {
-        let small = monitor(0, 0.0, 0.0, 800.0, 600.0, false);
-        let large = monitor(1, 100.0, 0.0, 3840.0, 2160.0, false);
-        let chosen = pick_primary_by_proximity(&[small, large]).expect("one monitor");
-        // Both are near the origin, so the larger one wins.
-        assert_eq!(chosen.index, 1);
+    fn primary_breaks_the_tie_between_equally_close_monitors_by_area() {
+        // Two monitors at the same distance from the origin: the larger one is
+        // the main one.
+        let source = Fixed(vec![
+            at(0, 0.0, 0.0, 800.0, 600.0, false),
+            at(1, 0.0, 0.0, 3840.0, 2160.0, false),
+        ]);
+        assert_eq!(source.primary().map(|m| m.index), Some(1));
     }
 }

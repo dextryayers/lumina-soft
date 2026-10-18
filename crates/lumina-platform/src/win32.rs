@@ -1,4 +1,4 @@
-﻿//! Windows overlay backend.
+//! Windows overlay backend.
 //!
 //! Every function here is a specific Win32 answer to one of the five
 //! requirements listed in the crate documentation, and each carries a comment
@@ -21,25 +21,23 @@
 use std::ffi::c_void;
 
 use lumina_core::geometry::Rect;
-use raw_window_handle::{HasWindowHandle, RawWindowHandle, Win32WindowHandle};
-use windows::core::PCWSTR;
+use raw_window_handle::RawWindowHandle;
 use windows::Win32::Foundation::{BOOL, HWND, RECT};
 use windows::Win32::Graphics::Dwm::{
-    DwmExtendFrameIntoClientArea, DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    DwmExtendFrameIntoClientArea, DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
+    DWMWCP_ROUND,
 };
-use windows::Win32::Graphics::Gdi::{
-    EnumDisplayMonitors, GetMonitorInfoW, MonitorFromWindow, HMONITOR, MONITORINFO,
-    MONITORINFOF_PRIMARY, MONITOR_DEFAULTTONEAREST,
-};
+use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HMONITOR, MONITORINFO};
 use windows::Win32::UI::Controls::MARGINS;
 use windows::Win32::UI::HiDpi::{
     GetDpiForMonitor, GetDpiForWindow, SetProcessDpiAwarenessContext,
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, ShowWindow, HWND_TOPMOST,
-    SW_HIDE, SW_SHOWNOACTIVATE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    GWL_EXSTYLE, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
+    GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE,
+    HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE,
+    SW_SHOWNOACTIVATE, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW,
+    WS_EX_TRANSPARENT,
 };
 
 use crate::capability::{Capabilities, Platform};
@@ -75,14 +73,18 @@ impl Win32Backend {
     /// the island from appearing, so it is logged and carried on from.
     #[must_use]
     pub fn new() -> Self {
-        let result = unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
+        let result =
+            unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
         if result.is_err() {
             log_warn(&format!(
                 "per monitor DPI awareness was refused ({result:?}); \
                  falling back to system DPI awareness"
             ));
         }
-        Self { visible: true, ..Self::default() }
+        Self {
+            visible: true,
+            ..Self::default()
+        }
     }
 
     /// The window handle, if the window exists yet.
@@ -105,7 +107,7 @@ impl Win32Backend {
     pub fn window_rect(&self) -> Option<Rect> {
         let hwnd = self.hwnd?;
         let mut rect = windows::Win32::Foundation::RECT::default();
-        if unsafe { GetWindowRect(hwnd, &mut rect) }.is_err() {
+        if unsafe { GetWindowRect(hwnd, &raw mut rect) }.is_err() {
             return None;
         }
         Some(Rect::new(
@@ -118,10 +120,17 @@ impl Win32Backend {
 
     /// The DPI of the monitor this window is on, as a scale factor.
     fn dpi_scale_for(hwnd: HWND) -> f32 {
-        let hmonitor = unsafe { windows::Win32::Graphics::Gdi::MonitorFromWindow(hwnd, windows::Win32::Graphics::Gdi::MONITOR_DEFAULTTONEAREST) };
+        let hmonitor = unsafe {
+            windows::Win32::Graphics::Gdi::MonitorFromWindow(
+                hwnd,
+                windows::Win32::Graphics::Gdi::MONITOR_DEFAULTTONEAREST,
+            )
+        };
         let mut dpi_x = 96u32;
         let mut dpi_y = 96u32;
-        let ok = unsafe { GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
+        let ok = unsafe {
+            GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &raw mut dpi_x, &raw mut dpi_y)
+        };
         if ok.is_ok() && dpi_x > 0 {
             return dpi_x as f32 / 96.0;
         }
@@ -137,7 +146,8 @@ impl Win32Backend {
 
     /// Read the extended window style.
     fn extended_style(&self) -> isize {
-        self.hwnd.map_or(0, |hwnd| unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) })
+        self.hwnd
+            .map_or(0, |hwnd| unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) })
     }
 
     /// Write the extended window style, distinguishing a real failure from a
@@ -146,9 +156,11 @@ impl Win32Backend {
         let hwnd = self.hwnd.ok_or(OverlayError::NoWindowHandle)?;
         let previous = unsafe { SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style) };
         if previous == 0 {
-            let error = windows::Win32::Foundation::GetLastError();
+            let error = unsafe { windows::Win32::Foundation::GetLastError() };
             if error.0 != 0 {
-                return Err(OverlayError::Platform(format!("SetWindowLongPtrW(GWL_EXSTYLE) failed: {error:?}")));
+                return Err(OverlayError::Platform(format!(
+                    "SetWindowLongPtrW(GWL_EXSTYLE) failed: {error:?}"
+                )));
             }
         }
         Ok(())
@@ -169,7 +181,7 @@ impl Win32Backend {
         desired |= WS_EX_LAYERED.0 as isize;
         // Preserve click-through across a reconfiguration rather than resetting it.
         if self.click_through {
-            desired |= WS_EX_TRANSPARENT as isize;
+            desired |= WS_EX_TRANSPARENT.0 as isize;
         } else {
             desired &= !(WS_EX_TRANSPARENT.0 as isize);
         }
@@ -183,11 +195,18 @@ impl Win32Backend {
         // Negative margins on all sides tell DWM the entire client area can be
         // transparent. Without this the window is opaque regardless of what the
         // swapchain contains.
-        let margins = MARGINS { cxLeftWidth: -1, cxRightWidth: -1, cyTopHeight: -1, cyBottomHeight: -1 };
-        if let Err(hr) = unsafe { DwmExtendFrameIntoClientArea(hwnd, &margins) } {
+        let margins = MARGINS {
+            cxLeftWidth: -1,
+            cxRightWidth: -1,
+            cyTopHeight: -1,
+            cyBottomHeight: -1,
+        };
+        if let Err(hr) = unsafe { DwmExtendFrameIntoClientArea(hwnd, &raw const margins) } {
             // Not fatal. The island still appears, just with hard edges, so this
             // is logged rather than turned into an error the caller must handle.
-            log_warn(&format!("DwmExtendFrameIntoClientArea failed: {hr:?}; the island will have hard edges"));
+            log_warn(&format!(
+                "DwmExtendFrameIntoClientArea failed: {hr:?}; the island will have hard edges"
+            ));
         }
 
         // Cosmetic only. Stops Windows 11 drawing a rounded border of its own,
@@ -197,7 +216,7 @@ impl Win32Backend {
             DwmSetWindowAttribute(
                 hwnd,
                 DWMWA_WINDOW_CORNER_PREFERENCE,
-                &preference as *const _ as *const c_void,
+                (&raw const preference).cast::<c_void>(),
                 std::mem::size_of::<i32>() as u32,
             )
         };
@@ -241,6 +260,23 @@ fn log_warn(message: &str) {
     let _ = message;
 }
 
+/// `MONITORINFOF_PRIMARY`, declared locally because the `windows` crate does not
+/// surface this one as a named constant.
+const MONITORINFOF_PRIMARY: u32 = 1;
+
+/// Extract the `HWND` from a raw window handle.
+///
+/// `RawWindowHandle` is an enum in `raw-window-handle` 0.6, so a handle from a
+/// different platform has to be rejected rather than transmuted. A silent
+/// transmute here would produce a window handle that points at nothing, which is
+/// the kind of bug that manifests as a random access violation minutes later.
+fn hwnd_from_raw(window: RawWindowHandle) -> Option<HWND> {
+    match window {
+        RawWindowHandle::Win32(handle) => Some(HWND(handle.hwnd.get() as *mut c_void)),
+        _ => None,
+    }
+}
+
 /// Read a monitor's rectangle and primary flag in one call.
 fn monitor_info(monitor: HMONITOR) -> MONITORINFO {
     let mut info = MONITORINFO {
@@ -249,7 +285,9 @@ fn monitor_info(monitor: HMONITOR) -> MONITORINFO {
         rcWork: RECT::default(),
         dwFlags: 0,
     };
-    unsafe { GetMonitorInfoW(monitor, &mut info) };
+    // A failed query leaves the struct at its defaults, whose zero `dwFlags`
+    // correctly reads as "not primary", so the failure is harmless here.
+    let _ = unsafe { GetMonitorInfoW(monitor, &mut info) };
     info
 }
 
@@ -295,14 +333,21 @@ fn enumerate_monitors() -> Vec<Monitor> {
     ) -> BOOL {
         let mut dpi_x = 96u32;
         let mut dpi_y = 96u32;
-        let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
+        let _ =
+            unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &raw mut dpi_x, &raw mut dpi_y) };
 
         FOUND.with(|slot| {
             let mut list = slot.borrow_mut();
+            // Compute everything before pushing, because the index comes from the
+            // list length and borrowing it again while mutably borrowed does not
+            // compile.
+            let next_index = list.len();
             let info = monitor_info(monitor);
             let bounds = monitor_bounds(monitor);
+
             // A zero sized rectangle means the driver failed. Fall back rather
-            // than propagating a degenerate monitor into the placement code.
+            // than propagating a degenerate monitor into the placement code,
+            // which would leave the island with nowhere to live.
             let bounds = if bounds.width > 0.0 && bounds.height > 0.0 {
                 bounds
             } else {
@@ -310,8 +355,8 @@ fn enumerate_monitors() -> Vec<Monitor> {
             };
 
             list.push(Monitor {
-                index: list.len(),
-                name: format!("Display {}", list.len() + 1),
+                index: next_index,
+                name: format!("Display {}", next_index + 1),
                 bounds,
                 scale: ScaleFactor::new(if dpi_x > 0 { dpi_x as f32 / 96.0 } else { 1.0 }),
                 refresh_hz: 0,
@@ -359,12 +404,12 @@ impl OverlayBackend for Win32Backend {
 
         // Requirement: stay above everything.
         //
-        // `SWP_NOACTIVATE` is what stops the island stealing focus every time it
-        // is shown or moved.
-        let ok = unsafe {
+        // `SWP_NOACTIVATE` is what stops the island stealing focus every time it is
+        // shown or moved.
+        let result = unsafe {
             SetWindowPos(
                 hwnd,
-                Some(HWND_TOPMOST),
+                HWND_TOPMOST,
                 b.x.round() as i32,
                 b.y.round() as i32,
                 geometry.size.0.max(1),
@@ -373,10 +418,9 @@ impl OverlayBackend for Win32Backend {
             )
         };
 
-        if ok.as_bool() {
-            Ok(())
-        } else {
-            Err(OverlayError::Platform("SetWindowPos failed".into()))
+        match result {
+            Ok(()) => Ok(()),
+            Err(e) => Err(OverlayError::Platform(format!("SetWindowPos failed: {e}"))),
         }
     }
 
@@ -389,11 +433,22 @@ impl OverlayBackend for Win32Backend {
         // `SWP_NOMOVE | SWP_NOSIZE` moves nothing. Without them this call yanks
         // the island back to a stale position every time the window manager
         // fights for the top spot.
-        let ok = unsafe { SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE) };
-        if ok.as_bool() {
-            Ok(())
-        } else {
-            Err(OverlayError::Platform("SetWindowPos failed while re-asserting topmost".into()))
+        let result = unsafe {
+            SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            )
+        };
+        match result {
+            Ok(()) => Ok(()),
+            Err(e) => Err(OverlayError::Platform(format!(
+                "SetWindowPos failed while re-asserting topmost: {e}"
+            ))),
         }
     }
 
@@ -408,7 +463,7 @@ impl OverlayBackend for Win32Backend {
         // which is exactly when the user is moving the pointer across the island.
         let current = self.extended_style();
         let desired = if enabled {
-            current | WS_EX_TRANSPARENT as i64
+            current | WS_EX_TRANSPARENT.0 as isize
         } else {
             current & !(WS_EX_TRANSPARENT.0 as isize)
         };
@@ -431,7 +486,9 @@ impl OverlayBackend for Win32Backend {
         // `SW_SHOWNOACTIVATE` rather than `SW_SHOW`, because `SW_SHOW` activates
         // the window and the island must never take focus.
         let command = if visible { SW_SHOWNOACTIVATE } else { SW_HIDE };
-        unsafe { ShowWindow(hwnd, command) };
+        // `ShowWindow` returns the previous visibility, which `self.visible`
+        // already tracks, so the return value is intentionally discarded.
+        let _ = unsafe { ShowWindow(hwnd, command) };
         Ok(())
     }
 
@@ -451,7 +508,7 @@ impl OverlayBackend for Win32Backend {
 
     fn shutdown(&mut self) {
         if let Some(hwnd) = self.hwnd {
-            unsafe { ShowWindow(hwnd, SW_HIDE) };
+            let _ = unsafe { ShowWindow(hwnd, SW_HIDE) };
         }
         self.hwnd = None;
     }
@@ -464,8 +521,16 @@ mod tests {
     use lumina_config::Position;
 
     fn sample_geometry(scale: f32) -> WindowGeometry {
-        compute_placement(Rect::new(0.0, 0.0, 1920.0, 1080.0), 0, scale, Position::TopCenter, (124.0, 36.0), 0, 0)
-            .geometry
+        compute_placement(
+            Rect::new(0.0, 0.0, 1920.0, 1080.0),
+            0,
+            scale,
+            Position::TopCenter,
+            (124.0, 36.0),
+            0,
+            0,
+        )
+        .geometry
     }
 
     #[test]
@@ -482,10 +547,16 @@ mod tests {
     #[test]
     fn operations_before_the_window_exists_report_an_error() {
         let mut backend = Win32Backend::new();
-        assert_eq!(backend.apply_geometry(&sample_geometry(1.0)), Err(OverlayError::NoWindowHandle));
+        assert_eq!(
+            backend.apply_geometry(&sample_geometry(1.0)),
+            Err(OverlayError::NoWindowHandle)
+        );
         assert_eq!(backend.enforce_topmost(), Err(OverlayError::NoWindowHandle));
         assert_eq!(backend.set_visible(true), Err(OverlayError::NoWindowHandle));
-        assert_eq!(backend.set_click_through(true), Err(OverlayError::NoWindowHandle));
+        assert_eq!(
+            backend.set_click_through(true),
+            Err(OverlayError::NoWindowHandle)
+        );
         assert!(backend.window_rect().is_none());
     }
 
@@ -508,10 +579,15 @@ mod tests {
     }
 
     #[test]
-    fn capabilities_report_the_full_windows_matrix() {
+    fn capabilities_report_the_windows_matrix() {
         let caps = Win32Backend::new().capabilities();
         assert_eq!(caps.platform, Platform::Windows);
-        assert!(caps.limitations().is_empty(), "Windows should have no limitations");
+        assert!(caps.always_on_top);
+        assert!(caps.per_pixel_alpha);
+        assert!(caps.click_through);
+        assert!(caps.native_backdrop_blur);
+        assert!(caps.global_hotkeys);
+        assert!(!caps.exclusive_zone, "Win32 has no exclusive zone concept");
     }
 
     #[test]
@@ -528,7 +604,9 @@ mod tests {
         // fallback rather than an empty list, so placement always has a monitor.
         let monitors = enumerate_monitors();
         if !monitors.is_empty() {
-            assert!(monitors.iter().all(|m| m.bounds.width > 0.0 && m.bounds.height > 0.0));
+            assert!(monitors
+                .iter()
+                .all(|m| m.bounds.width > 0.0 && m.bounds.height > 0.0));
             assert!(
                 monitors.iter().any(|m| m.is_primary) || monitors.len() == 1,
                 "with several monitors exactly one should be primary"

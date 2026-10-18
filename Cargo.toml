@@ -59,6 +59,10 @@ fn_params_excessive_bools = "allow"
 too_many_lines = "allow"
 # F32 math is intentional throughout the render and animation paths.
 float_cmp = "allow"
+# Window extended styles are 32 bit in the Win32 API, while `GetWindowLongPtrW`
+# reads them through a pointer sized type. On a 64 bit target the widening is
+# lossless and this cast is the documented pattern from the Microsoft samples.
+cast_possible_wrap = "allow"
 # The OkLab and WCAG coefficients below are the published reference values,
 # written at full precision so they can be checked against the source document.
 # Truncating them to f32 would hide a transcription error without changing the
