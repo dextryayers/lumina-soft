@@ -112,12 +112,15 @@ impl Config {
     /// Unknown *sections* are tolerated here because a file written by a newer
     /// version should still load in an older binary. Unknown *keys* inside a
     /// known section are reported by [`crate::validate`] with a suggestion.
-    #[must_use]
     pub fn from_toml_str(text: &str) -> Result<Self, toml::de::Error> {
         toml::from_str(text)
     }
 }
 
+/// Render a TOML value as the string an IPC client expects to read back.
+///
+/// Arrays and inline tables come back as their TOML source form, which is the
+/// same text a user would have written.
 fn render_toml_value(value: &toml::Value) -> String {
     match value {
         toml::Value::String(s) => s.clone(),
@@ -125,17 +128,27 @@ fn render_toml_value(value: &toml::Value) -> String {
         toml::Value::Float(f) => f.to_string(),
         toml::Value::Boolean(b) => b.to_string(),
         toml::Value::Datetime(d) => d.to_string(),
-        other => toml::Value::try_from(other.clone())
-            .map(|_| format!("{other:?}"))
-            .unwrap_or_else(|_| format!("{other:?}")),
+        toml::Value::Array(items) => {
+            let rendered: Vec<String> = items.iter().map(render_toml_value).collect();
+            format!("[{}]", rendered.join(", "))
+        }
+        toml::Value::Table(table) => {
+            let rendered: Vec<String> = table
+                .iter()
+                .map(|(k, v)| format!("{k} = {}", render_toml_value(v)))
+                .collect();
+            format!("{{{}}}", rendered.join(", "))
+        }
     }
 }
 
 /// Where the island sits relative to its monitor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum Position {
     /// Centered on the top edge.
+    #[default]
     TopCenter,
     /// Left aligned to the top edge.
     TopLeft,
@@ -207,11 +220,6 @@ impl Position {
     }
 }
 
-impl Default for Position {
-    fn default() -> Self {
-        Self::TopCenter
-    }
-}
 
 /// Which monitor the island lives on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -274,10 +282,12 @@ impl Default for GeneralConfig {
 /// The color engine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum RgbMode {
     /// A single fixed color.
     Static,
     /// Sine wave modulation of brightness.
+    #[default]
     Breathing,
     /// Hue rotation through the full wheel.
     Cycling,
@@ -317,11 +327,6 @@ impl RgbMode {
     }
 }
 
-impl Default for RgbMode {
-    fn default() -> Self {
-        Self::Breathing
-    }
-}
 
 /// Shape, color, and material.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -362,8 +367,10 @@ pub struct AppearanceConfig {
 /// Backdrop blur policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum BackdropMode {
     /// Use the platform's blur if it has one, otherwise fall back to ours.
+    #[default]
     Auto,
     /// Always use our own blur.
     On,
@@ -371,11 +378,6 @@ pub enum BackdropMode {
     Off,
 }
 
-impl Default for BackdropMode {
-    fn default() -> Self {
-        Self::Auto
-    }
-}
 
 impl Default for AppearanceConfig {
     fn default() -> Self {
@@ -532,8 +534,10 @@ pub struct AudioConfig {
 /// Where audio is captured from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum AudioSource {
     /// Whatever the system is playing.
+    #[default]
     System,
     /// The default input device. Documented as capturing room audio.
     Microphone,
@@ -541,17 +545,14 @@ pub enum AudioSource {
     None,
 }
 
-impl Default for AudioSource {
-    fn default() -> Self {
-        Self::System
-    }
-}
 
 /// Capture backend selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum AudioBackend {
     /// Probe in preference order.
+    #[default]
     Auto,
     /// PulseAudio monitor source.
     Pulse,
@@ -561,17 +562,13 @@ pub enum AudioBackend {
     Wasapi,
 }
 
-impl Default for AudioBackend {
-    fn default() -> Self {
-        Self::Auto
-    }
-}
 
 /// FFT window size, named because the raw numbers are meaningless to a user.
 ///
 /// The variant names carry a digit run that `rename_all = "kebab-case"` cannot
 /// split, so each variant is renamed explicitly rather than by attribute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum FftSize {
     /// 1024 samples.
     #[serde(rename = "size-1024")]
@@ -581,6 +578,7 @@ pub enum FftSize {
     Size2048,
     /// 4096 samples. The default, which resolves the low end at 48 kHz.
     #[serde(rename = "size-4096")]
+    #[default]
     Size4096,
     /// 8192 samples.
     #[serde(rename = "size-8192")]
@@ -614,11 +612,6 @@ impl FftSize {
     }
 }
 
-impl Default for FftSize {
-    fn default() -> Self {
-        Self::Size4096
-    }
-}
 
 /// Spectrum appearance.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -643,8 +636,10 @@ pub struct SpectrumConfig {
 /// Spectrum drawing style.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum VisualizerStyle {
     /// Vertical bars from the bottom.
+    #[default]
     Bars,
     /// Bars mirrored about the horizontal centre line.
     Mirror,
@@ -670,11 +665,6 @@ impl VisualizerStyle {
     }
 }
 
-impl Default for VisualizerStyle {
-    fn default() -> Self {
-        Self::Bars
-    }
-}
 
 impl Default for SpectrumConfig {
     fn default() -> Self {
@@ -792,20 +782,17 @@ pub struct ClockConfig {
 /// Renamed explicitly because `rename_all = "kebab-case"` would turn `H12`
 /// into `h12`, and users write `12h`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum ClockFormat {
     /// 12 hour with an am or pm suffix.
     #[serde(rename = "12h")]
     H12,
     /// 24 hour.
     #[serde(rename = "24h")]
+    #[default]
     H24,
 }
 
-impl Default for ClockFormat {
-    fn default() -> Self {
-        Self::H24
-    }
-}
 
 impl Default for ClockConfig {
     fn default() -> Self {
@@ -908,8 +895,10 @@ pub struct NetworkConfig {
 /// Throughput unit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum NetworkUnit {
     /// Scale automatically between units.
+    #[default]
     Auto,
     /// Bytes per second.
     B,
@@ -921,11 +910,6 @@ pub enum NetworkUnit {
     Gb,
 }
 
-impl Default for NetworkUnit {
-    fn default() -> Self {
-        Self::Auto
-    }
-}
 
 impl Default for NetworkConfig {
     fn default() -> Self {
@@ -996,36 +980,28 @@ pub struct WeatherConfig {
 /// Weather provider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum WeatherProvider {
     /// Open-Meteo, which needs no key.
+    #[default]
     OpenMeteo,
     /// OpenWeatherMap, which needs a key.
     OpenWeatherMap,
 }
 
-impl Default for WeatherProvider {
-    fn default() -> Self {
-        // Open-Meteo needs no key, so it is the only provider that works
-        // without the user doing anything first.
-        Self::OpenMeteo
-    }
-}
 
 /// Measurement system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum WeatherUnits {
     /// Celsius and kilometres per hour.
+    #[default]
     Metric,
     /// Fahrenheit and miles per hour.
     Imperial,
 }
 
-impl Default for WeatherUnits {
-    fn default() -> Self {
-        Self::Metric
-    }
-}
 
 impl Default for WeatherConfig {
     fn default() -> Self {
@@ -1063,20 +1039,17 @@ pub struct LayoutConfig {
 /// Vertical widget alignment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum LayoutAlign {
     /// Against the top edge.
     Top,
     /// Centred.
+    #[default]
     Center,
     /// Against the bottom edge.
     Bottom,
 }
 
-impl Default for LayoutAlign {
-    fn default() -> Self {
-        Self::Center
-    }
-}
 
 /// Default widget order, shared by the config default and the docs.
 pub const DEFAULT_WIDGET_ORDER: [&str; 8] = [
@@ -1290,18 +1263,15 @@ pub struct TextConfig {
 /// Bundled font weight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum FontWeight {
     /// Regular weight.
+    #[default]
     Regular,
     /// Semibold weight.
     Semibold,
 }
 
-impl Default for FontWeight {
-    fn default() -> Self {
-        Self::Regular
-    }
-}
 
 impl Default for TextConfig {
     fn default() -> Self {
@@ -1349,8 +1319,10 @@ pub struct AdvancedConfig {
 /// Graphics API selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum GpuBackend {
     /// Probe in preference order.
+    #[default]
     Auto,
     /// Vulkan.
     Vulkan,
@@ -1362,21 +1334,18 @@ pub enum GpuBackend {
     Gl,
 }
 
-impl Default for GpuBackend {
-    fn default() -> Self {
-        Self::Auto
-    }
-}
 
 /// Log verbosity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum LogLevel {
     /// Nothing but failures.
     Error,
     /// Failures and recoverable problems.
     Warn,
     /// Lifecycle milestones.
+    #[default]
     Info,
     /// Per subsystem detail.
     Debug,
@@ -1399,11 +1368,6 @@ impl LogLevel {
     }
 }
 
-impl Default for LogLevel {
-    fn default() -> Self {
-        Self::Info
-    }
-}
 
 impl Default for AdvancedConfig {
     fn default() -> Self {
@@ -1635,7 +1599,7 @@ mod tests {
     fn weather_provider_defaults_to_the_keyless_option() {
         let config = Config::default();
         assert_eq!(config.weather.provider, WeatherProvider::OpenMeteo);
-        assert!(config.weather.api_key.is_empty());
+        assert_eq!(config.weather.api_key, "");
     }
 
     #[test]

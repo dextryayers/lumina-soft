@@ -9,9 +9,10 @@
 //! report what it substituted, and reading it from the value being repaired
 //! would report the already-clamped number instead of the original.
 
-use crate::schema::*;
+use crate::schema::{MediaConfig, Config};
 
 /// Island fill and border colours.
+#[derive(Debug, Clone, Copy)]
 pub struct ColorDefaults {
     /// Default island fill.
     pub fill: &'static str,
@@ -24,6 +25,7 @@ pub struct ColorDefaults {
 }
 
 /// The two text colours, which have different names from the rest.
+#[derive(Debug, Clone, Copy)]
 pub struct TextColors {
     /// Primary text.
     pub color: &'static str,
@@ -61,6 +63,7 @@ pub fn text_defaults() -> TextColors {
 }
 
 /// Numeric reference values for the validator's repair messages.
+#[derive(Debug, Clone, Copy)]
 pub struct NumericDefaults {
     /// Maximum glow intensity.
     pub glow_intensity: f32,
@@ -148,7 +151,7 @@ mod tests {
     #[test]
     fn shipped_toml_parses_and_validates_clean() {
         let parsed = Config::from_toml_str(DEFAULT_TOML).expect("the shipped file must parse");
-        let (config, report) = validate(parsed);
+        let (_config, report) = validate(parsed);
         assert!(report.is_clean(), "the shipped file must be valid: {}", report.render());
     }
 

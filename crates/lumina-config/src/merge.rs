@@ -87,7 +87,6 @@ fn insert(target: &mut toml::Table, key: &str, value: toml::Value) {
 /// Recursively merge `overlay` into `base`, with `overlay` winning.
 ///
 /// Used when a theme `extends` another and both define the same table.
-#[must_use]
 pub fn merge_tables(base: &mut toml::Table, overlay: &toml::Table) {
     for (key, value) in overlay {
         match (base.get_mut(key), value) {

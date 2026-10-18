@@ -252,10 +252,10 @@ fn theme_from(text: &str) -> Theme {
 #[must_use]
 pub fn default_theme() -> Theme {
     theme_from(
-        r##"
+        r#"
         name = "Default"
         extends = ""
-    "##,
+    "#,
     )
 }
 
@@ -579,13 +579,13 @@ mod tests {
         let background = Background::default();
         assert_eq!(background.mode, BackgroundMode::Cover);
         assert!((background.opacity - 0.25).abs() < 1e-6);
-        assert!(background.path.is_empty());
+        assert_eq!(background.path, "");
     }
 
     #[test]
 fn a_theme_with_a_background_still_validates() {
         let theme = theme_from(
-            r##"
+            r#"
             name = "WithImage"
 
             [background]
@@ -593,7 +593,7 @@ fn a_theme_with_a_background_still_validates() {
             blur_strength = 0.8
             opacity = 0.4
             mode = "tile"
-            "##,
+            "#,
         );
         assert!(theme.background.is_some());
         let background = theme.background.as_ref().expect("present");

@@ -1,4 +1,4 @@
-//! File watching and debounced reload.
+﻿//! File watching and debounced reload.
 //!
 //! Editors do not write files the way a program expects. A single save from
 //! most editors produces a write, a rename, and sometimes a truncate, which
@@ -14,7 +14,7 @@
 
 use notify::Watcher as _;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
+use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, Instant};
 
 /// What the watcher observed.
@@ -126,10 +126,7 @@ impl ConfigWatcher {
     /// do its other periodic work instead of spinning.
     #[must_use]
     pub fn recv_timeout(&self, timeout: Duration) -> Option<WatchEvent> {
-        match self.receiver.recv_timeout(timeout) {
-            Ok(event) => Some(event),
-            Err(RecvTimeoutError::Timeout) | Err(RecvTimeoutError::Disconnected) => None,
-        }
+        self.receiver.recv_timeout(timeout).ok()
     }
 
     /// Drain every event that arrived within the debounce window, returning the
@@ -223,7 +220,7 @@ mod tests {
         let file = dir.join("config.toml");
         std::fs::write(&file, "version = 1\n").expect("write");
 
-        let (watcher, _) = ConfigWatcher::new(&[file.clone()]);
+        let (watcher, _) = ConfigWatcher::new(std::slice::from_ref(&file));
 
         // Give the platform watcher a moment to register before touching the file.
         std::thread::sleep(Duration::from_millis(120));
@@ -238,7 +235,7 @@ mod tests {
     #[test]
     fn try_recv_returns_none_when_idle() {
         let dir = temp_dir("watch-idle");
-        let (watcher, _) = ConfigWatcher::new(&[dir.clone()]);
+        let (watcher, _) = ConfigWatcher::new(std::slice::from_ref(&dir));
         assert!(watcher.try_recv().is_none(), "an idle watcher has nothing to report");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -246,7 +243,7 @@ mod tests {
     #[test]
     fn recv_timeout_returns_none_rather_than_blocking_forever() {
         let dir = temp_dir("watch-timeout");
-        let (watcher, _) = ConfigWatcher::new(&[dir.clone()]);
+        let (watcher, _) = ConfigWatcher::new(std::slice::from_ref(&dir));
 
         let start = Instant::now();
         let event = watcher.recv_timeout(Duration::from_millis(80));

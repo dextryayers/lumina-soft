@@ -226,7 +226,7 @@ mod tests {
         let (store, problems) = ProfileStore::from_section(section(""));
         assert!(store.is_empty());
         assert_eq!(store.active(), "");
-        assert!(problems.is_empty());
+        assert_eq!(problems, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -238,7 +238,7 @@ mod tests {
             "rgb.glow_intensity" = 1.5
         "#,
         );
-        let (mut store, problems) = ProfileStore::from_section(section);
+        let (store, problems) = ProfileStore::from_section(section);
         assert!(problems.is_empty(), "{problems:?}");
 
         // "gaming" is the only profile, so it becomes the default.
@@ -274,7 +274,7 @@ mod tests {
     fn an_empty_profile_changes_nothing() {
         let section = section("[profiles.balanced]\n");
         let (store, problems) = ProfileStore::from_section(section);
-        assert!(problems.is_empty());
+        assert_eq!(problems, [] as [std::string::String; 0]);
         let base = Config::default();
         assert_eq!(store.apply(&base), base, "an empty profile must be a no-op");
     }
@@ -347,11 +347,11 @@ mod tests {
     #[test]
     fn switching_profiles_cycles_in_order_and_wraps() {
         let section = section(
-            r#"
+            r"
             [profiles.alpha]
             [profiles.beta]
             [profiles.gamma]
-        "#,
+        ",
         );
         let (mut store, _) = ProfileStore::from_section(section);
         // Alphabetical, so alpha is the automatic default.

@@ -189,7 +189,7 @@ fn clamp_int(
     min: i32,
     max: i32,
     path: &str,
-    default: i32,
+    _default: i32,
     report: &mut ValidationReport,
 ) -> i32 {
     if value < min {
@@ -209,7 +209,7 @@ fn clamp_u32(
     min: u32,
     max: u32,
     path: &str,
-    default: u32,
+    _default: u32,
     report: &mut ValidationReport,
 ) -> u32 {
     if value < min {
@@ -306,8 +306,8 @@ fn validate_appearance(config: &mut Config, report: &mut ValidationReport) {
     let defaults = crate::defaults::appearance_defaults();
     let a = &mut config.appearance;
 
-    check_color(&mut a.fill, "appearance.fill", &defaults.fill, report);
-    check_color(&mut a.border_color, "appearance.border_color", &defaults.border_color, report);
+    check_color(&mut a.fill, "appearance.fill", defaults.fill, report);
+    check_color(&mut a.border_color, "appearance.border_color", defaults.border_color, report);
 
     a.fill_gradient = clamp_float(a.fill_gradient, 0.0, 1.0, "appearance.fill_gradient", 0.0, report);
     a.corner_radius = clamp_float(a.corner_radius, 0.0, 60.0, "appearance.corner_radius", 18.0, report);
@@ -327,8 +327,8 @@ fn validate_rgb(config: &mut Config, report: &mut ValidationReport) {
     let defaults = crate::defaults::rgb_defaults();
     let rgb = &mut config.rgb;
 
-    check_color(&mut rgb.primary, "rgb.primary", &defaults.primary, report);
-    check_color(&mut rgb.secondary, "rgb.secondary", &defaults.secondary, report);
+    check_color(&mut rgb.primary, "rgb.primary", defaults.primary, report);
+    check_color(&mut rgb.secondary, "rgb.secondary", defaults.secondary, report);
 
     rgb.speed = clamp_float(rgb.speed, 0.05, 8.0, "rgb.speed", 1.0, report);
     rgb.brightness = clamp_float(rgb.brightness, 0.0, 2.0, "rgb.brightness", 1.0, report);
@@ -543,6 +543,54 @@ fn validate_layout(config: &mut Config, report: &mut ValidationReport) {
     }
 }
 
+/// Every binding that can claim a global hotkey, in declaration order.
+///
+/// Kept as a module level constant rather than built inside the function so the
+/// list of hotkey keys lives in one place next to the struct it mirrors.
+const ALL_HOTKEYS: [(&str, &str); 13] = [
+    ("toggle_visibility", "toggle_visibility"),
+    ("cycle_widget", "cycle_widget"),
+    ("cycle_back", "cycle_back"),
+    ("rgb_next_mode", "rgb_next_mode"),
+    ("profile_next", "profile_next"),
+    ("media_play_pause", "media_play_pause"),
+    ("media_next", "media_next"),
+    ("media_previous", "media_previous"),
+    ("media_stop", "media_stop"),
+    ("cycle_players", "cycle_players"),
+    ("collapse_now", "collapse_now"),
+    ("reload_config", "reload_config"),
+    ("toggle_debug_overlay", "toggle_debug_overlay"),
+];
+
+/// Read every hotkey binding out of the struct by field name.
+fn hotkey_bindings(h: &HotkeysConfig) -> Vec<(&'static str, &str)> {
+    ALL_HOTKEYS.iter().map(|(name, _)| (*name, field(h, name))).collect()
+}
+
+/// Field access by name, restricted to the keys in [`ALL_HOTKEYS`].
+///
+/// A match rather than a macro so adding a hotkey to the struct without adding
+/// it here is a compile error instead of a silently unbound key.
+fn field<'a>(h: &'a HotkeysConfig, name: &str) -> &'a str {
+    match name {
+        "toggle_visibility" => &h.toggle_visibility,
+        "cycle_widget" => &h.cycle_widget,
+        "cycle_back" => &h.cycle_back,
+        "rgb_next_mode" => &h.rgb_next_mode,
+        "profile_next" => &h.profile_next,
+        "media_play_pause" => &h.media_play_pause,
+        "media_next" => &h.media_next,
+        "media_previous" => &h.media_previous,
+        "media_stop" => &h.media_stop,
+        "cycle_players" => &h.cycle_players,
+        "collapse_now" => &h.collapse_now,
+        "reload_config" => &h.reload_config,
+        "toggle_debug_overlay" => &h.toggle_debug_overlay,
+        other => unreachable!("{other} is not in ALL_HOTKEYS"),
+    }
+}
+
 fn validate_hotkeys(config: &mut Config, report: &mut ValidationReport) {
     let h: &mut HotkeysConfig = &mut config.hotkeys;
 
@@ -619,8 +667,8 @@ fn validate_text(config: &mut Config, report: &mut ValidationReport) {
     let defaults = crate::defaults::text_defaults();
     let t: &mut TextConfig = &mut config.text;
 
-    check_color(&mut t.color, "text.color", &defaults.color, report);
-    check_color(&mut t.dim_color, "text.dim_color", &defaults.dim_color, report);
+    check_color(&mut t.color, "text.color", defaults.color, report);
+    check_color(&mut t.dim_color, "text.dim_color", defaults.dim_color, report);
 
     // Twelve pixels is the accessibility floor. Anything below it is repaired
     // rather than merely warned about, because unreadable text is a hard
@@ -886,11 +934,10 @@ pub fn suggest<'a>(input: &str, candidates: &[&'a str]) -> Option<&'a str> {
     let mut prefix_best: Option<(usize, &str)> = None;
     for candidate in candidates {
         let candidate_lower = candidate.to_ascii_lowercase();
-        if candidate_lower.starts_with(&lower) {
-            if prefix_best.is_none_or(|(len, _)| candidate_lower.len() < len) {
+        if candidate_lower.starts_with(&lower)
+            && prefix_best.is_none_or(|(len, _)| candidate_lower.len() < len) {
                 prefix_best = Some((candidate_lower.len(), candidate));
             }
-        }
     }
     if let Some((_, candidate)) = prefix_best {
         return Some(candidate);
@@ -1106,7 +1153,7 @@ mod tests {
     #[test]
     fn implausible_timezone_is_cleared() {
         let (config, report) = run("[clock]\nsecond_timezone = \"Mars/Olympus_Mons\"\n");
-        assert!(config.clock.second_timezone.is_empty());
+        assert_eq!(config.clock.second_timezone, "");
         assert!(!report.is_clean());
     }
 
@@ -1127,7 +1174,7 @@ mod tests {
     #[test]
     fn invalid_hotkey_is_cleared_and_reported() {
         let (config, report) = run("[hotkeys]\ntoggle_visibility = \"hyper+w\"\n");
-        assert!(config.hotkeys.toggle_visibility.is_empty());
+        assert_eq!(config.hotkeys.toggle_visibility, "");
         assert!(report.issues().iter().any(|i| i.path == "hotkeys.toggle_visibility"));
     }
 
@@ -1257,7 +1304,7 @@ mod tests {
 
     #[test]
     fn a_file_with_many_problems_reports_all_of_them_in_one_pass() {
-        let text = r##"
+        let text = r#"
             [rgb]
             primary = "purple"
             glow_intensity = 100.0
@@ -1275,7 +1322,7 @@ mod tests {
 
             [layout]
             order = ["clock", "teleporter", "clock"]
-        "##;
+        "#;
         let (config, report) = run(text);
 
         // Every problem named above is reported in a single pass, so a user
