@@ -1,0 +1,28 @@
+[package]
+name = "lumina-media"
+description = "Media session abstraction for Lumina: MPRIS on Linux, GSMTC on Windows."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lumina-core = { workspace = true }
+lumina-widgets = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Media_Audio",
+    "Win32_System_Com",
+    "Win32_UI_Shell",
+    "Media_Control",
+] }

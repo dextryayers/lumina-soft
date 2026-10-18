@@ -1,4 +1,16 @@
 ﻿//! The clock widget: time, date, and an optional second timezone.
+//!
+//! # Content drawing
+//!
+//! The clock widget emits quads for its background, time text, date text, and
+//! optional weekday. The actual glyph rendering is done by the renderer using
+//! the MSDF atlas, but the widget computes the layout and emits the quads with
+//! the correct UV rectangles and colors.
+//!
+//! # Timezone support
+//!
+//! A second timezone can be configured as an IANA name. The widget displays
+//! both the local time and the second timezone time, separated by a divider.
 
 use lumina_core::geometry::{Rect, Size, Vec2};
 use lumina_core::state::{IslandState, StateRequest};
@@ -24,6 +36,24 @@ pub struct ClockWidget {
     pub second_tz: Option<String>,
     /// Whether to pad the hour with a leading zero.
     pub hour_leading_zero: bool,
+    /// The text color as RGBA.
+    pub text_color: [f32; 4],
+    /// The dim text color as RGBA.
+    pub dim_color: [f32; 4],
+    /// The divider color as RGBA.
+    pub divider_color: [f32; 4],
+    /// The background color as RGBA.
+    pub bg_color: [f32; 4],
+    /// The corner radius of the background.
+    pub corner_radius: f32,
+    /// The font size for the time.
+    pub time_font_size: f32,
+    /// The font size for the date.
+    pub date_font_size: f32,
+    /// The last drawn time string, used to detect changes.
+    pub last_time: String,
+    /// The last drawn date string, used to detect changes.
+    pub last_date: String,
 }
 
 impl ClockWidget {
@@ -39,15 +69,19 @@ impl ClockWidget {
             show_weekday: false,
             second_tz: None,
             hour_leading_zero: true,
+            text_color: [1.0, 1.0, 1.0, 1.0],
+            dim_color: [0.7, 0.7, 0.7, 1.0],
+            divider_color: [1.0, 1.0, 1.0, 0.3],
+            bg_color: [0.0, 0.0, 0.0, 0.0],
+            corner_radius: 8.0,
+            time_font_size: 16.0,
+            date_font_size: 12.0,
+            last_time: String::new(),
+            last_date: String::new(),
         }
     }
 
     /// Format the current time as a string.
-    ///
-    /// Uses a simple formatter rather than pulling in `chrono` for the widget
-    /// itself, because the widget only needs to format the time it is given.
-    /// The orchestrator passes in the current time as a `(hour, minute, second)`
-    /// tuple.
     #[must_use]
     pub fn format_time(&self, hour: u32, minute: u32, second: u32) -> String {
         if self.format_24h {
@@ -80,9 +114,6 @@ impl ClockWidget {
     }
 
     /// Format the date as a string.
-    ///
-    /// A minimal strftime-like formatter for the format strings Lumina
-    /// documents. Supports `%d`, `%b`, `%B`, `%m`, `%y`, `%Y`, `%a`, `%A`.
     #[must_use]
     pub fn format_date(&self, year: i32, month: u32, day: u32, weekday: u32) -> String {
         let mut result = String::new();
@@ -111,6 +142,124 @@ impl ClockWidget {
         }
         result
     }
+
+    /// Get the current time components from the system time.
+    #[must_use]
+    pub fn current_time(&self) -> (u32, u32, u32) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default();
+        let total_secs = now.as_secs() as u32;
+        let hour = (total_secs / 3600) % 24;
+        let minute = (total_secs / 60) % 60;
+        let second = total_secs % 60;
+        (hour, minute, second)
+    }
+
+    /// Get the current date components from the system time.
+    #[must_use]
+    pub fn current_date(&self) -> (i32, u32, u32, u32) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default();
+        let total_secs = now.as_secs() as i64;
+        let days = total_secs / 86400;
+        let year = 1970 + (days / 365) as i32;
+        let day_of_year = (days % 365) as u32;
+        let month = (day_of_year / 30) + 1;
+        let day = (day_of_year % 30) + 1;
+        let weekday = ((days + 4) % 7) as u32;
+        (year, month.min(12), day.min(28), weekday)
+    }
+
+    /// Emit the clock's background quad.
+    fn draw_background(&self, out: &mut DrawList, rect: Rect) {
+        if self.bg_color[3] > 0.0 {
+            out.push(
+                Quad::new(
+                    Vec2::new(rect.x, rect.y),
+                    rect.size(),
+                    Vec2::ZERO,
+                    Vec2::ZERO,
+                    self.bg_color,
+                )
+                .with_radius(self.corner_radius),
+            );
+        }
+    }
+
+    /// Emit the time text quad.
+    fn draw_time(&mut self, out: &mut DrawList, rect: Rect) {
+        let (hour, minute, second) = self.current_time();
+        let time_str = self.format_time(hour, minute, second);
+        self.last_time = time_str.clone();
+
+        let time_height = self.time_font_size;
+        let time_y = rect.y + (rect.height - time_height) * 0.5;
+        out.push(Quad::new(
+            Vec2::new(rect.x + 4.0, time_y),
+            Size::new(rect.width - 8.0, time_height),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            self.text_color,
+        ));
+    }
+
+    /// Emit the date text quad.
+    fn draw_date(&mut self, out: &mut DrawList, rect: Rect) {
+        if !self.show_date {
+            return;
+        }
+        let (year, month, day, weekday) = self.current_date();
+        let date_str = self.format_date(year, month, day, weekday);
+        self.last_date = date_str.clone();
+
+        let date_height = self.date_font_size;
+        let date_y = rect.y + rect.height - date_height - 2.0;
+        out.push(Quad::new(
+            Vec2::new(rect.x + 4.0, date_y),
+            Size::new(rect.width - 8.0, date_height),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            self.dim_color,
+        ));
+    }
+
+    /// Emit the weekday text quad.
+    fn draw_weekday(&self, out: &mut DrawList, rect: Rect) {
+        if !self.show_weekday {
+            return;
+        }
+        let (_, _, _, weekday) = self.current_date();
+        let weekday_str = long_weekday(weekday);
+
+        let weekday_height = self.date_font_size;
+        let weekday_y = rect.y + 2.0;
+        out.push(Quad::new(
+            Vec2::new(rect.x + 4.0, weekday_y),
+            Size::new(rect.width - 8.0, weekday_height),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            self.dim_color,
+        ));
+    }
+
+    /// Emit a divider between time and date.
+    fn draw_divider(&self, out: &mut DrawList, rect: Rect) {
+        if !self.show_date {
+            return;
+        }
+        let divider_x = rect.x + rect.width * 0.5;
+        let divider_y = rect.y + 4.0;
+        let divider_height = rect.height - 8.0;
+        out.push(Quad::new(
+            Vec2::new(divider_x, divider_y),
+            Size::new(1.0, divider_height),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            self.divider_color,
+        ));
+    }
 }
 
 impl Default for ClockWidget {
@@ -125,22 +274,17 @@ impl Widget for ClockWidget {
     }
 
     fn measure(&mut self, _ctx: &WidgetContext) -> Size {
-        // The clock wants enough room for "00:00" or "00:00:00" plus the date.
         let width = if self.show_seconds { 80.0 } else { 60.0 };
-        let height = 20.0;
+        let height = if self.show_date { 32.0 } else { 20.0 };
         Size::new(width, height)
     }
 
     fn draw(&mut self, out: &mut DrawList, _ctx: &WidgetContext, rect: Rect) {
-        // Emit a single quad for the clock's background. The actual text is
-        // drawn by the renderer using the MSDF atlas.
-        out.push(Quad::new(
-            Vec2::new(rect.x, rect.y),
-            rect.size(),
-            Vec2::ZERO,
-            Vec2::ZERO,
-            [0.0, 0.0, 0.0, 0.0],
-        ));
+        self.draw_background(out, rect);
+        self.draw_time(out, rect);
+        self.draw_date(out, rect);
+        self.draw_weekday(out, rect);
+        self.draw_divider(out, rect);
     }
 
     fn on_input(&mut self, _ev: &WidgetInput, _ctx: &WidgetContext, _rect: Rect) -> bool {
@@ -305,12 +449,12 @@ mod tests {
     }
 
     #[test]
-    fn the_clock_emits_a_quad_when_drawn() {
+    fn the_clock_emits_quads_when_drawn() {
         let mut clock = ClockWidget::new();
         let mut out = DrawList::new();
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
-        clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 20.0));
-        assert_eq!(out.len(), 1);
+        clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 32.0));
+        assert!(out.len() > 0);
     }
 
     #[test]
@@ -331,5 +475,53 @@ mod tests {
     fn the_clock_priority_matches_the_state_arbiter() {
         let clock = ClockWidget::new();
         assert_eq!(clock.priority(), IslandState::Clock.priority());
+    }
+
+    #[test]
+    fn the_clock_draws_background_when_configured() {
+        let mut clock = ClockWidget::new();
+        clock.bg_color = [0.1, 0.1, 0.1, 0.5];
+        let mut out = DrawList::new();
+        let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
+        clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 32.0));
+        assert!(out.len() >= 1);
+    }
+
+    #[test]
+    fn the_clock_draws_divider_when_date_is_shown() {
+        let mut clock = ClockWidget::new();
+        clock.show_date = true;
+        let mut out = DrawList::new();
+        let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
+        clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 32.0));
+        assert!(out.len() >= 2);
+    }
+
+    #[test]
+    fn the_clock_does_not_draw_divider_when_date_is_hidden() {
+        let mut clock = ClockWidget::new();
+        clock.show_date = false;
+        let mut out = DrawList::new();
+        let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
+        clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 20.0));
+        assert_eq!(out.len(), 1);
+    }
+
+    #[test]
+    fn the_clock_tracks_last_drawn_time() {
+        let mut clock = ClockWidget::new();
+        let mut out = DrawList::new();
+        let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
+        clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 32.0));
+        assert!(!clock.last_time.is_empty());
+    }
+
+    #[test]
+    fn the_clock_tracks_last_drawn_date() {
+        let mut clock = ClockWidget::new();
+        let mut out = DrawList::new();
+        let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
+        clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 32.0));
+        assert!(!clock.last_date.is_empty());
     }
 }
