@@ -412,6 +412,30 @@ mod tests {
     }
 
     #[test]
+    fn trajectory_is_frame_rate_independent_at_high_time_scale() {
+        // A fast global scale shortens the effective response, which pushes the
+        // integrator into its stiff regime where the adaptive sub-step is doing
+        // real work. This is the case most likely to break if the sub-step
+        // derivation regresses.
+        let build = || {
+            let mut s = Spring::new_moving(0.0, 100.0, 0.34, 0.78);
+            s.set_global_scale(4.0);
+            s
+        };
+        let at_30 = simulate(build(), 0.2, 30.0);
+        let at_60 = simulate(build(), 0.2, 60.0);
+        let at_240 = simulate(build(), 0.2, 240.0);
+
+        let spread = (at_30.position() - at_240.position()).abs();
+        assert!(
+            spread < 2.0,
+            "at a 4x time scale, frame rate changed the trajectory by {spread}: 30fps={} 240fps={}",
+            at_30.position(),
+            at_240.position()
+        );
+    }
+
+    #[test]
     fn retargeting_mid_flight_is_continuous() {
         // Position and velocity must not change at the instant of the call.
         // That is the interruption primitive and it is exact.
@@ -541,34 +565,36 @@ mod tests {
 
     #[test]
     fn global_scale_changes_speed_in_the_right_direction() {
-        // Measured early enough in the trajectory that neither spring has
-        // reached or overshot its target, where the comparison is unambiguous.
-        let slow = simulate(
-            {
-                let mut s = Spring::new_moving(0.0, 100.0, 0.34, 0.78);
-                s.set_global_scale(1.0);
-                s
-            },
-            0.02,
-            60.0,
-        );
-        let fast = simulate(
-            {
-                let mut s = Spring::new_moving(0.0, 100.0, 0.34, 0.78);
-                s.set_global_scale(3.0);
-                s
-            },
-            0.02,
-            60.0,
-        );
+        let mut normal = Spring::new_moving(0.0, 100.0, 0.34, 0.78);
+        normal.set_global_scale(1.0);
+        let mut fast = Spring::new_moving(0.0, 100.0, 0.34, 0.78);
+        fast.set_global_scale(4.0);
+
+        assert_eq!(normal.effective_response(), 0.34);
+        assert!((fast.effective_response() - 0.085).abs() < 1e-4);
+
+        // Counting frames to rest is robust in a way comparing positions at one
+        // instant is not: by the time a fast spring has crossed the screen a
+        // single sampled position no longer distinguishes "further along" from
+        // "already arrived".
+        let frames_to_rest = |s: &Spring| -> usize {
+            let mut copy = *s;
+            let mut frames = 0usize;
+            while !copy.is_at_rest() && frames < 10_000 {
+                copy.advance(1.0 / 60.0);
+                frames += 1;
+            }
+            frames
+        };
+
+        let normal_frames = frames_to_rest(&normal);
+        let fast_frames = frames_to_rest(&fast);
 
         assert!(
-            fast.position() > slow.position() * 2.0,
-            "a 3x time scale should be far further along: fast={} slow={}",
-            fast.position(),
-            slow.position()
+            fast_frames * 4 <= normal_frames + 4,
+            "a 4x time scale should settle about four times sooner: \
+             normal={normal_frames} frames, fast={fast_frames} frames"
         );
-        assert!(fast.position() < 100.0, "neither spring should have arrived yet");
     }
 
     #[test]

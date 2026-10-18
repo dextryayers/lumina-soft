@@ -364,7 +364,8 @@ mod tests {
     #[test]
     fn accumulator_step_change_discards_stale_remainder() {
         let mut acc = FixedStepAccumulator::new(Duration::from_millis(10), 10);
-        acc.steps(Duration::from_millis(9));
+        let steps = acc.steps(Duration::from_millis(9));
+        assert_eq!(steps, 0, "9 ms is less than one 10 ms step");
         assert_eq!(acc.remainder(), Duration::from_millis(9));
         acc.set_step(Duration::from_millis(5));
         assert_eq!(acc.remainder(), Duration::ZERO, "step change must not cause a burst");

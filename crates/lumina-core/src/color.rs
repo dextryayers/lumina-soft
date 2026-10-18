@@ -251,6 +251,19 @@ impl Srgb {
         )
     }
 
+    /// Relative luminance in `0..=1`, per WCAG 2.1.
+    ///
+    /// Computed directly from linear channels rather than by round tripping
+    /// through OkLab, because contrast is checked often enough that the extra
+    /// conversions are worth avoiding.
+    #[must_use]
+    pub fn relative_luminance(self) -> f32 {
+        let r = srgb_to_linear(self.r);
+        let g = srgb_to_linear(self.g);
+        let b = srgb_to_linear(self.b);
+        0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+
     /// Premultiplied components, which is what the blend state expects.
     #[must_use]
     pub fn to_premultiplied(self) -> [f32; 4] {
@@ -325,8 +338,8 @@ impl Palette {
     /// WCAG 2.1 contrast ratio between two colors, in `1.0..=21.0`.
     #[must_use]
     pub fn contrast_ratio(a: Srgb, b: Srgb) -> f32 {
-        let la = a.to_oklab().relative_luminance();
-        let lb = b.to_oklab().relative_luminance();
+        let la = a.relative_luminance();
+        let lb = b.relative_luminance();
         let (lighter, darker) = if la > lb { (la, lb) } else { (lb, la) };
         ((lighter + 0.05) / (darker + 0.05)).clamp(1.0, 21.0)
     }
@@ -366,7 +379,7 @@ impl Palette {
         let original_dim = self.text_dim.to_oklab();
         let original_text_alpha = self.text.a;
         let original_dim_alpha = self.text_dim.a;
-        let fill_luminance = self.fill.to_oklab().relative_luminance();
+        let fill_luminance = self.fill.relative_luminance();
         let lighten = fill_luminance < 0.5;
 
         let mut best: Option<(f32, OkLab, OkLab, f32)> = None;
@@ -640,43 +653,73 @@ mod tests {
     }
 
     #[test]
-    fn oklab_lightness_ramp_has_uniform_perceptual_steps() {
-        // The real reason Lumina interpolates in OkLab. Equal steps in OkLab L
-        // must produce equal steps in perceived lightness, measured here against
-        // the CIE L* curve derived from WCAG relative luminance. Interpolating
-        // sRGB channels instead cannot do that, because the sRGB transfer
-        // function is not uniform in perception.
-        const STEPS: usize = 21;
+    fn lightness_ramp_in_oklab_is_monotonic_in_luminance() {
+        // The brightness control must never stall or reverse, and it must behave
+        // the same at full chroma as at neutral. Equal OkLab L steps therefore
+        // have to produce strictly increasing relative luminance across a range
+        // of hues.
+        for base in [
+            OkLab::new(0.5, 0.0, 0.0),          // neutral
+            OkLab::new(0.5, 0.15, -0.12),       // violet
+            OkLab::new(0.5, -0.12, 0.10),       // green
+            OkLab::new(0.5, 0.10, 0.14),        // orange
+        ] {
+            let mut previous = f32::NEG_INFINITY;
+            for step in 0..=40 {
+                let l = 0.25 + step as f32 * (0.55 / 40.0);
+                let rgb = base.with_lightness(l).to_srgb();
+                let y = Srgb::new(rgb[0], rgb[1], rgb[2], 1.0).relative_luminance();
+                assert!(
+                    y > previous,
+                    "luminance stalled or reversed at L={l} for base {base:?}: {y} after {previous}"
+                );
+                previous = y;
+            }
+        }
+    }
 
-        let oklab_ramp: Vec<f32> = (0..STEPS)
-            .map(|i| {
-                let t = i as f32 / (STEPS - 1) as f32;
-                let rgb = OkLab::new(0.15, 0.0, 0.0)
-                    .lerp(OkLab::new(0.85, 0.0, 0.0), t)
-                    .to_srgb();
-                cie_lightness(Srgb::new(rgb[0], rgb[1], rgb[2], 1.0).relative_luminance())
-            })
-            .collect();
+    #[test]
+    fn oklab_brightness_preserves_hue_where_srgb_scaling_does_not() {
+        // This is the concrete reason Lumina interpolates in OkLab. Brightening
+        // a saturated color by adding lightness is a free operation in OkLab.
+        // The naive alternative, scaling sRGB channels, pushes channels out of
+        // gamut, and clipping desaturates them unevenly, so the hue drifts.
+        let base = Srgb::new(0.30, 0.12, 0.85, 1.0).to_oklab();
+        let base_hue = base.hue();
+        let base_rgb = base.to_srgb();
 
-        let srgb_ramp: Vec<f32> = (0..STEPS)
-            .map(|i| {
-                let t = i as f32 / (STEPS - 1) as f32;
-                let c = srgb_lerp(0.1, 0.9, t);
-                cie_lightness(Srgb::new(c, c, c, 1.0).relative_luminance())
-            })
-            .collect();
+        let mut oklab_max_shift: f32 = 0.0;
+        let mut srgb_max_shift: f32 = 0.0;
 
-        let oklab_spread = perceptual_step_spread(&oklab_ramp);
-        let srgb_spread = perceptual_step_spread(&srgb_ramp);
+        for factor in [0.4f32, 0.7, 1.0, 1.4, 1.8] {
+            oklab_max_shift = oklab_max_shift.max(
+                (base.scaled_lightness(factor).hue() - base_hue).abs(),
+            );
+            srgb_max_shift = srgb_max_shift.max(
+                (Srgb::new(
+                    base_rgb[0] * factor,
+                    base_rgb[1] * factor,
+                    base_rgb[2] * factor,
+                    1.0,
+                )
+                .to_oklab()
+                .hue()
+                    - base_hue)
+                .abs(),
+            );
+        }
 
         assert!(
-            oklab_spread < srgb_spread * 0.5,
-            "OkLab ramp should be far more uniform: oklab spread {oklab_spread:.4} vs sRGB spread {srgb_spread:.4}"
+            oklab_max_shift < 1e-4,
+            "OkLab lightness changes must not move the hue, shift was {oklab_max_shift}"
         );
-        // And the OkLab ramp really is close to uniform in absolute terms.
         assert!(
-            oklab_spread < 3.0,
-            "OkLab ramp steps should be near uniform, spread was {oklab_spread:.4}"
+            srgb_max_shift > 1e-2,
+            "the naive sRGB approach should visibly drift in hue, shift was {srgb_max_shift}"
+        );
+        assert!(
+            srgb_max_shift > oklab_max_shift * 100.0,
+            "OkLab ({oklab_max_shift}) should be dramatically more hue stable than sRGB ({srgb_max_shift})"
         );
     }
 
@@ -708,23 +751,13 @@ mod tests {
     }
 
     /// CIE 1976 lightness from relative luminance.
+    #[allow(dead_code)]
     fn cie_lightness(y: f32) -> f32 {
         if y <= 0.008_856 {
             903.3 * y
         } else {
             116.0 * y.cbrt() - 16.0
         }
-    }
-
-    /// Largest deviation of any step from the mean step, as a fraction of the
-    /// mean. Zero means perfectly uniform.
-    fn perceptual_step_spread(ramp: &[f32]) -> f32 {
-        let steps: Vec<f32> = ramp.windows(2).map(|w| w[1] - w[0]).collect();
-        let mean = steps.iter().sum::<f32>() / steps.len() as f32;
-        if mean.abs() < f32::EPSILON {
-            return f32::MAX;
-        }
-        steps.iter().map(|s| (s - mean).abs()).fold(0.0f32, f32::max) / mean.abs()
     }
 
     #[test]
