@@ -485,9 +485,20 @@ mod tests {
             0,
         );
         assert_eq!(placement.size(), (186, 54));
-        assert!(
-            placement.geometry.bounds.x.fract() == 0.0 || true,
-            "x may be fractional"
+        // Every edge must land on a whole pixel even at fractional scaling,
+        // because a fractional surface size makes some window managers round it
+        // differently than we did and the island lands in the wrong place.
+        assert_eq!(placement.geometry.bounds.width, 186.0);
+        assert_eq!(placement.geometry.bounds.height, 54.0);
+        assert_eq!(
+            placement.geometry.bounds.x.fract(),
+            0.0,
+            "left edge must be whole"
+        );
+        assert_eq!(
+            placement.geometry.bounds.y.fract(),
+            0.0,
+            "top edge must be whole"
         );
         assert_eq!(placement.geometry.bounds.width, 186.0);
     }

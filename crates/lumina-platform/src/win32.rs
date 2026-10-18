@@ -264,6 +264,61 @@ fn log_warn(message: &str) {
 /// surface this one as a named constant.
 const MONITORINFOF_PRIMARY: u32 = 1;
 
+// Accumulator for one monitor enumeration pass.
+//
+// `EnumDisplayMonitors` takes a plain function pointer, which cannot capture, so
+// the callback reaches this through thread local storage. Scoped to the calling
+// thread, which matches the fact that enumeration is driven from the main thread
+// and is never re-entered.
+thread_local! {
+    static ENUMERATION: std::cell::RefCell<Vec<Monitor>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The `EnumDisplayMonitors` callback.
+///
+/// Accumulates into [`ENUMERATION`] and returns TRUE to continue enumerating.
+unsafe extern "system" fn enum_monitor_callback(
+    monitor: HMONITOR,
+    _dc: windows::Win32::Graphics::Gdi::HDC,
+    _clip: *mut RECT,
+    _data: windows::Win32::Foundation::LPARAM,
+) -> BOOL {
+    let mut dpi_x = 96u32;
+    let mut dpi_y = 96u32;
+    let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &raw mut dpi_x, &raw mut dpi_y) };
+
+    ENUMERATION.with(|slot| {
+        let mut list = slot.borrow_mut();
+        // The index comes from the list length, so it has to be read before the
+        // push, since borrowing the list again while it is mutably borrowed
+        // does not compile.
+        let next_index = list.len();
+        let info = monitor_info(monitor);
+        let bounds = monitor_bounds(monitor);
+
+        // A zero sized rectangle means the driver failed. Fall back rather than
+        // propagating a degenerate monitor into the placement code, which would
+        // leave the island with nowhere to live and hide the real problem.
+        let bounds = if bounds.width > 0.0 && bounds.height > 0.0 {
+            bounds
+        } else {
+            Rect::new(0.0, 0.0, 1920.0, 1080.0)
+        };
+
+        list.push(Monitor {
+            index: next_index,
+            name: format!("Display {}", next_index + 1),
+            bounds,
+            scale: ScaleFactor::new(if dpi_x > 0 { dpi_x as f32 / 96.0 } else { 1.0 }),
+            refresh_hz: 0,
+            is_primary: info.dwFlags & MONITORINFOF_PRIMARY != 0,
+        });
+    });
+
+    BOOL(1) // TRUE, keep enumerating
+}
+
 /// Extract the `HWND` from a raw window handle.
 ///
 /// `RawWindowHandle` is an enum in `raw-window-handle` 0.6, so a handle from a
@@ -287,7 +342,7 @@ fn monitor_info(monitor: HMONITOR) -> MONITORINFO {
     };
     // A failed query leaves the struct at its defaults, whose zero `dwFlags`
     // correctly reads as "not primary", so the failure is harmless here.
-    let _ = unsafe { GetMonitorInfoW(monitor, &mut info) };
+    let _ = unsafe { GetMonitorInfoW(monitor, &raw mut info) };
     info
 }
 
@@ -314,64 +369,21 @@ fn monitor_bounds(monitor: HMONITOR) -> Rect {
 /// origin rather than being dropped, because dropping it would leave the island
 /// with nowhere to live and hide the actual driver problem.
 fn enumerate_monitors() -> Vec<Monitor> {
-    use std::cell::RefCell;
-    use windows::Win32::Foundation::LPARAM as WinLParam;
+    ENUMERATION.with(|slot| slot.borrow_mut().clear());
 
-    thread_local! {
-        /// Accumulator shared with the callback, which is a plain function
-        /// pointer and therefore cannot capture.
-        static FOUND: RefCell<Vec<Monitor>> = const { RefCell::new(Vec::new()) };
-    }
-
-    FOUND.with(|slot| slot.borrow_mut().clear());
-
-    unsafe extern "system" fn callback(
-        monitor: HMONITOR,
-        _dc: windows::Win32::Graphics::Gdi::HDC,
-        _clip: *mut RECT,
-        _data: WinLParam,
-    ) -> BOOL {
-        let mut dpi_x = 96u32;
-        let mut dpi_y = 96u32;
-        let _ =
-            unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &raw mut dpi_x, &raw mut dpi_y) };
-
-        FOUND.with(|slot| {
-            let mut list = slot.borrow_mut();
-            // Compute everything before pushing, because the index comes from the
-            // list length and borrowing it again while mutably borrowed does not
-            // compile.
-            let next_index = list.len();
-            let info = monitor_info(monitor);
-            let bounds = monitor_bounds(monitor);
-
-            // A zero sized rectangle means the driver failed. Fall back rather
-            // than propagating a degenerate monitor into the placement code,
-            // which would leave the island with nowhere to live.
-            let bounds = if bounds.width > 0.0 && bounds.height > 0.0 {
-                bounds
-            } else {
-                Rect::new(0.0, 0.0, 1920.0, 1080.0)
-            };
-
-            list.push(Monitor {
-                index: next_index,
-                name: format!("Display {}", next_index + 1),
-                bounds,
-                scale: ScaleFactor::new(if dpi_x > 0 { dpi_x as f32 / 96.0 } else { 1.0 }),
-                refresh_hz: 0,
-                is_primary: info.dwFlags & MONITORINFOF_PRIMARY != 0,
-            });
-        });
-
-        BOOL(1) // TRUE, keep enumerating
-    }
-
+    // Safety: the callback is a plain function pointer, so it cannot capture
+    // and accumulates into the thread local above. Returning TRUE from every
+    // callback is what asks the system to keep enumerating.
     unsafe {
-        let _ = EnumDisplayMonitors(None, None, Some(callback), WinLParam(0));
+        let _ = EnumDisplayMonitors(
+            None,
+            None,
+            Some(enum_monitor_callback),
+            windows::Win32::Foundation::LPARAM(0),
+        );
     }
 
-    FOUND.with(|slot| slot.borrow().clone())
+    ENUMERATION.with(std::cell::RefCell::take)
 }
 
 /// The scale factor for the monitor the window currently sits on.

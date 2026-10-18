@@ -33,8 +33,8 @@ pub struct NullBackend {
 }
 
 impl NullBackend {
-    /// Construct in the visible state, matching what a real backend does after
-    /// a successful startup.
+    /// Construct in the visible state, matching what a real backend reports
+    /// after a successful startup, so the first frame needs no special case.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -51,8 +51,8 @@ impl NullBackend {
 
     /// How many times topmost has been re-asserted.
     ///
-    /// A real backend counts this too, because "how often do we have to fight
-    /// the window manager" is a number worth watching.
+    /// A real backend counts this too, because how often we have to fight the
+    /// window manager is a number worth watching.
     #[must_use]
     pub fn enforce_count(&self) -> u32 {
         self.topmost_enforces
@@ -75,10 +75,10 @@ impl OverlayBackend for NullBackend {
     }
 
     fn configure_window(&mut self, _window: RawWindowHandle) -> Result<(), OverlayError> {
-        // Succeeding here is a lie. The window is simply not ours to configure.
-        // Reporting an error would make every caller branch on a platform
-        // condition it should not know about, so the answer is that the
-        // operation completed and did nothing.
+        // Succeeding here is a lie, and it is the right kind of lie. The window
+        // is simply not ours to configure. Returning an error would force every
+        // caller to branch on a platform condition it should not know about, and
+        // the observable result is identical: no window is configured.
         Ok(())
     }
 
@@ -130,8 +130,6 @@ mod tests {
 
     #[test]
     fn a_new_backend_starts_visible() {
-        // Matches what a real backend reports after a successful startup, so
-        // callers do not need to special case the first frame.
         assert!(NullBackend::new().is_visible());
     }
 
@@ -142,7 +140,7 @@ mod tests {
         assert!(backend.set_click_through(true).is_ok());
         assert!(backend.enforce_topmost().is_ok());
         assert!(backend.tick().is_ok());
-        assert!(backend.shutdown_ok());
+        backend.shutdown();
     }
 
     #[test]
@@ -170,7 +168,7 @@ mod tests {
     }
 
     #[test]
-    fn counts_accumulate_and_saturate() {
+    fn counts_accumulate() {
         let mut backend = NullBackend::new();
         for _ in 0..10 {
             backend.enforce_topmost().expect("ok");
@@ -181,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn shutdown_is_idempotent() {
+    fn shutdown_is_idempotent_and_leaves_state_observable() {
         let mut backend = NullBackend::new();
         backend.shutdown();
         backend.shutdown();
@@ -189,12 +187,5 @@ mod tests {
             backend.is_visible(),
             "shutdown must not change observable state here"
         );
-    }
-
-    impl NullBackend {
-        /// Convenience used by the trait exercisability test.
-        fn shutdown_ok(&self) -> bool {
-            true
-        }
     }
 }

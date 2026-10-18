@@ -324,7 +324,10 @@ mod tests {
             let caps = Capabilities::for_platform(platform);
             assert_eq!(caps.platform, platform);
             assert_eq!(caps.platform.display_name(), platform.display_name());
-            assert!(!caps.platform.id().is_empty());
+            assert!(
+                !caps.platform.id().is_empty(),
+                "the stable id is what logs key off"
+            );
         }
     }
 

@@ -183,7 +183,10 @@ mod tests {
             .expect("null backend accepts this");
         backend.tick().expect("null backend accepts this");
         assert_eq!(backend.current_scale(), ScaleFactor::unscaled());
-        assert!(backend.monitors().is_empty());
+        assert!(
+            backend.monitors().is_empty(),
+            "the null backend reports no displays"
+        );
         backend.shutdown();
     }
 
