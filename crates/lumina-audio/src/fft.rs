@@ -54,10 +54,8 @@ pub struct Analyzer {
     scratch: Box<[Complex<f32>]>,
     /// The Hann window, symmetric, one entry per real sample.
     window: Box<[f32]>,
-    /// `exp(-j·2π·k/N)` for the even-bin untangle, k in `[0, N/2)`.
-    twiddles_even: Box<[Complex<f32>]>,
-    /// `exp(-j·π·(2k+1)/N)` for the odd-bin untangle, k in `[0, N/2)`.
-    twiddles_odd: Box<[Complex<f32>]>,
+    /// `exp(-j·2π·k/N)` for the untangle, k in `[0, N/2)`.
+    twiddles: Box<[Complex<f32>]>,
     /// Packed input, reused each frame.
     packed: Box<[Complex<f32>]>,
 }
@@ -97,14 +95,10 @@ impl Analyzer {
             .collect::<Vec<_>>()
             .into_boxed_slice();
 
-        // Untangle twiddles, one per output pair k in [0, N/2).
-        let pairs = half / 2;
-        let twiddles_even = (0..pairs)
-            .map(|k| Complex::from_polar(1.0, -std::f32::consts::TAU * k as f32 / half as f32))
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
-        let twiddles_odd = (0..pairs)
-            .map(|k| Complex::from_polar(1.0, -std::f32::consts::PI * (2 * k + 1) as f32 / half as f32))
+        // Untangle twiddles: one W_N^k = exp(-j·2π·k/N) per real bin k in
+        // [0, N/2); the real spectrum is X[k] = A[k] + W_N^k·B[k] directly.
+        let twiddles = (0..half)
+            .map(|k| Complex::from_polar(1.0, -std::f32::consts::TAU * k as f32 / window_size as f32))
             .collect::<Vec<_>>()
             .into_boxed_slice();
 
@@ -116,8 +110,7 @@ impl Analyzer {
             plan,
             scratch,
             window,
-            twiddles_even,
-            twiddles_odd,
+            twiddles,
             packed,
         }
     }
@@ -172,26 +165,22 @@ impl Analyzer {
         self.plan
             .process_with_scratch(&mut self.packed, &mut self.scratch);
 
-        // Untangle. k in [0, N/2) yields both the 2k and the 2k+1 bin.
-        for k in 0..half / 2 {
+        // Untangle. For the packed real transform,
+        // X[k] = A[k] + W_N^k·B[k] with
+        //   A[k] = (Z[k] + conj(Z[M-k])) / 2,
+        //   B[k] = -j·(Z[k] - conj(Z[M-k])) / 2,
+        // one output per k in [0, M). The Nyquist bin X[M] (= Z[0].re -
+        // Z[0].im) is dropped per bin_count's contract.
+        for k in 0..half {
             let c_here = self.packed[k];
             let c_mirror = self.packed[(half - k) % half].conj();
-            // A[k] and the difference term, both from the packed transform.
             let sum = (c_here + c_mirror) * Complex::new(0.5, 0.0);
             let diff = (c_here - c_mirror) * Complex::new(0.5, 0.0);
-            // B[k] = -j·diff  =>  (diff.im, -diff.re).
             let b_term = Complex::new(diff.im, -diff.re);
 
-            let even_bin = sum + self.twiddles_even[k] * b_term;
-            let odd_bin = sum + self.twiddles_odd[k] * b_term;
-
-            let even_index = 2 * k;
-            let odd_index = 2 * k + 1;
-            if even_index < out_magnitudes.len() {
-                out_magnitudes[even_index] = even_bin.norm();
-            }
-            if odd_index < out_magnitudes.len() {
-                out_magnitudes[odd_index] = odd_bin.norm();
+            let bin = sum + self.twiddles[k] * b_term;
+            if k < out_magnitudes.len() {
+                out_magnitudes[k] = bin.norm();
             }
         }
     }
@@ -208,19 +197,30 @@ mod tests {
     use super::*;
     use std::f32::consts::TAU;
 
-    /// Reference DFT, slow and obviously correct, for cross checking.
-    fn reference_magnitudes(samples: &[f32], bins: usize) -> Vec<f32> {
+    /// Reference DFT, slow and obviously correct, for cross checking. The
+    /// analyzer always applies its Hann window, so the reference is fed the
+    /// same windowed samples.
+    fn reference_magnitudes(windowed: &[f32], bins: usize) -> Vec<f32> {
         (0..bins)
             .map(|k| {
-                let angle = TAU * k as f32 / samples.len() as f32;
+                let angle = TAU * k as f32 / windowed.len() as f32;
                 let (mut re, mut im) = (0.0f32, 0.0f32);
-                for (n, &s) in samples.iter().enumerate() {
+                for (n, &s) in windowed.iter().enumerate() {
                     let theta = angle * n as f32;
                     re += s * theta.cos();
                     im -= s * theta.sin();
                 }
                 (re * re + im * im).sqrt()
             })
+            .collect()
+    }
+
+    /// Windower helper mirroring the analyzer's loop.
+    fn windowed(analyzer: &Analyzer, samples: &[f32]) -> Vec<f32> {
+        samples
+            .iter()
+            .enumerate()
+            .map(|(i, &s)| s * analyzer.window_at(i))
             .collect()
     }
 
@@ -242,7 +242,7 @@ mod tests {
             let mut impulse = vec![0.0f32; 16];
             impulse[offset] = 1.0;
             analyzer.process(&impulse, &mut magnitudes);
-            let wanted = reference_magnitudes(&impulse, 8);
+            let wanted = reference_magnitudes(&windowed(&analyzer, &impulse), 8);
             reference.copy_from_slice(&wanted);
             for (got, want) in magnitudes.iter().zip(reference.iter()) {
                 assert!(
@@ -261,7 +261,7 @@ mod tests {
         let mut magnitudes = vec![0.0f32; size / 2];
         analyzer.process(&samples, &mut magnitudes);
 
-        let reference = reference_magnitudes(&samples, size / 2);
+        let reference = reference_magnitudes(&windowed(&analyzer, &samples), size / 2);
         for (k, (got, want)) in magnitudes.iter().zip(reference.iter()).enumerate() {
             assert!(
                 (got - want).abs() < 0.02 * want.abs().max(1.0),
@@ -279,8 +279,10 @@ mod tests {
         let dc = magnitudes[0];
         // Full scale DC times the Hann coherent gain: ~M/2.
         assert!(dc > 100.0, "DC bin collapsed: {dc}");
-        // The Hann window's first sidelobe sits near -31 dB relative.
-        let worst = magnitudes.iter().skip(1).copied().fold(0.0, f32::max);
+        // The symmetric window's cosine carries a 1/(N-1) mismatch versus
+        // the DFT grid, whose stub lands on bin 1 at about -6 dB; real
+        // sidelobes (bin 2 onward) sit below -30 dB relative.
+        let worst = magnitudes.iter().skip(2).copied().fold(0.0, f32::max);
         assert!(
             worst < dc * 0.03,
             "DC leaked {worst} against {dc}"

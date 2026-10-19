@@ -24,6 +24,7 @@ pub const DEFAULT_ATTACK_MS: f32 = 6.0;
 pub const DEFAULT_RELEASE_MS: f32 = 120.0;
 
 /// Smooths `band_count` bands with asymmetric attack and release.
+#[derive(Debug, Clone)]
 pub struct BandEnvelope {
     /// One pole coefficients per direction, per analysis frame.
     attack: f32,

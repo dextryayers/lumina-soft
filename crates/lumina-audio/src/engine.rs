@@ -140,6 +140,7 @@ const STALL_SECONDS: f32 = 1.5;
 ///
 /// The engine is not `Send` and never needs to be: the capture thread only
 /// ever touches the ring's writer half.
+#[derive(Debug)]
 pub struct AudioEngine {
     reader: RingReader,
     settings: EngineSettings,
@@ -422,6 +423,7 @@ mod tests {
     const BANDS: usize = 32;
 
     fn settings(normalize: bool) -> EngineSettings {
+        use crate::dynamics::DEFAULT_SILENCE_THRESHOLD_DB;
         EngineSettings {
             sample_rate: RATE,
             fft_size: WINDOW,

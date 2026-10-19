@@ -102,6 +102,7 @@ pub enum ResolvedBackend {
 
 /// A live capture worker: stop flag, thread handle, and the one shot
 /// "stream is open" channel.
+#[derive(Debug)]
 pub struct RunningCapture {
     stop: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
@@ -154,8 +155,9 @@ impl RunningCapture {
     }
 
     /// Signal stop and join the thread. Blocks at most a few hundred
-    /// milliseconds under normal operation.
-    pub fn stop(mut self) {
+    /// milliseconds under normal operation. Idempotent: a second call just
+    /// sees no handle left and returns.
+    pub fn stop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
@@ -307,7 +309,7 @@ mod tests {
     #[test]
     fn a_fake_worker_reports_its_format_and_stops_cleanly() {
         let (writer, _reader) = RingBuffer::new(4096).split();
-        let running = spawn_fake(&request(lumina_config::schema::AudioBackend::Auto), writer, fake::FakePattern::Silence)
+        let mut running = spawn_fake(&request(lumina_config::schema::AudioBackend::Auto), writer, fake::FakePattern::Silence)
             .expect("fake spawn cannot fail");
         // Is a mock format path? Fake runs regardless of platform.
         let format = running
@@ -315,14 +317,14 @@ mod tests {
             .expect("fake reports fast");
         assert!(format.sample_rate >= 8_000);
         assert!(format.channels >= 1);
+        let mut running = running;
         running.stop();
         assert!(!running.is_running());
     }
-
     #[test]
     fn double_wait_ready_reports_consumed() {
         let (writer, _reader) = RingBuffer::new(4096).split();
-        let running = spawn_fake(&request(lumina_config::schema::AudioBackend::Auto), writer, fake::FakePattern::Silence)
+        let mut running = spawn_fake(&request(lumina_config::schema::AudioBackend::Auto), writer, fake::FakePattern::Silence)
             .expect("fake spawn");
         let _ = running.wait_ready(Duration::from_secs(2));
         match running.wait_ready(Duration::from_millis(50)) {
@@ -334,7 +336,7 @@ mod tests {
     #[test]
     fn fake_pushes_silently_and_stops() {
         let (writer, reader) = RingBuffer::new(4096).split();
-        let running = spawn_fake(
+        let mut running = spawn_fake(
             &request(lumina_config::schema::AudioBackend::Auto),
             writer,
             fake::FakePattern::Silence,

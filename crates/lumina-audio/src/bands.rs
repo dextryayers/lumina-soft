@@ -31,6 +31,7 @@ pub const BASS_TILT_ANCHOR_HZ: f32 = 200.0;
 pub const DB_FLOOR: f32 = -100.0;
 
 /// Maps FFT bin magnitudes onto `band_count` logspaced dBFS bands.
+#[derive(Debug, Clone)]
 pub struct BandMapper {
     /// Half-open bin range per band, precomputed at configuration time.
     bin_ranges: Box<[(usize, usize)]>,

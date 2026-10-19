@@ -41,6 +41,7 @@ impl CacheLine {
 }
 
 /// Shared ring state, one per [`RingBuffer::new`].
+#[derive(Debug)]
 struct Shared {
     /// Index of the next sample the writer will overwrite.
     head: CacheLine,
@@ -68,6 +69,7 @@ impl Shared {
 }
 
 /// A ring buffer of `f32` samples whose halves can be handed to two threads.
+#[derive(Debug)]
 pub struct RingBuffer {
     shared: Arc<Shared>,
 }
@@ -117,6 +119,7 @@ impl RingBuffer {
 }
 
 /// The production half of the ring. `Send`, used on the capture thread.
+#[derive(Debug)]
 pub struct RingWriter {
     inner: Arc<Shared>,
 }
@@ -191,6 +194,7 @@ impl RingWriter {
 }
 
 /// The consumption half of the ring. `Send`, used on the analysis thread.
+#[derive(Debug)]
 pub struct RingReader {
     inner: Arc<Shared>,
 }

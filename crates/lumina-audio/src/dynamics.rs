@@ -59,7 +59,7 @@ impl SilenceGate {
         // of silence collapse the detector by e^-4.
         let tau = (SILENCE_WINDOW_MS / 4.0) / 1000.0;
         let leak = (-1.0 / (rate * tau)).exp();
-        let\ threshold\ =\ \(threshold_db\.clamp\(DB_FLOOR,\ 6\.0\)\ /\ 20\.0\)\.exp2\(\);
+        let threshold = (threshold_db.clamp(DB_FLOOR, 6.0) / 20.0).exp2();
         Self {
             leak,
             square_mean: 0.0,
