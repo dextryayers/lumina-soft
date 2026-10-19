@@ -1,0 +1,16 @@
+[package]
+name = "lumina-color"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "RGB accent engines for Lumina: palette resolution, reactive and album engines, crossfade."
+license.workspace = true
+publish = false
+
+[dependencies]
+lumina-core = { workspace = true }
+lumina-config = { workspace = true }
+lumina-audio = { workspace = true }
+
+[lints]
+workspace = true

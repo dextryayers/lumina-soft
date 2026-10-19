@@ -22,7 +22,7 @@
 //! * `RingWriter` and `RingReader` are `Send` but deliberately not `Sync`:
 //!   the "SP" in SPSC means exactly one of each, and the type system says so.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 /// Pads an atomic counter onto its own cache line.
@@ -48,8 +48,14 @@ struct Shared {
     tail: CacheLine,
     /// Samples the writer dropped because the ring was full.
     dropped: CacheLine,
-    /// The sample slots, laid flat.
-    slots: Box<[f32]>,
+    /// The sample slots, laid flat, stored as raw `f32` bit patterns.
+    ///
+    /// `AtomicU32` gives the interior mutability both halves need from
+    /// behind a shared reference; the bit round trip of an `f32` is exact
+    /// (including NaN payload behavior on the targets Lumina builds for).
+    /// Orderings are `Relaxed` because the head and tail atomics carry the
+    /// happens before edges, not the data cells.
+    slots: Box<[AtomicU32]>,
     /// `capacity - 1`, with `capacity` a power of two; a mask is cheaper
     /// than a modulo and cannot be beaten by a branch predictor.
     mask: usize,
@@ -79,7 +85,10 @@ impl RingBuffer {
             capacity.is_power_of_two() && capacity >= 2,
             "ring capacity must be a power of two >= 2"
         );
-        let slots = vec![0.0f32; capacity].into_boxed_slice();
+        let slots = (0..capacity)
+            .map(|_| AtomicU32::new(0.0f32.to_bits()))
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
         let shared = Shared {
             head: CacheLine::default(),
             tail: CacheLine::default(),
@@ -150,7 +159,8 @@ impl RingWriter {
                     .fetch_add(remaining, Ordering::Relaxed);
                 break;
             }
-            shared.slots[shared.wrap(head)] = sample;
+            shared.slots[shared.wrap(head)]
+                .store(sample.to_bits(), Ordering::Relaxed);
             head = next;
             written += 1;
         }
@@ -201,7 +211,7 @@ impl RingReader {
         let count = head.wrapping_sub(tail).min(out.len());
 
         for slot in out.iter_mut().take(count) {
-            *slot = shared.slots[shared.wrap(tail)];
+            *slot = f32::from_bits(shared.slots[shared.wrap(tail)].load(Ordering::Relaxed));
             tail += 1;
         }
         shared.tail.set(tail);
@@ -233,7 +243,7 @@ impl RingReader {
 
         let mut tail = tail;
         for slot in out.iter_mut() {
-            *slot = shared.slots[shared.wrap(tail)];
+            *slot = f32::from_bits(shared.slots[shared.wrap(tail)].load(Ordering::Relaxed));
             tail += 1;
         }
         shared.tail.set(tail);
@@ -292,7 +302,7 @@ mod tests {
         let (writer, reader) = RingBuffer::new(64).split();
         // Sixty-three buffered samples is the maximum for 64 slots.
         for step in 0..60u32 {
-            writer.write(&[f32::from(step)]);
+            writer.write(&[step as f32]);
         }
         let mut out = [0.0f32; 40];
         assert_eq!(reader.read(&mut out), 40);
@@ -301,7 +311,7 @@ mod tests {
 
         // The indices have not wrapped yet, but write enough to force it.
         for step in 0..40u32 {
-            writer.write(&[f32::from(step + 60)]);
+            writer.write(&[(step + 60) as f32]);
         }
         let mut second = [0.0f32; 20];
         assert_eq!(reader.read(&mut second), 20);
@@ -367,7 +377,7 @@ mod tests {
         thread::scope(|scope| {
             scope.spawn(move || {
                 for step in 0..1000u32 {
-                    writer.write(&[f32::from(step)]);
+                    writer.write(&[step as f32]);
                 }
             });
             scope.spawn(move || {
@@ -453,7 +463,7 @@ mod tests {
         thread::scope(|scope| {
             scope.spawn(move || {
                 for round in 0..200u32 {
-                    writer.write(&[f32::from(round); 96]);
+                    writer.write(&[round as f32; 96]);
                 }
             });
             // A lazy reader guarantees drops, which is the point.

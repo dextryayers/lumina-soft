@@ -62,6 +62,17 @@ pub struct Analyzer {
     packed: Box<[Complex<f32>]>,
 }
 
+impl core::fmt::Debug for Analyzer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // The plan is Arc<dyn Fft>, which is not Debug, so it is described
+        // only by its owned size.
+        f.debug_struct("Analyzer")
+            .field("window_size", &self.window_size)
+            .field("bin_count", &self.half)
+            .finish()
+    }
+}
+
 impl Analyzer {
     /// Build an analyzer for a window of `window_size` real samples.
     ///
@@ -78,7 +89,7 @@ impl Analyzer {
         let mut planner = FftPlanner::<f32>::new();
         let plan: Arc<dyn Fft<f32>> = planner.plan_fft_forward(half);
 
-        let scratch_len = plan.get_scratch_len().max(half);
+        let scratch_len = plan.get_inplace_scratch_len().max(half);
         let scratch = vec![Complex::ZERO; scratch_len].into_boxed_slice();
 
         let window = (0..window_size)
@@ -148,7 +159,7 @@ impl Analyzer {
             samples.len(),
             self.window_size
         );
-        debug_assert!(self.scratch.len() >= self.plan.get_scratch_len());
+        debug_assert!(self.scratch.len() >= self.plan.get_inplace_scratch_len());
         let half = self.half;
 
         // Pack: even samples as real parts, odd samples as imaginary parts.

@@ -72,7 +72,7 @@ impl BandMapper {
         assert!(max_hz.is_finite() && max_hz > min_hz, "max_hz must exceed min_hz");
 
         let bin_count = window_size / 2;
-        let nyquist_hz = f32::from(sample_rate.max(8_000)) / 2.0;
+        let nyquist_hz = sample_rate.max(8_000) as f32 / 2.0;
         let max_hz = max_hz.min(nyquist_hz);
 
         let full_scale_magnitude = (window_size / 2) as f32 / 2.0;
@@ -85,8 +85,8 @@ impl BandMapper {
             let hi = min_hz * ratio.powf((band + 1) as f32 / band_count as f32);
             // Bin edges: bin = freq * window_size / sample_rate. Start at
             // bin 1 because bin 0 is DC and the highpass already killed it.
-            let lo_bin = (lo * window_size as f32 / f32::from(sample_rate.max(8_000))).floor() as usize;
-            let hi_bin = (hi * window_size as f32 / f32::from(sample_rate.max(8_000))).ceil() as usize;
+            let lo_bin = (lo * window_size as f32 / sample_rate.max(8_000) as f32).floor() as usize;
+            let hi_bin = (hi * window_size as f32 / sample_rate.max(8_000) as f32).ceil() as usize;
             let lo_bin = lo_bin.max(1).min(bin_count);
             let hi_bin = hi_bin.max(lo_bin + 1).min(bin_count.max(2));
             bin_ranges.push((lo_bin, hi_bin));
@@ -196,7 +196,7 @@ mod tests {
     fn full_scale_sine(window: usize, freq_hz: f32, rate: u32) -> Vec<f32> {
         // Full scale to place the projected magnitude near the 0 dBFS rail.
         (0..window)
-            .map(|i| ((std::f32::consts::TAU * freq_hz * i as f32) / f32::from(rate)).sin())
+            .map(|i| ((std::f32::consts::TAU * freq_hz * i as f32) / RATE as f32).sin())
             .collect()
     }
 

@@ -14,10 +14,11 @@
 //! * [`envelope`] : asymmetric one-pole follower, so bars decay instead of
 //!   strobing.
 //! * [`dynamics`] : silence gate, rolling normalization, and bass tilt.
-//! * [`capture`] : platform capture backends behind one [`crate::capture::AudioCapture`]
-//!   trait, with automatic backend selection.
-//! * [`engine`] : the [`AudioEngine`](crate::engine::AudioEngine) orchestrator
-//!   that owns the analysis thread and publishes [`SpectrumFrame`](crate::engine::SpectrumFrame)s.
+//! * [`capture`] : platform capture backends (WASAPI loopback, PulseAudio
+//!   and PipeWire's compatibility server, and a synthetic fake for tests)
+//!   behind one auto selection entry point, PLAN F8.4.
+//! * [`engine`] : the [`AudioEngine`](crate::engine::AudioEngine)
+//!   orchestrator the UI thread polls for [`SpectrumFrame`](crate::engine::SpectrumFrame)s.
 //!
 //! # The realtime rules
 //!
@@ -40,7 +41,7 @@ pub mod ring;
 
 pub use ring::{RingBuffer, RingReader, RingWriter};
 pub use dsp::CapturePost;
-pub use engine::{AudioAggregates, AudioEngine, AudioState, SpectrumFrame};
+pub use engine::{AudioAggregates, AudioEngine, EngineSettings, SpectrumFrame};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

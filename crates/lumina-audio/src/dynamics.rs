@@ -54,12 +54,12 @@ impl SilenceGate {
     /// `threshold_db` (dBFS RMS).
     #[must_use]
     pub fn new(sample_rate: u32, threshold_db: f32) -> Self {
-        let rate = f32::from(sample_rate.max(8_000));
+        let rate = sample_rate.max(8_000) as f32;
         // Time constant: a quarter of the listen window, so four constants
         // of silence collapse the detector by e^-4.
         let tau = (SILENCE_WINDOW_MS / 4.0) / 1000.0;
         let leak = (-1.0 / (rate * tau)).exp();
-        let threshold = ((threshold_db.clamp(DB_FLOOR, 6.0) / 20.0).exp2());
+        let\ threshold\ =\ \(threshold_db\.clamp\(DB_FLOOR,\ 6\.0\)\ /\ 20\.0\)\.exp2\(\);
         Self {
             leak,
             square_mean: 0.0,
@@ -124,7 +124,7 @@ impl GateSmoothing {
     /// Build smoothing for an analysis frame rate.
     #[must_use]
     pub fn new(analysis_rate_hz: f32) -> Self {
-        let rate = rate_hz.max(1.0);
+        let rate = analysis_rate_hz.max(1.0);
         Self {
             ramp: 0.0,
             silent: true,
@@ -184,7 +184,7 @@ impl RollingNormalizer {
     /// Build for an analysis frame rate; `None` disables.
     #[must_use]
     pub fn new(analysis_rate_hz: f32, enabled: bool) -> Self {
-        let rate = rate_hz.max(1.0);
+        let rate = analysis_rate_hz.max(1.0);
         Self {
             peak_db: DB_FLOOR,
             decay: one_frame_coefficient(NORMALIZER_DECAY_S * 1000.0, rate),
@@ -254,9 +254,9 @@ mod tests {
     const ANALYSIS_RATE: f32 = 46.875; // 1024 samples per frame at 48 kHz
 
     fn sine(seconds: f32, hz: f32, amplitude: f32) -> Vec<f32> {
-        let count = (f32::from(RATE) * seconds) as usize;
+        let count = (RATE as f32 * seconds) as usize;
         (0..count)
-            .map(|i| amplitude * (TAU * hz * i as f32 / f32::from(RATE)).sin())
+            .map(|i| amplitude * (TAU * hz * i as f32 / RATE as f32).sin())
             .collect()
     }
 

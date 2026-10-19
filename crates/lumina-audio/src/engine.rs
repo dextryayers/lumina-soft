@@ -185,7 +185,7 @@ impl AudioEngine {
     /// zero, via the component constructors.
     #[must_use]
     pub fn new_for_reader(reader: RingReader, settings: EngineSettings) -> Self {
-        let analysis_rate = f32::from(settings.sample_rate.max(1)) / settings.fft_size.max(1) as f32;
+        let analysis_rate = settings.sample_rate.max(1) as f32 / settings.fft_size.max(1) as f32;
         let analyzer = Analyzer::new(settings.fft_size);
         let mapper = BandMapper::new(
             settings.sample_rate,
@@ -202,6 +202,7 @@ impl AudioEngine {
         let smoothing = GateSmoothing::new(analysis_rate);
         let normalizer = RollingNormalizer::new(analysis_rate, settings.normalize);
         let band_count = settings.band_count;
+        let magnitudes_len = analyzer.bin_count();
 
         Self {
             reader,
@@ -213,7 +214,7 @@ impl AudioEngine {
             smoothing,
             normalizer,
             window: vec![0.0f32; settings.fft_size].into_boxed_slice(),
-            magnitudes: vec![0.0f32; analyzer.bin_count()].into_boxed_slice(),
+            magnitudes: vec![0.0f32; magnitudes_len].into_boxed_slice(),
             raw_bands: vec![DB_FLOOR; band_count].into_boxed_slice(),
             peaks_db: vec![DB_FLOOR; band_count].into_boxed_slice(),
             settings,
@@ -239,7 +240,7 @@ impl AudioEngine {
 
     /// Rebuild every rate dependent component for `settings`.
     fn apply_settings(&mut self, settings: EngineSettings) {
-        let analysis_rate = f32::from(settings.sample_rate.max(1)) / settings.fft_size.max(1) as f32;
+        let analysis_rate = settings.sample_rate.max(1) as f32 / settings.fft_size.max(1) as f32;
         self.peak_decay_per_poll = PEAK_DECAY_DB_PER_SECOND / POLLS_PER_SECOND;
         self.window = vec![0.0f32; settings.fft_size].into_boxed_slice();
         let analyzer = Analyzer::new(settings.fft_size);
@@ -273,7 +274,7 @@ impl AudioEngine {
     pub fn poll(&mut self) -> SpectrumFrame {
         self.frame_index += 1;
         let window_len = self.settings.fft_size;
-        let analysis_rate = f32::from(self.settings.sample_rate.max(1)) / window_len.max(1) as f32;
+        let analysis_rate = self.settings.sample_rate.max(1) as f32 / window_len.max(1) as f32;
 
         if self.reader.pending() >= window_len
             && self.reader.read_exact(&mut self.window).is_some()
@@ -353,9 +354,10 @@ impl AudioEngine {
 
         let squared_mean = mean_of(square_sum, band_count);
         let loudness = squared_mean.sqrt().clamp(0.0, 1.0);
+        let mut since_data = self.frame_index.wrapping_sub(self.last_data_frame) as f32;
+        since_data = since_data.clamp(0.0, analysis_rate * STALL_SECONDS.max(0.5) + 1.0);
         let active = self.has_seen_data
-            && self.frame_index.wrapping_sub(self.last_data_frame) as f32
-                < analysis_rate * STALL_SECONDS.max(0.5);
+            && since_data < analysis_rate * STALL_SECONDS.max(0.5);
 
         SpectrumFrame {
             frame_index: self.frame_index,
@@ -436,9 +438,9 @@ mod tests {
     }
 
     fn sine(seconds: f32, hz: f32, amplitude: f32) -> Vec<f32> {
-        let count = (f32::from(RATE) * seconds) as usize;
+        let count = (RATE as f32 * seconds) as usize;
         (0..count)
-            .map(|i| amplitude * (TAU * hz * i as f32 / f32::from(RATE)).sin())
+            .map(|i| amplitude * (TAU * hz * i as f32 / RATE as f32).sin())
             .collect()
     }
 

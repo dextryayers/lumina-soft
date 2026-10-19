@@ -71,7 +71,7 @@ impl DcRemover {
     pub fn for_rate(sample_rate: u32) -> Self {
         // alpha_rate = exp(-dt / tau), tau = 20 ms.
         let tau = 0.02;
-        let dt = 1.0 / f32::from(sample_rate.max(8_000));
+        let dt = 1.0 / sample_rate.max(8_000) as f32;
         Self::new((-dt / tau).exp())
     }
 
@@ -122,7 +122,7 @@ impl HighPass {
     /// Create a highpass with the given cutoff at the given sample rate.
     #[must_use]
     pub fn new(cutoff_hz: f32, sample_rate: u32) -> Self {
-        let rate = f32::from(sample_rate.max(8_000));
+        let rate = sample_rate.max(8_000) as f32;
         let cutoff = cutoff_hz.max(1.0);
         let coefficient = (-std::f32::consts::TAU * cutoff / rate).exp();
         Self {
