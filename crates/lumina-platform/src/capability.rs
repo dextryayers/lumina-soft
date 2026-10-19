@@ -27,6 +27,13 @@ pub enum Platform {
 
 impl Platform {
     /// Detect the current platform at runtime.
+    ///
+    /// This reads the environment only. On Wayland it cannot know whether the
+    /// compositor implements layer-shell without connecting to it, so it
+    /// reports the optimistic variant and the backend must call
+    /// [`Self::with_layer_shell_support`] after its registry probe. Reporting
+    /// the pessimistic variant here instead would make every wlroots session
+    /// look broken until the window exists.
     #[must_use]
     pub fn detect() -> Self {
         #[cfg(target_os = "windows")]
@@ -35,15 +42,35 @@ impl Platform {
         }
         #[cfg(all(unix, not(target_os = "macos")))]
         {
-            if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-                Self::WaylandLayerShell
-            } else {
-                Self::X11
-            }
+            use crate::wayland::detect::{platform_for, session_from};
+
+            let wayland = std::env::var("WAYLAND_DISPLAY").ok();
+            let x11 = std::env::var("DISPLAY").ok();
+            platform_for(session_from(wayland.as_deref(), x11.as_deref()), true)
         }
         #[cfg(not(any(target_os = "windows", all(unix, not(target_os = "macos")))))]
         {
             Self::Unsupported
+        }
+    }
+
+    /// Refine a Wayland detection with the result of a layer-shell probe.
+    ///
+    /// Non-Wayland platforms are returned unchanged: an X11 session cannot gain
+    /// layer-shell by connecting to something, and a probe on Windows is
+    /// meaningless. This makes it safe for a backend to call unconditionally
+    /// with whatever its registry saw.
+    #[must_use]
+    pub const fn with_layer_shell_support(self, supported: bool) -> Self {
+        match self {
+            Self::WaylandLayerShell | Self::WaylandNoLayerShell => {
+                if supported {
+                    Self::WaylandLayerShell
+                } else {
+                    Self::WaylandNoLayerShell
+                }
+            }
+            other => other,
         }
     }
 
@@ -396,6 +423,27 @@ mod tests {
         // windows on Windows.
         assert!(Capabilities::for_platform(Platform::X11).exclusive_zone);
         assert!(!Capabilities::for_platform(Platform::Windows).exclusive_zone);
+    }
+
+    #[test]
+    fn a_layer_shell_probe_refines_only_wayland() {
+        assert_eq!(
+            Platform::WaylandLayerShell.with_layer_shell_support(false),
+            Platform::WaylandNoLayerShell
+        );
+        assert_eq!(
+            Platform::WaylandNoLayerShell.with_layer_shell_support(true),
+            Platform::WaylandLayerShell
+        );
+        assert_eq!(
+            Platform::X11.with_layer_shell_support(false),
+            Platform::X11,
+            "a probe cannot change a non Wayland platform"
+        );
+        assert_eq!(
+            Platform::Windows.with_layer_shell_support(true),
+            Platform::Windows
+        );
     }
 
     #[test]

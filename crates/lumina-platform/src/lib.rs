@@ -56,6 +56,7 @@ pub mod placement;
 pub mod single_instance;
 pub mod time;
 pub mod tray;
+pub mod wayland;
 
 #[cfg(all(unix, not(target_os = "macos")))]
 pub mod wayland_hotkeys;
@@ -87,6 +88,9 @@ pub use time::{
     weekday_from_days, CivilTime,
 };
 pub use tray::{TrayCommand, TrayIcon, TrayMenu, TrayMenuItem, TrayMenuState, TrayState};
+
+#[cfg(all(unix, not(target_os = "macos")))]
+pub use wayland::{WaylandBackend, WaylandSurfaceKind};
 
 #[cfg(all(unix, not(target_os = "macos")))]
 pub use x11_hotkeys::X11Hotkeys;

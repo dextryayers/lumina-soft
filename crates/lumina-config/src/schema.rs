@@ -273,6 +273,14 @@ pub struct GeneralConfig {
     pub click_through_when_collapsed: bool,
     /// Start with the island hidden.
     pub start_hidden: bool,
+    /// Reserve screen space so maximised windows stop at the island instead of
+    /// sliding underneath it.
+    ///
+    /// Off by default: silently shrinking every window on the monitor is a
+    /// surprise, and most users of an overlay want it to float. On platforms
+    /// that cannot reserve space the flag is reported as a limitation rather
+    /// than ignored.
+    pub reserve_space: bool,
     /// Refuse to start a second copy.
     pub single_instance: bool,
 }
@@ -290,6 +298,7 @@ impl Default for GeneralConfig {
             idle_timeout_ms: 5000,
             click_through_when_collapsed: true,
             start_hidden: false,
+            reserve_space: false,
             single_instance: true,
         }
     }

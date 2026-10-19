@@ -33,6 +33,10 @@ idle_timeout_ms = 5000
 click_through_when_collapsed = true
 # Start with the island hidden, for example when autostarting at login.
 start_hidden = false
+# Reserve screen space so maximised windows stop at the island instead of
+# sliding underneath it. Off by default because shrinking every window is a
+# surprise. Wayland honours this through the layer-shell exclusive zone.
+reserve_space = false
 # Refuse to run a second copy of Lumina.
 single_instance = true
 

@@ -356,7 +356,10 @@ fn diff_general(from: &GeneralConfig, to: &GeneralConfig, out: &mut Vec<ConfigCh
     {
         out.push(ConfigChange::General(GeneralChange::ClickThrough));
     }
-    if from.monitor != to.monitor || from.single_instance != to.single_instance {
+    if from.monitor != to.monitor
+        || from.reserve_space != to.reserve_space
+        || from.single_instance != to.single_instance
+    {
         out.push(ConfigChange::General(GeneralChange::Other));
     }
 }
