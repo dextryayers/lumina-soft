@@ -13,6 +13,8 @@
 
 use std::fmt;
 
+use lumina_config::HotkeysConfig;
+
 /// Modifier keys held with the main key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
 pub struct Modifiers {
@@ -44,11 +46,20 @@ impl Modifiers {
     /// Win32 modifier flags for `RegisterHotKey`, including `MOD_NOREPEAT`.
     #[must_use]
     pub fn windows_flags(self) -> u32 {
-        (u32::from(self.alt) * 0x0001)
-            | (u32::from(self.ctrl) * 0x0002)
-            | (u32::from(self.shift) * 0x0004)
-            | (u32::from(self.super_key) * 0x0008)
-            | 0x4000
+        let mut flags = 0x4000;
+        if self.alt {
+            flags |= 0x0001;
+        }
+        if self.ctrl {
+            flags |= 0x0002;
+        }
+        if self.shift {
+            flags |= 0x0004;
+        }
+        if self.super_key {
+            flags |= 0x0008;
+        }
+        flags
     }
 
     /// Render the modifiers in canonical order.
@@ -214,7 +225,7 @@ impl Key {
             Self::Char(ch) => match ch {
                 'A'..='Z' | '0'..='9' => u32::from(ch as u8),
                 ';' => 0xBA,
-                '=' => 0xBB,
+                '=' | '+' => 0xBB,
                 ',' => 0xBC,
                 '-' => 0xBD,
                 '.' => 0xBE,
@@ -224,7 +235,6 @@ impl Key {
                 '\\' => 0xDC,
                 ']' => 0xDD,
                 '\'' => 0xDE,
-                '+' => 0xBB,
                 _ => return None,
             },
             Self::Tab => 0x09,
@@ -251,8 +261,6 @@ impl Key {
         };
         Some(code)
     }
-
-
 }
 
 /// A parsed global hotkey.
@@ -300,7 +308,10 @@ impl Hotkey {
             if key.is_some() {
                 return Err(HotkeyParseError::MultipleKeys(input.to_string()));
             }
-            key = Some(Key::from_name(token).ok_or_else(|| HotkeyParseError::UnknownKey(token.to_string()))?);
+            key = Some(
+                Key::from_name(token)
+                    .ok_or_else(|| HotkeyParseError::UnknownKey(token.to_string()))?,
+            );
         }
 
         match key {
@@ -436,6 +447,70 @@ pub struct HotkeyBinding {
     pub action: String,
     /// The parsed binding.
     pub hotkey: Hotkey,
+}
+
+/// The configured text of every built-in hotkey action.
+///
+/// The order matches [`HotkeysConfig`], which keeps validation reports and
+/// runtime registration deterministic.
+#[must_use]
+pub fn configured_hotkeys(config: &HotkeysConfig) -> [(&'static str, &str); 13] {
+    [
+        ("toggle_visibility", config.toggle_visibility.as_str()),
+        ("cycle_widget", config.cycle_widget.as_str()),
+        ("cycle_back", config.cycle_back.as_str()),
+        ("rgb_next_mode", config.rgb_next_mode.as_str()),
+        ("profile_next", config.profile_next.as_str()),
+        ("media_play_pause", config.media_play_pause.as_str()),
+        ("media_next", config.media_next.as_str()),
+        ("media_previous", config.media_previous.as_str()),
+        ("media_stop", config.media_stop.as_str()),
+        ("cycle_players", config.cycle_players.as_str()),
+        ("collapse_now", config.collapse_now.as_str()),
+        ("reload_config", config.reload_config.as_str()),
+        ("toggle_debug_overlay", config.toggle_debug_overlay.as_str()),
+    ]
+}
+
+/// Parse the configured bindings a backend should register.
+///
+/// Empty strings are unbound and invalid strings are skipped; use
+/// [`hotkey_problems`] to report the latter to the user.
+#[must_use]
+pub fn bindings_from_config(config: &HotkeysConfig) -> Vec<HotkeyBinding> {
+    configured_hotkeys(config)
+        .into_iter()
+        .filter_map(|(action, text)| {
+            let hotkey = Hotkey::parse(text).ok().flatten()?;
+            Some(HotkeyBinding {
+                action: action.to_string(),
+                hotkey,
+            })
+        })
+        .collect()
+}
+
+/// Parse problems found in the hotkey section as `(action, error)` pairs.
+#[must_use]
+pub fn hotkey_problems(config: &HotkeysConfig) -> Vec<(String, HotkeyParseError)> {
+    configured_hotkeys(config)
+        .into_iter()
+        .filter_map(|(action, text)| {
+            Hotkey::parse(text)
+                .err()
+                .map(|error| (action.to_string(), error))
+        })
+        .collect()
+}
+
+/// Bindings claimed by more than one configured action.
+#[must_use]
+pub fn conflicts_from_config(config: &HotkeysConfig) -> Vec<HotkeyConflict> {
+    let parsed = configured_hotkeys(config)
+        .into_iter()
+        .map(|(action, text)| (action.to_string(), Hotkey::parse(text).ok().flatten()))
+        .collect::<Vec<_>>();
+    find_conflicts(&parsed)
 }
 
 /// An action the backend observed.
@@ -631,7 +706,10 @@ mod tests {
 
     #[test]
     fn the_canonical_form_is_stable() {
-        assert_eq!(parse("alt+ctrl+SHIFT+l").to_config_string(), "Ctrl+Alt+Shift+L");
+        assert_eq!(
+            parse("alt+ctrl+SHIFT+l").to_config_string(),
+            "Ctrl+Alt+Shift+L"
+        );
         assert_eq!(parse("super+space").to_config_string(), "Super+Space");
         assert_eq!(parse("ctrl+f5").to_config_string(), "Ctrl+F5");
     }
@@ -693,6 +771,59 @@ mod tests {
     #[test]
     fn identical_actions_do_not_conflict_with_themselves() {
         let bindings = vec![("toggle".to_string(), Some(parse("ctrl+alt+l")))];
-        assert!(find_conflicts(&bindings).is_empty());
+        assert_eq!(find_conflicts(&bindings).len(), 0);
+    }
+
+    #[test]
+    fn bindings_from_config_skip_unbound_and_invalid_entries() {
+        let config = lumina_config::HotkeysConfig {
+            media_play_pause: "ctrl+alt+m".to_string(),
+            media_next: "hyper+n".to_string(),
+            ..lumina_config::HotkeysConfig::default()
+        };
+        let bindings = bindings_from_config(&config);
+        let actions: Vec<&str> = bindings.iter().map(|b| b.action.as_str()).collect();
+        assert!(actions.contains(&"toggle_visibility"));
+        assert!(actions.contains(&"media_play_pause"));
+        assert!(
+            !actions.contains(&"media_next"),
+            "invalid entries are skipped"
+        );
+        assert_eq!(bindings.len(), 7, "six defaults plus one");
+    }
+
+    #[test]
+    fn hotkey_problems_name_the_configured_action() {
+        let config = lumina_config::HotkeysConfig {
+            reload_config: "ctrl+teleport".to_string(),
+            ..lumina_config::HotkeysConfig::default()
+        };
+        let problems = hotkey_problems(&config);
+        assert_eq!(problems.len(), 1);
+        assert_eq!(problems[0].0, "reload_config");
+        assert_eq!(
+            problems[0].1,
+            HotkeyParseError::UnknownKey("teleport".to_string())
+        );
+    }
+
+    #[test]
+    fn conflicts_from_config_finds_duplicates() {
+        let mut config = lumina_config::HotkeysConfig::default();
+        config.reload_config = config.toggle_visibility.clone();
+        let conflicts = conflicts_from_config(&config);
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(
+            conflicts[0].actions,
+            vec!["reload_config", "toggle_visibility"]
+        );
+    }
+
+    #[test]
+    fn the_default_configuration_has_six_bindings_and_no_conflicts() {
+        let config = lumina_config::HotkeysConfig::default();
+        assert_eq!(bindings_from_config(&config).len(), 6);
+        assert_eq!(hotkey_problems(&config).len(), 0);
+        assert_eq!(conflicts_from_config(&config).len(), 0);
     }
 }

@@ -13,7 +13,7 @@
 //! is reported as [`HotkeyError::AlreadyRegistered`] instead of being ignored.
 //! Keys without a virtual-key mapping are rejected before reaching Win32.
 
-use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -26,9 +26,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetMessageW, PeekMessageW, PostThreadMessageW, MSG, PM_NOREMOVE, WM_HOTKEY, WM_QUIT,
 };
 
-use crate::hotkey::{
-    HotkeyBinding, HotkeyError, HotkeyEvent, HotkeyRegistry,
-};
+use crate::hotkey::{HotkeyBinding, HotkeyError, HotkeyEvent, HotkeyRegistry};
 
 /// A private thread message used to wake the loop after a command is queued.
 const WM_LUMINA_COMMAND: u32 = 0x8000 + 1;
@@ -87,15 +85,8 @@ impl Win32Hotkeys {
         self.commands
             .send(command)
             .map_err(|_| HotkeyError::Backend("the hotkey thread stopped".to_string()))?;
-        unsafe {
-            PostThreadMessageW(
-                self.thread_id,
-                WM_LUMINA_COMMAND,
-                WPARAM(0),
-                LPARAM(0),
-            )
-        }
-        .map_err(|error| HotkeyError::Backend(error.to_string()))
+        unsafe { PostThreadMessageW(self.thread_id, WM_LUMINA_COMMAND, WPARAM(0), LPARAM(0)) }
+            .map_err(|error| HotkeyError::Backend(error.to_string()))
     }
 }
 
@@ -118,11 +109,8 @@ impl HotkeyRegistry for Win32Hotkeys {
 
     fn poll(&mut self) -> Vec<HotkeyEvent> {
         let mut events = Vec::new();
-        loop {
-            match self.events.try_recv() {
-                Ok(event) => events.push(event),
-                Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
-            }
+        while let Ok(event) = self.events.try_recv() {
+            events.push(event);
         }
         events
     }
@@ -131,26 +119,24 @@ impl HotkeyRegistry for Win32Hotkeys {
 impl Drop for Win32Hotkeys {
     fn drop(&mut self) {
         let _ = self.commands.send(Command::Stop);
-        let _ = unsafe {
-            PostThreadMessageW(self.thread_id, WM_QUIT, WPARAM(0), LPARAM(0))
-        };
+        let _ = unsafe { PostThreadMessageW(self.thread_id, WM_QUIT, WPARAM(0), LPARAM(0)) };
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
     }
 }
 
-fn run_loop(
-    commands: Receiver<Command>,
-    events: Sender<HotkeyEvent>,
-    id_tx: Sender<u32>,
-) {
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "the thread owns the channel endpoints; there is no other owner to borrow from"
+)]
+fn run_loop(commands: Receiver<Command>, events: Sender<HotkeyEvent>, id_tx: Sender<u32>) {
     unsafe {
         // Force the thread message queue to exist before publishing the id.
         // Without this, a very fast drop can post WM_QUIT before the queue
         // exists, lose it, and then block forever in join.
         let mut message = MSG::default();
-        let _ = PeekMessageW(&mut message, HWND::default(), 0, 0, PM_NOREMOVE);
+        let _ = PeekMessageW(&raw mut message, HWND::default(), 0, 0, PM_NOREMOVE);
         let _ = id_tx.send(GetCurrentThreadId());
     }
 
@@ -159,7 +145,7 @@ fn run_loop(
 
     loop {
         let mut message = MSG::default();
-        let result = unsafe { GetMessageW(&mut message, HWND::default(), 0, 0) };
+        let result = unsafe { GetMessageW(&raw mut message, HWND::default(), 0, 0) };
         if result.0 <= 0 {
             break;
         }
@@ -262,7 +248,7 @@ mod tests {
         };
         let result = register_one(&mut registered, &mut next_id, binding);
         assert!(matches!(result, Err(HotkeyError::UnmappedKey(_))));
-        assert!(registered.is_empty());
+        assert_eq!(registered.len(), 0);
     }
 
     #[test]

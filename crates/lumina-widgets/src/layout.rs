@@ -143,7 +143,9 @@ impl FlexLayout {
                 } else {
                     0.0
                 };
-                let width = (item.desired.width - shrink).max(item.min_width).min(item.max_width);
+                let width = (item.desired.width - shrink)
+                    .max(item.min_width)
+                    .min(item.max_width);
                 let y = self.align_y(item.desired.height);
                 self.cursor += item.margin_leading;
                 rects.push(Rect::new(self.cursor, y, width, item.desired.height));
@@ -191,10 +193,19 @@ impl FlexLayout {
 /// `sizes` and `flexes` must be the same length. Returns one rectangle per
 /// widget, in the same order.
 #[must_use]
-pub fn layout_row(available: Size, sizes: &[Size], flexes: &[Scalar], margins: &[Scalar]) -> Vec<Rect> {
+pub fn layout_row(
+    available: Size,
+    sizes: &[Size],
+    flexes: &[Scalar],
+    margins: &[Scalar],
+) -> Vec<Rect> {
     let mut layout = FlexLayout::new(available);
     for (i, size) in sizes.iter().enumerate() {
-        layout.add(*size, flexes.get(i).copied().unwrap_or(1.0), margins.get(i).copied().unwrap_or(0.0));
+        layout.add(
+            *size,
+            flexes.get(i).copied().unwrap_or(1.0),
+            margins.get(i).copied().unwrap_or(0.0),
+        );
     }
     layout.finish()
 }
@@ -213,7 +224,11 @@ pub fn layout_row_with_options(
     layout.set_align(align);
     layout.set_spacing(spacing);
     for (i, size) in sizes.iter().enumerate() {
-        layout.add(*size, flexes.get(i).copied().unwrap_or(1.0), margins.get(i).copied().unwrap_or(0.0));
+        layout.add(
+            *size,
+            flexes.get(i).copied().unwrap_or(1.0),
+            margins.get(i).copied().unwrap_or(0.0),
+        );
     }
     layout.finish()
 }
@@ -224,7 +239,10 @@ mod tests {
 
     #[test]
     fn an_empty_layout_produces_no_rectangles() {
-        assert_eq!(FlexLayout::new(Size::new(100.0, 40.0)).finish(), [] as [lumina_core::Rect; 0]);
+        assert_eq!(
+            FlexLayout::new(Size::new(100.0, 40.0)).finish(),
+            [] as [lumina_core::Rect; 0]
+        );
     }
 
     #[test]
@@ -289,7 +307,10 @@ mod tests {
 
     #[test]
     fn layout_row_handles_empty_input() {
-        assert_eq!(layout_row(Size::new(100.0, 40.0), &[], &[], &[]), [] as [lumina_core::Rect; 0]);
+        assert_eq!(
+            layout_row(Size::new(100.0, 40.0), &[], &[], &[]),
+            [] as [lumina_core::Rect; 0]
+        );
     }
 
     #[test]

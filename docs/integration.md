@@ -25,11 +25,18 @@ unbound. Two actions may not share a binding; the validator reports the
 conflict instead of silently dropping one.
 
 On Windows the backend uses `RegisterHotKey` on a dedicated message-loop
-thread. On X11 the binding is translated to `XGrabKey` with Caps Lock, Num Lock,
-and Scroll Lock variants so the combination works regardless of lock state.
-Wayland depends on the `org.freedesktop.portal.GlobalShortcuts` portal; when
-the portal is unavailable, hotkeys are disabled with a log line and the tray
-tooltip says so. macOS is not a target.
+thread, including `MOD_NOREPEAT`. On X11 the binding is translated to
+`XGrabKey` with Caps Lock, Num Lock, and Scroll Lock variants (X11 reports
+Scroll Lock as `Mod3` or `Mod5` depending on the layout), so the combination
+works regardless of lock state. Both backends live in `lumina-platform` and
+are covered by tests.
+
+Native Wayland sessions cannot grab global keys. The supported path is the
+`org.freedesktop.portal.GlobalShortcuts` portal, which belongs to the Wayland
+layer (PLAN Phase 12) and is not implemented yet. Until then
+`WaylandHotkeys::new` reports `HotkeyError::Unsupported` and the caller is
+expected to run without global hotkeys. Under XWayland the session still talks
+X11, so the X11 backend applies. macOS is not a target.
 
 ## Tray
 
@@ -38,10 +45,12 @@ visibility, autostart, settings, documentation, about, and quit. Icons are
 generated at runtime for four states: hidden, idle, active, and muted. Left
 click toggles visibility; right click opens the menu.
 
-Windows uses `Shell_NotifyIcon`. On Linux the tray requires a
-`StatusNotifierItem` host such as KDE, Xfce, or GNOME with the AppIndicator
-extension; without one, the same actions remain available through hotkeys and
-IPC.
+The menu model (`TrayMenu`) and icon raster (`TrayIcon`) are implemented and
+tested in `lumina-platform`. The native host is the part that needs the
+application's message loop: Windows uses `Shell_NotifyIcon`, and Linux requires
+a `StatusNotifierItem` host such as KDE, Xfce, or GNOME with the AppIndicator
+extension. That host is wired in with the window in Phase 6; without one, the
+same actions remain available through hotkeys and IPC.
 
 ## Autostart
 

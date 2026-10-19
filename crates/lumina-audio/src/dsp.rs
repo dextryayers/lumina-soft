@@ -61,7 +61,11 @@ impl DcRemover {
     pub fn new(alpha: f32) -> Self {
         Self {
             mean: 0.0,
-            alpha: if alpha.is_finite() { alpha.clamp(0.9, 0.999_9) } else { 0.999 },
+            alpha: if alpha.is_finite() {
+                alpha.clamp(0.9, 0.999_9)
+            } else {
+                0.999
+            },
         }
     }
 
@@ -316,7 +320,10 @@ mod tests {
         post.process_interleaved(&[1.0; 8], &mut out);
         post.reset();
         post.process_interleaved(&[0.0; 8], &mut out);
-        assert!(out.iter().all(|s| s.abs() < 1e-4), "state leaked across reset: {out:?}");
+        assert!(
+            out.iter().all(|s| s.abs() < 1e-4),
+            "state leaked across reset: {out:?}"
+        );
     }
 
     #[test]

@@ -358,9 +358,7 @@ mod tests {
 
     #[test]
     fn extract_dominant_color_returns_average() {
-        let pixels = vec![
-            255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255,
-        ];
+        let pixels = vec![255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255];
         let color = extract_dominant_color(&pixels, 2, 1);
         assert!(color[0] > 0.3);
         assert!(color[1] > 0.3);
@@ -369,9 +367,7 @@ mod tests {
 
     #[test]
     fn extract_dominant_color_ignores_transparent() {
-        let pixels = vec![
-            255, 0, 0, 0, 0, 255, 0, 0, 0, 0, 255, 0,
-        ];
+        let pixels = vec![255, 0, 0, 0, 0, 255, 0, 0, 0, 0, 255, 0];
         let color = extract_dominant_color(&pixels, 2, 1);
         assert_eq!(color, [0.5, 0.5, 0.5, 1.0]);
     }

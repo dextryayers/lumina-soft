@@ -123,18 +123,53 @@ impl Atlas {
             cursor += 8;
 
             let plane_bounds = Rect::new(
-                f32::from_le_bytes([bytes[cursor], bytes[cursor + 1], bytes[cursor + 2], bytes[cursor + 3]]),
-                f32::from_le_bytes([bytes[cursor + 4], bytes[cursor + 5], bytes[cursor + 6], bytes[cursor + 7]]),
-                f32::from_le_bytes([bytes[cursor + 8], bytes[cursor + 9], bytes[cursor + 10], bytes[cursor + 11]]),
-                f32::from_le_bytes([bytes[cursor + 12], bytes[cursor + 13], bytes[cursor + 14], bytes[cursor + 15]]),
+                f32::from_le_bytes([
+                    bytes[cursor],
+                    bytes[cursor + 1],
+                    bytes[cursor + 2],
+                    bytes[cursor + 3],
+                ]),
+                f32::from_le_bytes([
+                    bytes[cursor + 4],
+                    bytes[cursor + 5],
+                    bytes[cursor + 6],
+                    bytes[cursor + 7],
+                ]),
+                f32::from_le_bytes([
+                    bytes[cursor + 8],
+                    bytes[cursor + 9],
+                    bytes[cursor + 10],
+                    bytes[cursor + 11],
+                ]),
+                f32::from_le_bytes([
+                    bytes[cursor + 12],
+                    bytes[cursor + 13],
+                    bytes[cursor + 14],
+                    bytes[cursor + 15],
+                ]),
             );
             cursor += 16;
 
-            let advance = f32::from_le_bytes([bytes[cursor], bytes[cursor + 1], bytes[cursor + 2], bytes[cursor + 3]]);
+            let advance = f32::from_le_bytes([
+                bytes[cursor],
+                bytes[cursor + 1],
+                bytes[cursor + 2],
+                bytes[cursor + 3],
+            ]);
             cursor += 4;
-            let bearing_x = f32::from_le_bytes([bytes[cursor], bytes[cursor + 1], bytes[cursor + 2], bytes[cursor + 3]]);
+            let bearing_x = f32::from_le_bytes([
+                bytes[cursor],
+                bytes[cursor + 1],
+                bytes[cursor + 2],
+                bytes[cursor + 3],
+            ]);
             cursor += 4;
-            let bearing_y = f32::from_le_bytes([bytes[cursor], bytes[cursor + 1], bytes[cursor + 2], bytes[cursor + 3]]);
+            let bearing_y = f32::from_le_bytes([
+                bytes[cursor],
+                bytes[cursor + 1],
+                bytes[cursor + 2],
+                bytes[cursor + 3],
+            ]);
             cursor += 4;
 
             atlas.glyphs.push(GlyphEntry {
@@ -292,12 +327,14 @@ mod tests {
         bytes.extend_from_slice(&0.5f32.to_le_bytes()); // advance
         bytes.extend_from_slice(&0.1f32.to_le_bytes()); // bearing_x
         bytes.extend_from_slice(&0.2f32.to_le_bytes()); // bearing_y
-        // pixel data: 1024*1024*3 bytes of zeros
+                                                        // pixel data: 1024*1024*3 bytes of zeros
         bytes.resize(bytes.len() + (ATLAS_SIZE * ATLAS_SIZE * 3) as usize, 0);
 
         let atlas = Atlas::from_bytes(&bytes);
         assert_eq!(atlas.count, 1);
-        let glyph = atlas.glyph('A' as u32).expect("the glyph should be present");
+        let glyph = atlas
+            .glyph('A' as u32)
+            .expect("the glyph should be present");
         assert_eq!(glyph.codepoint, 'A' as u32);
         assert!((glyph.advance - 0.5).abs() < 1e-6);
         assert!((glyph.bearing_x - 0.1).abs() < 1e-6);

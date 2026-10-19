@@ -29,9 +29,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use crate::session::{
-    MediaCapabilities, MediaSession, Metadata, PlaybackStatus, PositionTracker,
-};
+use crate::session::{MediaCapabilities, MediaSession, Metadata, PlaybackStatus, PositionTracker};
 
 /// A GSMTC media session.
 ///
@@ -51,7 +49,9 @@ pub struct GsmtcSession {
     /// The cached capabilities.
     capabilities: Mutex<MediaCapabilities>,
     /// The session manager, if connected.
-    manager: Option<Arc<Mutex<windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager>>>,
+    manager: Option<
+        Arc<Mutex<windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager>>,
+    >,
     /// The current session, if connected.
     session: Option<Arc<Mutex<windows::Media::Control::GlobalSystemMediaTransportControlsSession>>>,
 }
@@ -122,7 +122,9 @@ impl GsmtcSession {
         let playback_info = session
             .GetPlaybackInfo()
             .map_err(|e| format!("failed to get playback info: {e:?}"))?;
-        let playback_status = playback_info.PlaybackStatus().map_err(|e| format!("{e:?}"))?;
+        let playback_status = playback_info
+            .PlaybackStatus()
+            .map_err(|e| format!("{e:?}"))?;
         *self.status.lock().unwrap() = match playback_status {
             windows::Media::Control::GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing => PlaybackStatus::Playing,
             windows::Media::Control::GlobalSystemMediaTransportControlsSessionPlaybackStatus::Paused => PlaybackStatus::Paused,
@@ -163,14 +165,8 @@ impl GsmtcSession {
         let timeline = session
             .GetTimelineProperties()
             .map_err(|e| format!("failed to get timeline properties: {e:?}"))?;
-        let position = timeline
-            .Position()
-            .map_err(|e| format!("{e:?}"))?
-            .Duration as u64;
-        let end_time = timeline
-            .EndTime()
-            .map_err(|e| format!("{e:?}"))?
-            .Duration as u64;
+        let position = timeline.Position().map_err(|e| format!("{e:?}"))?.Duration as u64;
+        let end_time = timeline.EndTime().map_err(|e| format!("{e:?}"))?.Duration as u64;
 
         let mut tracker = self.position_tracker.lock().unwrap();
         tracker.update(
@@ -185,24 +181,12 @@ impl GsmtcSession {
         );
 
         // Read capabilities
-        let controls = playback_info
-            .Controls()
-            .map_err(|e| format!("{e:?}"))?;
-        let can_play = controls
-            .IsPlayEnabled()
-            .map_err(|e| format!("{e:?}"))?;
-        let can_pause = controls
-            .IsPauseEnabled()
-            .map_err(|e| format!("{e:?}"))?;
-        let can_go_next = controls
-            .IsNextEnabled()
-            .map_err(|e| format!("{e:?}"))?;
-        let can_go_previous = controls
-            .IsPreviousEnabled()
-            .map_err(|e| format!("{e:?}"))?;
-        let can_stop = controls
-            .IsStopEnabled()
-            .map_err(|e| format!("{e:?}"))?;
+        let controls = playback_info.Controls().map_err(|e| format!("{e:?}"))?;
+        let can_play = controls.IsPlayEnabled().map_err(|e| format!("{e:?}"))?;
+        let can_pause = controls.IsPauseEnabled().map_err(|e| format!("{e:?}"))?;
+        let can_go_next = controls.IsNextEnabled().map_err(|e| format!("{e:?}"))?;
+        let can_go_previous = controls.IsPreviousEnabled().map_err(|e| format!("{e:?}"))?;
+        let can_stop = controls.IsStopEnabled().map_err(|e| format!("{e:?}"))?;
 
         *self.capabilities.lock().unwrap() = MediaCapabilities {
             can_play,
@@ -358,12 +342,7 @@ pub fn discover_sessions() -> Vec<String> {
 
     sessions
         .into_iter()
-        .filter_map(|session| {
-            session
-                .SourceAppUserModelId()
-                .ok()
-                .map(|id| id.to_string())
-        })
+        .filter_map(|session| session.SourceAppUserModelId().ok().map(|id| id.to_string()))
         .collect()
 }
 

@@ -269,9 +269,7 @@ impl PositionTracker {
         if !self.playing {
             return self.position;
         }
-        let elapsed = self
-            .last_update
-            .map_or(Duration::ZERO, |t| t.elapsed());
+        let elapsed = self.last_update.map_or(Duration::ZERO, |t| t.elapsed());
         let estimated = self.position + elapsed;
         if let Some(length) = self.track_length {
             estimated.min(length)
@@ -474,7 +472,10 @@ mod tests {
     #[test]
     fn progress_is_the_ratio_of_position_to_length() {
         let session = TestSession {
-            metadata: Metadata { length: Some(Duration::from_secs(100)), ..Default::default() },
+            metadata: Metadata {
+                length: Some(Duration::from_secs(100)),
+                ..Default::default()
+            },
             status: PlaybackStatus::Playing,
             position: Duration::from_secs(50),
             ..TestSession::new("test")
@@ -497,7 +498,10 @@ mod tests {
     #[test]
     fn progress_never_exceeds_one() {
         let session = TestSession {
-            metadata: Metadata { length: Some(Duration::from_secs(10)), ..Default::default() },
+            metadata: Metadata {
+                length: Some(Duration::from_secs(10)),
+                ..Default::default()
+            },
             status: PlaybackStatus::Playing,
             position: Duration::from_secs(999),
             ..TestSession::new("test")
@@ -592,7 +596,12 @@ mod tests {
     #[test]
     fn position_tracker_tracks_elapsed_time() {
         let mut tracker = PositionTracker::new();
-        tracker.update(Duration::from_secs(10), true, Some(Duration::from_secs(100)), Some("track1"));
+        tracker.update(
+            Duration::from_secs(10),
+            true,
+            Some(Duration::from_secs(100)),
+            Some("track1"),
+        );
         let pos = tracker.position();
         assert!(pos >= Duration::from_secs(10));
     }
@@ -600,7 +609,12 @@ mod tests {
     #[test]
     fn position_tracker_resets_on_track_change() {
         let mut tracker = PositionTracker::new();
-        tracker.update(Duration::from_secs(10), true, Some(Duration::from_secs(100)), Some("track1"));
+        tracker.update(
+            Duration::from_secs(10),
+            true,
+            Some(Duration::from_secs(100)),
+            Some("track1"),
+        );
         tracker.reset();
         assert_eq!(tracker.position(), Duration::ZERO);
         assert!(!tracker.is_playing());

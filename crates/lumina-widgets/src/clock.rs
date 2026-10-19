@@ -507,7 +507,11 @@ mod tests {
     fn the_clock_does_not_consume_input() {
         let mut clock = ClockWidget::new();
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
-        assert!(!clock.on_input(&WidgetInput::Click(Vec2::new(50.0, 10.0)), &ctx, Rect::new(0.0, 0.0, 100.0, 20.0)));
+        assert!(!clock.on_input(
+            &WidgetInput::Click(Vec2::new(50.0, 10.0)),
+            &ctx,
+            Rect::new(0.0, 0.0, 100.0, 20.0)
+        ));
     }
 
     #[test]

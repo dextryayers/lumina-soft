@@ -103,7 +103,9 @@ impl Analyzer {
         // Untangle twiddles: one W_N^k = exp(-j·2π·k/N) per real bin k in
         // [0, N/2); the real spectrum is X[k] = A[k] + W_N^k·B[k] directly.
         let twiddles = (0..half)
-            .map(|k| Complex::from_polar(1.0, -std::f32::consts::TAU * k as f32 / window_size as f32))
+            .map(|k| {
+                Complex::from_polar(1.0, -std::f32::consts::TAU * k as f32 / window_size as f32)
+            })
             .collect::<Vec<_>>()
             .into_boxed_slice();
 
@@ -176,17 +178,29 @@ impl Analyzer {
         //   B[k] = -j·(Z[k] - conj(Z[M-k])) / 2,
         // one output per k in [0, M). The Nyquist bin X[M] (= Z[0].re -
         // Z[0].im) is dropped per bin_count's contract.
-        for k in 0..half {
-            let c_here = self.packed[k];
-            let c_mirror = self.packed[(half - k) % half].conj();
-            let sum = (c_here + c_mirror) * Complex::new(0.5, 0.0);
-            let diff = (c_here - c_mirror) * Complex::new(0.5, 0.0);
-            let b_term = Complex::new(diff.im, -diff.re);
+        //
+        // Written with explicit real arithmetic instead of Complex operators:
+        // the loop runs 2048 times per frame, so avoiding the temporary
+        // complex values, the `%` on the mirror index, and the per-iteration
+        // output bounds check measurably matters on the audio thread.
+        let bins = half.min(out_magnitudes.len());
+        for (k, magnitude) in out_magnitudes.iter_mut().enumerate().take(bins) {
+            let here = self.packed[k];
+            let mirror_index = if k == 0 { 0 } else { half - k };
+            let mirror = self.packed[mirror_index];
 
-            let bin = sum + self.twiddles[k] * b_term;
-            if k < out_magnitudes.len() {
-                out_magnitudes[k] = bin.norm();
-            }
+            let sum_re = here.re.midpoint(mirror.re);
+            let sum_im = (here.im - mirror.im) * 0.5;
+            let diff_re = (here.re - mirror.re) * 0.5;
+            let diff_im = here.im.midpoint(mirror.im);
+
+            // B = -j·diff, so B = (diff.im, -diff.re); multiplying by the
+            // twiddle needs no complex type at all.
+            let tw = self.twiddles[k];
+            let bin_re = sum_re + tw.re * diff_im + tw.im * diff_re;
+            let bin_im = sum_im + tw.im * diff_im - tw.re * diff_re;
+
+            *magnitude = (bin_re * bin_re + bin_im * bin_im).sqrt();
         }
     }
 }
@@ -287,10 +301,7 @@ mod tests {
         // the DFT grid, whose stub lands on bin 1 at about -6 dB; real
         // sidelobes (bin 2 onward) sit below -30 dB relative.
         let worst = magnitudes.iter().skip(2).copied().fold(0.0, f32::max);
-        assert!(
-            worst < dc * 0.03,
-            "DC leaked {worst} against {dc}"
-        );
+        assert!(worst < dc * 0.03, "DC leaked {worst} against {dc}");
     }
 
     #[test]
@@ -322,7 +333,10 @@ mod tests {
         let edge = analyzer.window_at(1023);
         assert!(edge.abs() < 1e-5, "window must end at zero, got {edge}");
         let peak = analyzer.window_at(512);
-        assert!((peak - 1.0).abs() < 1e-5, "window must peak at one, got {peak}");
+        assert!(
+            (peak - 1.0).abs() < 1e-5,
+            "window must peak at one, got {peak}"
+        );
         // Symmetric window: w[i] == w[M-1-i].
         let left = analyzer.window_at(256);
         let right = analyzer.window_at(767);
@@ -373,54 +387,9 @@ mod tests {
             analyzer.process(&samples, &mut magnitudes);
         }
         let per_frame = started.elapsed() / 2000;
-        eprintln!("probe per_frame={per_frame:?}");
         assert!(
             per_frame < std::time::Duration::from_micros(35),
             "the 4096 point frame took {per_frame:?}, budget is 35 us"
         );
-    }
-
-    #[test]
-    #[ignore = "instrumentation probe"]
-    fn probe_where_time_goes() {
-        let mut analyzer = Analyzer::new(4096);
-        let samples = sine(4096, 100.0);
-        let mut magnitudes = vec![0.0f32; 2048];
-        for _ in 0..500 {
-            analyzer.process(&samples, &mut magnitudes);
-        }
-
-        // Pack + FFT only: stop before the untangle.
-        let mut scratch = analyzer.scratch.clone();
-        let started = Instant::now();
-        for _ in 0..2000 {
-            let half = analyzer.half;
-            for k in 0..half {
-                let even = samples[2 * k] * analyzer.window[2 * k];
-                let odd = samples[2 * k + 1] * analyzer.window[2 * k + 1];
-                analyzer.packed[k] = num_complex::Complex::new(even, odd);
-            }
-            analyzer
-                .plan
-                .process_with_scratch(&mut analyzer.packed, &mut scratch);
-        }
-        let fft_only = started.elapsed() / 2000;
-
-        // Untangle only, on whatever the planner left behind.
-        let started = Instant::now();
-        for _ in 0..2000 {
-            let half = analyzer.half;
-            for k in 0..half {
-                let c_here = analyzer.packed[k];
-                let c_mirror = analyzer.packed[(half - k) % half].conj();
-                let sum = (c_here + c_mirror) * num_complex::Complex::new(0.5, 0.0);
-                let diff = (c_here - c_mirror) * num_complex::Complex::new(0.5, 0.0);
-                let b_term = num_complex::Complex::new(diff.im, -diff.re);
-                let bin = sum + analyzer.twiddles[k] * b_term;
-                magnitudes[k] = bin.norm();
-            }
-        }
-        let untangle_only = started.elapsed() / 2000;
-        eprintln!("probe fft_only={fft_only:?} untangle={untangle_only:?}");
     }
 }

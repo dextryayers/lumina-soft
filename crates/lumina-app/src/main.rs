@@ -1,4 +1,4 @@
-﻿//! Lumina binary entry point.
+//! Lumina binary entry point.
 //!
 //! # CLI surface
 //!
@@ -48,7 +48,10 @@ fn print_diagnostics() {
     let caps = Capabilities::for_platform(Platform::detect());
 
     println!("Lumina {}", env!("CARGO_PKG_VERSION"));
-    println!("  target       {}", option_env!("TARGET").unwrap_or("unknown"));
+    println!(
+        "  target       {}",
+        option_env!("TARGET").unwrap_or("unknown")
+    );
     println!("  platform     {}", caps.platform.display_name());
     println!("  window       {}", caps.platform.has_window());
     println!("  always_on_top {}", caps.always_on_top);
@@ -85,20 +88,29 @@ fn config_path() -> PathBuf {
         return PathBuf::from(path);
     }
     let base = if cfg!(windows) {
-        std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_default()
+        std::env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_default()
     } else {
-        std::env::var_os("XDG_CONFIG_HOME").map_or_else(|| {
-                let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+        std::env::var_os("XDG_CONFIG_HOME").map_or_else(
+            || {
+                let home = std::env::var_os("HOME")
+                    .map(PathBuf::from)
+                    .unwrap_or_default();
                 home.join(".config")
-            }, PathBuf::from)
+            },
+            PathBuf::from,
+        )
     };
     base.join("lumina").join("config.toml")
 }
 
 /// Load and validate the configuration.
 fn load_config(path: &std::path::Path) -> Result<(Config, ValidationReport), String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    let parsed = Config::from_toml_str(&text).map_err(|e| format!("cannot parse {}: {e}", path.display()))?;
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let parsed = Config::from_toml_str(&text)
+        .map_err(|e| format!("cannot parse {}: {e}", path.display()))?;
     Ok(validate(parsed))
 }
 
@@ -229,22 +241,17 @@ fn main() -> ExitCode {
         eprintln!("error: unknown argument '{}'", args[0]);
         eprintln!("Try 'lumina --help' for more information.");
         ExitCode::from(2)
+    } else if let Ok(_guard) = single_instance::claim("lumina") {
+        // The island itself arrives in Phase 6. Until then, print the
+        // environment so a user can confirm the binary runs and see what
+        // the platform supports.
+        print_diagnostics();
+        println!();
+        println!("Lumina is not yet able to create its window. See PLAN.md Phase 6.");
+        ExitCode::SUCCESS
     } else {
-        match single_instance::claim("lumina") {
-            Ok(_guard) => {
-                // The island itself arrives in Phase 6. Until then, print the
-                // environment so a user can confirm the binary runs and see what
-                // the platform supports.
-                print_diagnostics();
-                println!();
-                println!("Lumina is not yet able to create its window. See PLAN.md Phase 6.");
-                ExitCode::SUCCESS
-            }
-            Err(_) => {
-                let _ = single_instance::notify_existing("lumina", "show");
-                println!("Lumina is already running; asked it to show itself.");
-                ExitCode::SUCCESS
-            }
-        }
+        let _ = single_instance::notify_existing("lumina", "show");
+        println!("Lumina is already running; asked it to show itself.");
+        ExitCode::SUCCESS
     }
 }

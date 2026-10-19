@@ -74,7 +74,9 @@ impl InputRouter {
     /// Update the layout rectangles.
     pub fn update_rects(&mut self, rects: Vec<Rect>) {
         self.rects = rects;
-        self.widget_ids = (0..self.rects.len()).map(|i| format!("widget_{i}")).collect();
+        self.widget_ids = (0..self.rects.len())
+            .map(|i| format!("widget_{i}"))
+            .collect();
     }
 
     /// Update the layout rectangles with widget ids.
@@ -137,7 +139,12 @@ impl InputRouter {
         self.pointer_inside = true;
 
         let new_hovered = self.hit_test(pos);
-        if new_hovered != self.hovered_id.as_ref().and_then(|id| Self::widget_index(id, widgets)) {
+        if new_hovered
+            != self
+                .hovered_id
+                .as_ref()
+                .and_then(|id| Self::widget_index(id, widgets))
+        {
             // Leave the old widget
             if let Some(old_id) = &self.hovered_id {
                 if let Some(idx) = Self::widget_index(old_id, widgets) {
@@ -166,11 +173,7 @@ impl InputRouter {
     }
 
     /// Route a pointer leave event.
-    pub fn route_pointer_leave(
-        &mut self,
-        widgets: &mut [Box<dyn Widget>],
-        ctx: &WidgetContext,
-    ) {
+    pub fn route_pointer_leave(&mut self, widgets: &mut [Box<dyn Widget>], ctx: &WidgetContext) {
         self.pointer_inside = false;
         if let Some(old_id) = &self.hovered_id {
             if let Some(idx) = Self::widget_index(old_id, widgets) {
@@ -315,8 +318,8 @@ impl Default for InputRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widget::{DrawList, Widget, WidgetContext, WidgetInput};
     use crate::clock::ClockWidget;
+    use crate::widget::{DrawList, Widget, WidgetContext, WidgetInput};
     use lumina_core::geometry::{Rect, Size, Vec2};
     use lumina_core::state::IslandState;
 

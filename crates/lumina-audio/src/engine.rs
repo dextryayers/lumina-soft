@@ -197,8 +197,12 @@ impl AudioEngine {
             settings.bass_tilt_db_per_octave,
             settings.sensitivity_db,
         );
-        let envelope =
-            BandEnvelope::new(settings.band_count, settings.attack_ms, settings.release_ms, analysis_rate);
+        let envelope = BandEnvelope::new(
+            settings.band_count,
+            settings.attack_ms,
+            settings.release_ms,
+            analysis_rate,
+        );
         let gate = SilenceGate::new(settings.sample_rate, settings.silence_threshold_db);
         let smoothing = GateSmoothing::new(analysis_rate);
         let normalizer = RollingNormalizer::new(analysis_rate, settings.normalize);
@@ -256,8 +260,12 @@ impl AudioEngine {
             settings.bass_tilt_db_per_octave,
             settings.sensitivity_db,
         );
-        self.envelope =
-            BandEnvelope::new(settings.band_count, settings.attack_ms, settings.release_ms, analysis_rate);
+        self.envelope = BandEnvelope::new(
+            settings.band_count,
+            settings.attack_ms,
+            settings.release_ms,
+            analysis_rate,
+        );
         self.gate = SilenceGate::new(settings.sample_rate, settings.silence_threshold_db);
         self.smoothing = GateSmoothing::new(analysis_rate);
         self.normalizer = RollingNormalizer::new(analysis_rate, settings.normalize);
@@ -277,8 +285,7 @@ impl AudioEngine {
         let window_len = self.settings.fft_size;
         let analysis_rate = self.settings.sample_rate.max(1) as f32 / window_len.max(1) as f32;
 
-        if self.reader.pending() >= window_len
-            && self.reader.read_exact(&mut self.window).is_some()
+        if self.reader.pending() >= window_len && self.reader.read_exact(&mut self.window).is_some()
         {
             self.has_seen_data = true;
             self.last_data_frame = self.frame_index;
@@ -357,8 +364,7 @@ impl AudioEngine {
         let loudness = squared_mean.sqrt().clamp(0.0, 1.0);
         let mut since_data = self.frame_index.wrapping_sub(self.last_data_frame) as f32;
         since_data = since_data.clamp(0.0, analysis_rate * STALL_SECONDS.max(0.5) + 1.0);
-        let active = self.has_seen_data
-            && since_data < analysis_rate * STALL_SECONDS.max(0.5);
+        let active = self.has_seen_data && since_data < analysis_rate * STALL_SECONDS.max(0.5);
 
         SpectrumFrame {
             frame_index: self.frame_index,
@@ -465,7 +471,8 @@ mod tests {
     #[test]
     fn a_sine_stream_lights_the_mutated_bands_up() {
         let (mut engine, writer) = AudioEngine::new(settings(false));
-        stream(&writer, &sine(0.5, 100.0, 0.5));        let mut last = None;
+        stream(&writer, &sine(0.5, 100.0, 0.5));
+        let mut last = None;
         for _ in 0..20 {
             last = Some(engine.poll());
         }
@@ -523,7 +530,11 @@ mod tests {
         }
         assert!(!last_active, "a starved engine must flag inactive");
         let frame = engine.poll();
-        assert!(frame.loudness < 0.01, "stalled loudness: {}", frame.loudness);
+        assert!(
+            frame.loudness < 0.01,
+            "stalled loudness: {}",
+            frame.loudness
+        );
         // Frame pacing survived the stall.
         assert!(frame.frame_index >= 80);
     }

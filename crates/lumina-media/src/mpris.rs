@@ -97,8 +97,8 @@ impl MprisSession {
     /// This method reads the initial state from the player and sets up
     /// signal handlers for `PropertiesChanged` and `Seeked`.
     pub fn connect(&mut self) -> Result<(), String> {
-        let connection = zbus::Connection::session()
-            .map_err(|e| format!("failed to connect to D-Bus: {e}"))?;
+        let connection =
+            zbus::Connection::session().map_err(|e| format!("failed to connect to D-Bus: {e}"))?;
         let connection = Arc::new(connection);
 
         // Read initial properties
@@ -113,13 +113,8 @@ impl MprisSession {
 
     /// Refresh all properties from the player.
     fn refresh_properties(&self, connection: &zbus::Connection) -> Result<(), String> {
-        let proxy = zbus::Proxy::new(
-            connection,
-            &self.bus_name,
-            MPRIS_PATH,
-            PLAYER_INTERFACE,
-        )
-        .map_err(|e| format!("failed to create D-Bus proxy: {e}"))?;
+        let proxy = zbus::Proxy::new(connection, &self.bus_name, MPRIS_PATH, PLAYER_INTERFACE)
+            .map_err(|e| format!("failed to create D-Bus proxy: {e}"))?;
 
         // Read playback status
         let status: String = proxy
@@ -328,13 +323,7 @@ impl MediaSession for MprisSession {
         // This is a bit of a hack: we need to return a reference to the metadata,
         // but it's behind a Mutex. We use unsafe to extend the lifetime, which is
         // safe because the Mutex guarantees the data lives as long as the session.
-        unsafe {
-            &*self
-                .metadata
-                .lock()
-                .unwrap()
-                .as_ref() as *const Metadata
-        }
+        unsafe { &*self.metadata.lock().unwrap().as_ref() as *const Metadata }
     }
 
     fn playback_status(&self) -> PlaybackStatus {
@@ -378,9 +367,8 @@ impl MediaSession for MprisSession {
             .connection
             .as_ref()
             .ok_or_else(|| "not connected to D-Bus".to_string())?;
-        let proxy =
-            zbus::Proxy::new(connection, &self.bus_name, MPRIS_PATH, PLAYER_INTERFACE)
-                .map_err(|e| format!("failed to create D-Bus proxy: {e}"))?;
+        let proxy = zbus::Proxy::new(connection, &self.bus_name, MPRIS_PATH, PLAYER_INTERFACE)
+            .map_err(|e| format!("failed to create D-Bus proxy: {e}"))?;
         let offset = position.as_micros() as i64;
         proxy
             .call_method("SetPosition", &("", offset))
@@ -393,9 +381,8 @@ impl MediaSession for MprisSession {
             .connection
             .as_ref()
             .ok_or_else(|| "not connected to D-Bus".to_string())?;
-        let proxy =
-            zbus::Proxy::new(connection, &self.bus_name, MPRIS_PATH, PLAYER_INTERFACE)
-                .map_err(|e| format!("failed to create D-Bus proxy: {e}"))?;
+        let proxy = zbus::Proxy::new(connection, &self.bus_name, MPRIS_PATH, PLAYER_INTERFACE)
+            .map_err(|e| format!("failed to create D-Bus proxy: {e}"))?;
         let volume = volume.clamp(0.0, 1.0);
         proxy
             .call_method("SetVolume", &(volume as f64,))

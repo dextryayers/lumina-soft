@@ -202,9 +202,7 @@ impl PomodoroTimer {
     fn next_phase(&self) -> PomodoroPhase {
         match self.phase {
             PomodoroPhase::Focus => {
-                if self.completed_focus > 0
-                    && self.completed_focus % self.rounds_before_long == 0
-                {
+                if self.completed_focus > 0 && self.completed_focus % self.rounds_before_long == 0 {
                     PomodoroPhase::LongBreak
                 } else {
                     PomodoroPhase::ShortBreak
@@ -238,10 +236,7 @@ impl PomodoroTimer {
             let started = self.next_phase();
             self.phase = started;
             self.remaining = self.phase_duration();
-            events.push(PomodoroEvent {
-                completed,
-                started,
-            });
+            events.push(PomodoroEvent { completed, started });
         }
         events
     }
@@ -422,7 +417,7 @@ mod tests {
     #[test]
     fn a_paused_timer_does_not_advance() {
         let mut timer = timer();
-        assert!(timer.advance(Duration::from_secs(60)).is_empty());
+        assert_eq!(timer.advance(Duration::from_secs(60)).len(), 0);
         assert_eq!(timer.remaining_text(), "25:00");
     }
 
@@ -538,11 +533,7 @@ mod tests {
         let rect = Rect::new(0.0, 0.0, 96.0, 30.0);
         assert!(widget.on_input(&WidgetInput::Click(Vec2::new(10.0, 10.0)), &ctx, rect));
         assert!(widget.timer.running);
-        assert!(widget.on_input(
-            &WidgetInput::RightClick(Vec2::new(10.0, 10.0)),
-            &ctx,
-            rect
-        ));
+        assert!(widget.on_input(&WidgetInput::RightClick(Vec2::new(10.0, 10.0)), &ctx, rect));
         assert_eq!(widget.remaining_text(), "25:00");
     }
 
@@ -557,7 +548,10 @@ mod tests {
 
     #[test]
     fn phase_labels_and_colors_differ() {
-        assert_ne!(PomodoroPhase::Focus.label(), PomodoroPhase::ShortBreak.label());
+        assert_ne!(
+            PomodoroPhase::Focus.label(),
+            PomodoroPhase::ShortBreak.label()
+        );
         assert!(!PomodoroPhase::Focus.is_break());
         assert!(PomodoroPhase::LongBreak.is_break());
         let mut widget = PomodoroWidget::new();

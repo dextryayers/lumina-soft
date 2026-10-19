@@ -93,14 +93,22 @@ impl Widget for ShortcutsWidget {
     fn measure(&mut self, _ctx: &WidgetContext) -> Size {
         let tiles = self.visible_actions().max(1) as f32;
         let overflow = if self.overflow() > 0 { 18.0 } else { 0.0 };
-        Size::new(tiles * TILE_SIZE + (tiles - 1.0) * GAP + overflow, TILE_SIZE)
+        Size::new(
+            tiles * TILE_SIZE + (tiles - 1.0) * GAP + overflow,
+            TILE_SIZE,
+        )
     }
 
     fn draw(&mut self, out: &mut DrawList, _ctx: &WidgetContext, rect: Rect) {
         if self.actions.is_empty() {
             paint::block(
                 out,
-                Rect::new(rect.x, rect.y + TILE_SIZE * 0.5 - 1.0, rect.width.min(40.0), 2.0),
+                Rect::new(
+                    rect.x,
+                    rect.y + TILE_SIZE * 0.5 - 1.0,
+                    rect.width.min(40.0),
+                    2.0,
+                ),
                 MUTED,
                 1.0,
             );
@@ -220,7 +228,7 @@ mod tests {
         let mut empty = action("empty", true, false);
         empty.command.clear();
         let widget = ShortcutsWidget::from_config(&config(vec![empty]));
-        assert!(widget.actions().is_empty());
+        assert_eq!(widget.actions().len(), 0);
     }
 
     #[test]
@@ -250,8 +258,7 @@ mod tests {
 
     #[test]
     fn clicking_a_gap_does_not_activate() {
-        let mut widget =
-            ShortcutsWidget::from_config(&config(vec![action("a", true, false)]));
+        let mut widget = ShortcutsWidget::from_config(&config(vec![action("a", true, false)]));
         let consumed = widget.on_input(
             &WidgetInput::Click(Vec2::new(TILE_SIZE + 2.0, 10.0)),
             &ctx(),

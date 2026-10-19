@@ -321,48 +321,61 @@ impl MediaWidget {
     /// Get the display title.
     #[must_use]
     pub fn display_title(&self) -> String {
-        self.snapshot
-            .as_ref().map_or_else(|| "No media".to_string(), |s| s.title_or_placeholder().to_string())
+        self.snapshot.as_ref().map_or_else(
+            || "No media".to_string(),
+            |s| s.title_or_placeholder().to_string(),
+        )
     }
 
     /// Get the display artist.
     #[must_use]
     pub fn display_artist(&self) -> String {
-        self.snapshot
-            .as_ref().map_or_else(|| "Unknown artist".to_string(), |s| s.artist_or_placeholder().to_string())
+        self.snapshot.as_ref().map_or_else(
+            || "Unknown artist".to_string(),
+            |s| s.artist_or_placeholder().to_string(),
+        )
     }
 
     /// Get the display position.
     #[must_use]
     pub fn display_position(&self) -> String {
-        self.snapshot
-            .as_ref().map_or_else(|| "00:00".to_string(), lumina_media::MediaSnapshot::format_position)
+        self.snapshot.as_ref().map_or_else(
+            || "00:00".to_string(),
+            lumina_media::MediaSnapshot::format_position,
+        )
     }
 
     /// Get the display length.
     #[must_use]
     pub fn display_length(&self) -> String {
-        self.snapshot
-            .as_ref().map_or_else(|| "--:--".to_string(), lumina_media::MediaSnapshot::format_length)
+        self.snapshot.as_ref().map_or_else(
+            || "--:--".to_string(),
+            lumina_media::MediaSnapshot::format_length,
+        )
     }
 
     /// Get the progress as a float.
     #[must_use]
     pub fn progress(&self) -> f32 {
-        self.snapshot.as_ref().map_or(0.0, lumina_media::MediaSnapshot::progress)
+        self.snapshot
+            .as_ref()
+            .map_or(0.0, lumina_media::MediaSnapshot::progress)
     }
 
     /// Whether the player is playing.
     #[must_use]
     pub fn is_playing(&self) -> bool {
-        self.snapshot.as_ref().is_some_and(lumina_media::MediaSnapshot::is_playing)
+        self.snapshot
+            .as_ref()
+            .is_some_and(lumina_media::MediaSnapshot::is_playing)
     }
 
     /// Get the player identity.
     #[must_use]
     pub fn player_identity(&self) -> String {
         self.snapshot
-            .as_ref().map_or_else(|| "Unknown".to_string(), |s| s.identity.clone())
+            .as_ref()
+            .map_or_else(|| "Unknown".to_string(), |s| s.identity.clone())
     }
 }
 
@@ -435,8 +448,15 @@ impl Widget for MediaWidget {
     }
 
     fn request(&self, _ctx: &WidgetContext) -> Option<StateRequest> {
-        if self.snapshot.as_ref().is_some_and(lumina_media::MediaSnapshot::is_playing) {
-            Some(StateRequest::timed(IslandState::Media, lumina_core::state::TransitionSource::Widget))
+        if self
+            .snapshot
+            .as_ref()
+            .is_some_and(lumina_media::MediaSnapshot::is_playing)
+        {
+            Some(StateRequest::timed(
+                IslandState::Media,
+                lumina_core::state::TransitionSource::Widget,
+            ))
         } else {
             None
         }
@@ -450,7 +470,7 @@ impl Widget for MediaWidget {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lumina_media::session::{format_duration, Metadata, MediaCapabilities, PlaybackStatus};
+    use lumina_media::session::{format_duration, MediaCapabilities, Metadata, PlaybackStatus};
 
     fn test_snapshot() -> MediaSnapshot {
         MediaSnapshot {
@@ -590,7 +610,11 @@ mod tests {
         widget.update_snapshot(test_snapshot());
         let ctx = WidgetContext::new(IslandState::Media, Size::new(300.0, 60.0));
         let rect = Rect::new(0.0, 0.0, 200.0, 60.0);
-        let consumed = widget.on_input(&WidgetInput::PointerMove(Vec2::new(100.0, 55.0)), &ctx, rect);
+        let consumed = widget.on_input(
+            &WidgetInput::PointerMove(Vec2::new(100.0, 55.0)),
+            &ctx,
+            rect,
+        );
         assert!(consumed);
         assert!(widget.hover_progress.is_some());
     }
@@ -613,6 +637,9 @@ mod tests {
     #[test]
     fn format_duration_formats_correctly() {
         assert_eq!(format_duration(std::time::Duration::from_secs(65)), "01:05");
-        assert_eq!(format_duration(std::time::Duration::from_secs(3661)), "1:01:01");
+        assert_eq!(
+            format_duration(std::time::Duration::from_secs(3661)),
+            "1:01:01"
+        );
     }
 }

@@ -1,4 +1,4 @@
-﻿//! The network widget: upload and download rates, with an optional SSID.
+//! The network widget: upload and download rates, with an optional SSID.
 //!
 //! Rates are sampled by the service layer and handed in as bytes per second.
 //! The widget keeps a short history for the inline sparkline and formats values
@@ -61,8 +61,7 @@ impl NetworkWidget {
 
     /// Store a new reading and advance both histories.
     pub fn update(&mut self, snapshot: NetworkSnapshot) {
-        self.download_history
-            .push(fraction(snapshot.download_bps));
+        self.download_history.push(fraction(snapshot.download_bps));
         self.upload_history.push(fraction(snapshot.upload_bps));
         self.snapshot = snapshot;
     }
@@ -112,11 +111,7 @@ impl Widget for NetworkWidget {
     }
 
     fn measure(&mut self, _ctx: &WidgetContext) -> Size {
-        let width = if self.ssid().is_some() {
-            132.0
-        } else {
-            96.0
-        };
+        let width = if self.ssid().is_some() { 132.0 } else { 96.0 };
         Size::new(width, (self.row_count().max(1) * 12 + 2) as f32)
     }
 
@@ -273,4 +268,3 @@ mod tests {
         assert!(widget.request(&ctx()).is_none());
     }
 }
-

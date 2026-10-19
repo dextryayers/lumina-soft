@@ -982,7 +982,14 @@ fn validate_script(config: &mut Config, report: &mut ValidationReport) {
     let mut kept = Vec::with_capacity(script.entries.len());
 
     for entry in std::mem::take(&mut script.entries) {
-        let path = format!("script.entries.{}", if entry.id.is_empty() { "?" } else { entry.id.as_str() });
+        let path = format!(
+            "script.entries.{}",
+            if entry.id.is_empty() {
+                "?"
+            } else {
+                entry.id.as_str()
+            }
+        );
         if !entry.is_runnable() {
             report.warn(
                 path,
@@ -992,11 +999,7 @@ fn validate_script(config: &mut Config, report: &mut ValidationReport) {
             continue;
         }
         if seen.contains(&entry.id) {
-            report.warn(
-                path,
-                "duplicate script id",
-                "dropping the duplicate",
-            );
+            report.warn(path, "duplicate script id", "dropping the duplicate");
             continue;
         }
         let mut entry = entry;
@@ -1033,7 +1036,7 @@ fn validate_script(config: &mut Config, report: &mut ValidationReport) {
             report,
         );
         if entry.label.trim().is_empty() {
-            entry.label = entry.id.clone();
+            entry.label.clone_from(&entry.id);
             report.warn(
                 format!("{path}.label"),
                 "empty label",

@@ -58,7 +58,11 @@ pub mod time;
 pub mod tray;
 
 #[cfg(all(unix, not(target_os = "macos")))]
+pub mod wayland_hotkeys;
+#[cfg(all(unix, not(target_os = "macos")))]
 pub mod x11;
+#[cfg(all(unix, not(target_os = "macos")))]
+pub mod x11_hotkeys;
 
 #[cfg(target_os = "windows")]
 pub mod win32;
@@ -70,7 +74,8 @@ pub mod null;
 pub use autostart::{AutostartError, WINDOWS_RUN_KEY, WINDOWS_VALUE_NAME};
 pub use capability::{Capabilities, Platform, PlatformKind};
 pub use hotkey::{
-    find_conflicts, Hotkey, HotkeyBinding, HotkeyConflict, HotkeyError, HotkeyEvent,
+    bindings_from_config, configured_hotkeys, conflicts_from_config, find_conflicts,
+    hotkey_problems, Hotkey, HotkeyBinding, HotkeyConflict, HotkeyError, HotkeyEvent,
     HotkeyParseError, HotkeyRegistry, Key, Modifiers, NullHotkeyRegistry,
 };
 pub use monitor::{Monitor, MonitorSource, ScaleFactor};
@@ -82,6 +87,12 @@ pub use time::{
     weekday_from_days, CivilTime,
 };
 pub use tray::{TrayCommand, TrayIcon, TrayMenu, TrayMenuItem, TrayMenuState, TrayState};
+
+#[cfg(all(unix, not(target_os = "macos")))]
+pub use x11_hotkeys::X11Hotkeys;
+
+#[cfg(all(unix, not(target_os = "macos")))]
+pub use wayland_hotkeys::{session_is_wayland, session_is_wayland_from, WaylandHotkeys};
 
 #[cfg(target_os = "windows")]
 pub use win32_hotkeys::Win32Hotkeys;

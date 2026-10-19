@@ -100,9 +100,7 @@ impl BatteryWidget {
         if !self.show_time_remaining {
             return None;
         }
-        self.snapshot
-            .time_remaining_secs
-            .map(format_short_duration)
+        self.snapshot.time_remaining_secs.map(format_short_duration)
     }
 }
 

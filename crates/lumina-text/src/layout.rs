@@ -75,7 +75,13 @@ impl Layout {
         overflow: Overflow,
     ) -> Self {
         if shaped.is_empty() {
-            return Self { glyphs: Vec::new(), width: 0.0, height: 0.0, truncated: false, needs_marquee: false };
+            return Self {
+                glyphs: Vec::new(),
+                width: 0.0,
+                height: 0.0,
+                truncated: false,
+                needs_marquee: false,
+            };
         }
 
         let scale = font_size;
@@ -104,7 +110,8 @@ impl Layout {
 
         for glyph in &shaped.glyphs {
             let entry = atlas.glyphs.get(glyph.glyph_index);
-            let (uv_min, uv_max) = entry.map_or((Vec2::ZERO, Vec2::ZERO), super::atlas::GlyphEntry::uv);
+            let (uv_min, uv_max) =
+                entry.map_or((Vec2::ZERO, Vec2::ZERO), super::atlas::GlyphEntry::uv);
             let glyph_width = entry.map_or(scale * 0.5, |e| e.em_width() * scale);
             let glyph_height = entry.map_or(scale, |e| e.em_height() * scale);
 
@@ -227,11 +234,17 @@ impl Default for Marquee {
 mod tests {
     use super::*;
     use crate::atlas::Atlas;
-    use crate::shaping::{ShapedText, ShapedGlyph};
+    use crate::shaping::{ShapedGlyph, ShapedText};
 
     fn shaped_text(width: f32) -> ShapedText {
         ShapedText {
-            glyphs: vec![ShapedGlyph { glyph_index: 0, x: 0.0, y: 0.0, advance: width, kerning: 0.0 }],
+            glyphs: vec![ShapedGlyph {
+                glyph_index: 0,
+                x: 0.0,
+                y: 0.0,
+                advance: width,
+                kerning: 0.0,
+            }],
             width,
             height: 1.0,
             is_rtl: false,
@@ -244,8 +257,20 @@ mod tests {
 
     #[test]
     fn an_empty_text_produces_an_empty_layout() {
-        let shaped = ShapedText { glyphs: Vec::new(), width: 0.0, height: 0.0, is_rtl: false };
-        let layout = Layout::new(&shaped, &empty_atlas(), 14.0, 100.0, TextAlignment::Left, Overflow::Clip);
+        let shaped = ShapedText {
+            glyphs: Vec::new(),
+            width: 0.0,
+            height: 0.0,
+            is_rtl: false,
+        };
+        let layout = Layout::new(
+            &shaped,
+            &empty_atlas(),
+            14.0,
+            100.0,
+            TextAlignment::Left,
+            Overflow::Clip,
+        );
         assert_eq!(layout.glyphs.len(), 0);
         assert_eq!(layout.width, 0.0);
         assert!(!layout.truncated);
@@ -255,7 +280,14 @@ mod tests {
     #[test]
     fn text_that_fits_is_not_truncated() {
         let shaped = shaped_text(50.0);
-        let layout = Layout::new(&shaped, &empty_atlas(), 1.0, 100.0, TextAlignment::Left, Overflow::Clip);
+        let layout = Layout::new(
+            &shaped,
+            &empty_atlas(),
+            1.0,
+            100.0,
+            TextAlignment::Left,
+            Overflow::Clip,
+        );
         assert!(!layout.truncated);
         assert!(!layout.needs_marquee);
         assert!(layout.fits());
@@ -264,7 +296,14 @@ mod tests {
     #[test]
     fn text_that_overflows_with_ellipsis_is_truncated() {
         let shaped = shaped_text(200.0);
-        let layout = Layout::new(&shaped, &empty_atlas(), 1.0, 100.0, TextAlignment::Left, Overflow::Ellipsis);
+        let layout = Layout::new(
+            &shaped,
+            &empty_atlas(),
+            1.0,
+            100.0,
+            TextAlignment::Left,
+            Overflow::Ellipsis,
+        );
         assert!(layout.truncated);
         assert!(!layout.needs_marquee);
         assert!(!layout.fits());
@@ -273,7 +312,14 @@ mod tests {
     #[test]
     fn text_that_overflows_with_marquee_scrolls() {
         let shaped = shaped_text(200.0);
-        let layout = Layout::new(&shaped, &empty_atlas(), 1.0, 100.0, TextAlignment::Left, Overflow::Marquee);
+        let layout = Layout::new(
+            &shaped,
+            &empty_atlas(),
+            1.0,
+            100.0,
+            TextAlignment::Left,
+            Overflow::Marquee,
+        );
         assert!(!layout.truncated);
         assert!(layout.needs_marquee);
     }
@@ -281,8 +327,22 @@ mod tests {
     #[test]
     fn center_alignment_offsets_the_text() {
         let shaped = shaped_text(50.0);
-        let left = Layout::new(&shaped, &empty_atlas(), 1.0, 100.0, TextAlignment::Left, Overflow::Clip);
-        let center = Layout::new(&shaped, &empty_atlas(), 1.0, 100.0, TextAlignment::Center, Overflow::Clip);
+        let left = Layout::new(
+            &shaped,
+            &empty_atlas(),
+            1.0,
+            100.0,
+            TextAlignment::Left,
+            Overflow::Clip,
+        );
+        let center = Layout::new(
+            &shaped,
+            &empty_atlas(),
+            1.0,
+            100.0,
+            TextAlignment::Center,
+            Overflow::Clip,
+        );
         assert_eq!(left.glyphs[0].position.x, 0.0);
         assert!((center.glyphs[0].position.x - 25.0).abs() < 1e-6);
     }
@@ -290,7 +350,14 @@ mod tests {
     #[test]
     fn right_alignment_offsets_the_text() {
         let shaped = shaped_text(50.0);
-        let right = Layout::new(&shaped, &empty_atlas(), 1.0, 100.0, TextAlignment::Right, Overflow::Clip);
+        let right = Layout::new(
+            &shaped,
+            &empty_atlas(),
+            1.0,
+            100.0,
+            TextAlignment::Right,
+            Overflow::Clip,
+        );
         assert!((right.glyphs[0].position.x - 50.0).abs() < 1e-6);
     }
 
@@ -342,7 +409,10 @@ mod tests {
         let mut marquee = Marquee::new(40.0, 48.0, 0.0);
         marquee.advance(1.0, 200.0);
         let offset = marquee.advance(-1.0, 200.0);
-        assert_eq!(offset, 40.0, "negative dt must not move the marquee backwards");
+        assert_eq!(
+            offset, 40.0,
+            "negative dt must not move the marquee backwards"
+        );
     }
 
     #[test]

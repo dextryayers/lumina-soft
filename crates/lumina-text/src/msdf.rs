@@ -1,4 +1,4 @@
-﻿//! MSDF fragment shader.
+//! MSDF fragment shader.
 //!
 //! The shader reconstructs the signed distance from the three channels and
 //! produces a coverage value. The `median` of the three channels is what
@@ -60,8 +60,10 @@ pub fn validate_msdf_wgsl(source: &str) -> Option<String> {
         Ok(m) => m,
         Err(e) => return Some(e.emit_to_string(source)),
     };
-    let mut validator =
-        naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::all());
+    let mut validator = naga::valid::Validator::new(
+        naga::valid::ValidationFlags::all(),
+        naga::valid::Capabilities::all(),
+    );
     match validator.validate(&module) {
         Ok(_) => None,
         Err(e) => Some(format!("{e:?}")),
@@ -98,7 +100,10 @@ mod tests {
     #[test]
     fn the_msdf_shader_declares_the_uniforms_the_cpu_writes() {
         for name in ["screen_px_range", "smoothing", "color", "dpr"] {
-            assert!(MSDF_WGSL.contains(name), "the MSDF shader must declare {name}");
+            assert!(
+                MSDF_WGSL.contains(name),
+                "the MSDF shader must declare {name}"
+            );
         }
     }
 
@@ -106,14 +111,20 @@ mod tests {
     fn coverage_is_one_inside_and_zero_outside() {
         let inside = coverage_from_msdf(1.0, 1.0, 1.0, 1.0);
         let outside = coverage_from_msdf(0.0, 0.0, 0.0, 1.0);
-        assert!((inside - 1.0).abs() < 1e-6, "inside should be 1.0, got {inside}");
+        assert!(
+            (inside - 1.0).abs() < 1e-6,
+            "inside should be 1.0, got {inside}"
+        );
         assert!(outside.abs() < 1e-6, "outside should be 0.0, got {outside}");
     }
 
     #[test]
     fn coverage_is_smooth_at_the_boundary() {
         let mid = coverage_from_msdf(0.5, 0.5, 0.5, 1.0);
-        assert!((mid - 0.5).abs() < 1e-6, "boundary should be 0.5, got {mid}");
+        assert!(
+            (mid - 0.5).abs() < 1e-6,
+            "boundary should be 0.5, got {mid}"
+        );
     }
 
     #[test]

@@ -39,9 +39,9 @@ pub mod envelope;
 pub mod fft;
 pub mod ring;
 
-pub use ring::{RingBuffer, RingReader, RingWriter};
 pub use dsp::CapturePost;
 pub use engine::{AudioAggregates, AudioEngine, EngineSettings, SpectrumFrame};
+pub use ring::{RingBuffer, RingReader, RingWriter};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

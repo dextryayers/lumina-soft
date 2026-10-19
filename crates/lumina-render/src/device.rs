@@ -246,7 +246,10 @@ mod tests {
             backend_preference(Some(GpuBackend::Vulkan)),
             vec![GpuBackend::Vulkan]
         );
-        assert_eq!(backend_preference(Some(GpuBackend::Gl)), vec![GpuBackend::Gl]);
+        assert_eq!(
+            backend_preference(Some(GpuBackend::Gl)),
+            vec![GpuBackend::Gl]
+        );
     }
 
     #[test]
@@ -284,9 +287,13 @@ mod tests {
 
     #[test]
     fn gpu_errors_render_readable_messages() {
-        assert!(GpuError::NoAdapter(GpuBackend::Vulkan).to_string().contains("Vulkan"));
+        assert!(GpuError::NoAdapter(GpuBackend::Vulkan)
+            .to_string()
+            .contains("Vulkan"));
         assert!(GpuError::Device("boom".into()).to_string().contains("boom"));
-        assert!(GpuError::Surface("boom".into()).to_string().contains("boom"));
+        assert!(GpuError::Surface("boom".into())
+            .to_string()
+            .contains("boom"));
         assert!(GpuError::UnsupportedBackend(GpuBackend::Metal)
             .to_string()
             .contains("Metal"));
@@ -294,9 +301,18 @@ mod tests {
 
     #[test]
     fn the_wgpu_backend_mapping_covers_every_variant() {
-        assert_eq!(backend_from_wgpu(wgpu::Backend::Vulkan), ResolvedBackend::Vulkan);
-        assert_eq!(backend_from_wgpu(wgpu::Backend::Dx12), ResolvedBackend::Dx12);
-        assert_eq!(backend_from_wgpu(wgpu::Backend::Metal), ResolvedBackend::Metal);
+        assert_eq!(
+            backend_from_wgpu(wgpu::Backend::Vulkan),
+            ResolvedBackend::Vulkan
+        );
+        assert_eq!(
+            backend_from_wgpu(wgpu::Backend::Dx12),
+            ResolvedBackend::Dx12
+        );
+        assert_eq!(
+            backend_from_wgpu(wgpu::Backend::Metal),
+            ResolvedBackend::Metal
+        );
         assert_eq!(backend_from_wgpu(wgpu::Backend::Gl), ResolvedBackend::Gl);
         // An unknown backend falls back to GL rather than panicking, because a
         // new wgpu backend should degrade rather than take the app down.

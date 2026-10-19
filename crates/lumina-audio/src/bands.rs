@@ -69,8 +69,14 @@ impl BandMapper {
         tilt_db_per_octave: f32,
         sensitivity_db: f32,
     ) -> Self {
-        assert!(min_hz.is_finite() && min_hz > 0.0, "min_hz must be positive");
-        assert!(max_hz.is_finite() && max_hz > min_hz, "max_hz must exceed min_hz");
+        assert!(
+            min_hz.is_finite() && min_hz > 0.0,
+            "min_hz must be positive"
+        );
+        assert!(
+            max_hz.is_finite() && max_hz > min_hz,
+            "max_hz must exceed min_hz"
+        );
 
         let bin_count = window_size / 2;
         let nyquist_hz = sample_rate.max(8_000) as f32 / 2.0;
@@ -331,7 +337,8 @@ mod tests {
         boosted.map(&magnitudes, &mut b);
         for (i, (&quiet, &loud)) in a.iter().zip(b.iter()).enumerate() {
             assert!(
-                (loud - quiet - 6.0).abs() < 0.1 * quiet.abs() + 1.0 || (quiet >= 6.0 && loud >= 6.0),
+                (loud - quiet - 6.0).abs() < 0.1 * quiet.abs() + 1.0
+                    || (quiet >= 6.0 && loud >= 6.0),
                 "band {i}: {quiet} + 6 dB became {loud} after clamping"
             );
         }

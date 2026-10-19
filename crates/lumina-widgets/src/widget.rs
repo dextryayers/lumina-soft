@@ -296,7 +296,15 @@ impl Quad {
     /// Construct a quad.
     #[must_use]
     pub fn new(position: Vec2, size: Size, uv_min: Vec2, uv_max: Vec2, color: [f32; 4]) -> Self {
-        Self { position, size, uv_min, uv_max, color, radius: 0.0, z_order: 0 }
+        Self {
+            position,
+            size,
+            uv_min,
+            uv_max,
+            color,
+            radius: 0.0,
+            z_order: 0,
+        }
     }
 
     /// Set the corner radius.
@@ -354,7 +362,7 @@ impl std::fmt::Debug for WidgetRegistry {
             .field("visible_count", &self.visible_count)
             .field("last_state", &self.last_state)
             .field("hovered_id", &self.hovered_id)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -462,11 +470,7 @@ impl WidgetRegistry {
             return;
         }
         let order = &self.config_order;
-        let mut paired: Vec<_> = self
-            .widgets
-            .drain(..)
-            .zip(self.entries.drain(..))
-            .collect();
+        let mut paired: Vec<_> = self.widgets.drain(..).zip(self.entries.drain(..)).collect();
         paired.sort_by_key(|(widget, _)| {
             order
                 .iter()
@@ -481,12 +485,18 @@ impl WidgetRegistry {
     /// Look up a widget by id.
     #[must_use]
     pub fn get(&self, id: &str) -> Option<&dyn Widget> {
-        self.widgets.iter().find(|w| w.id() == id).map(AsRef::as_ref)
+        self.widgets
+            .iter()
+            .find(|w| w.id() == id)
+            .map(AsRef::as_ref)
     }
 
     /// Look up a widget by id, mutably.
     pub fn get_mut(&mut self, id: &str) -> Option<&mut (dyn Widget + 'static)> {
-        self.widgets.iter_mut().find(|w| w.id() == id).map(|b| &mut **b)
+        self.widgets
+            .iter_mut()
+            .find(|w| w.id() == id)
+            .map(|b| &mut **b)
     }
 
     /// All registered widgets.
@@ -629,12 +639,7 @@ impl WidgetRegistry {
     /// every frame while the pointer stays there.
     ///
     /// Returns `true` when a widget consumed the event.
-    pub fn route_input(
-        &mut self,
-        ev: &WidgetInput,
-        ctx: &WidgetContext,
-        rects: &[Rect],
-    ) -> bool {
+    pub fn route_input(&mut self, ev: &WidgetInput, ctx: &WidgetContext, rects: &[Rect]) -> bool {
         if !ctx.enabled {
             return false;
         }
@@ -759,26 +764,16 @@ impl WidgetRegistry {
         self.hovered_id = new_id;
         if let Some(old_id) = old_id {
             if let Some(index) = self.widgets.iter().position(|w| w.id() == old_id) {
-                let mut widget_ctx = widget_context(
-                    ctx,
-                    old_id,
-                    &self.entries[index],
-                    ctx.available,
-                    false,
-                );
+                let mut widget_ctx =
+                    widget_context(ctx, old_id, &self.entries[index], ctx.available, false);
                 widget_ctx.hovered = false;
                 self.widgets[index].on_state_leave(IslandState::Hover, &widget_ctx);
             }
         }
         if let Some(new_id) = new_id {
             if let Some(index) = self.widgets.iter().position(|w| w.id() == new_id) {
-                let mut widget_ctx = widget_context(
-                    ctx,
-                    new_id,
-                    &self.entries[index],
-                    ctx.available,
-                    true,
-                );
+                let mut widget_ctx =
+                    widget_context(ctx, new_id, &self.entries[index], ctx.available, true);
                 widget_ctx.hovered = true;
                 self.widgets[index].on_state_enter(IslandState::Hover, &widget_ctx);
             }
@@ -798,7 +793,11 @@ mod tests {
 
     impl TestWidget {
         fn new(id: &'static str) -> Self {
-            Self { id, show_count: 0, hide_count: 0 }
+            Self {
+                id,
+                show_count: 0,
+                hide_count: 0,
+            }
         }
     }
 
@@ -846,7 +845,13 @@ mod tests {
     #[test]
     fn a_draw_list_clears_but_keeps_capacity() {
         let mut list = DrawList::new();
-        list.push(Quad::new(Vec2::ZERO, Size::new(10.0, 10.0), Vec2::ZERO, Vec2::ZERO, [1.0; 4]));
+        list.push(Quad::new(
+            Vec2::ZERO,
+            Size::new(10.0, 10.0),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            [1.0; 4],
+        ));
         assert_eq!(list.len(), 1);
         list.clear();
         assert_eq!(list.len(), 0);
@@ -855,21 +860,39 @@ mod tests {
 
     #[test]
     fn a_quad_knows_its_rectangle() {
-        let quad = Quad::new(Vec2::new(10.0, 20.0), Size::new(30.0, 40.0), Vec2::ZERO, Vec2::ZERO, [1.0; 4]);
+        let quad = Quad::new(
+            Vec2::new(10.0, 20.0),
+            Size::new(30.0, 40.0),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            [1.0; 4],
+        );
         assert_eq!(quad.rect(), Rect::new(10.0, 20.0, 30.0, 40.0));
     }
 
     #[test]
     fn a_quad_can_have_a_corner_radius() {
-        let quad = Quad::new(Vec2::ZERO, Size::new(10.0, 10.0), Vec2::ZERO, Vec2::ZERO, [1.0; 4])
-            .with_radius(5.0);
+        let quad = Quad::new(
+            Vec2::ZERO,
+            Size::new(10.0, 10.0),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            [1.0; 4],
+        )
+        .with_radius(5.0);
         assert_eq!(quad.radius, 5.0);
     }
 
     #[test]
     fn a_quad_can_have_a_z_order() {
-        let quad = Quad::new(Vec2::ZERO, Size::new(10.0, 10.0), Vec2::ZERO, Vec2::ZERO, [1.0; 4])
-            .with_z_order(5);
+        let quad = Quad::new(
+            Vec2::ZERO,
+            Size::new(10.0, 10.0),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            [1.0; 4],
+        )
+        .with_z_order(5);
         assert_eq!(quad.z_order, 5);
     }
 
@@ -878,7 +901,10 @@ mod tests {
         let mut registry = WidgetRegistry::new();
         registry.register(Box::new(TestWidget::new("test")));
         let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(100.0, 40.0));
-        assert_eq!(registry.requests(&ctx), [] as [lumina_core::state::StateRequest; 0]);
+        assert_eq!(
+            registry.requests(&ctx),
+            [] as [lumina_core::state::StateRequest; 0]
+        );
     }
 
     #[test]
@@ -888,7 +914,8 @@ mod tests {
         let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(100.0, 40.0));
         let rects = registry.layout(&ctx);
         assert_ne!(rects, [] as [lumina_core::Rect; 0]);
-        let consumed = registry.route_input(&WidgetInput::Click(Vec2::new(50.0, 20.0)), &ctx, &rects);
+        let consumed =
+            registry.route_input(&WidgetInput::Click(Vec2::new(50.0, 20.0)), &ctx, &rects);
         assert!(!consumed, "the test widget does not consume input");
     }
 
@@ -916,10 +943,7 @@ mod tests {
 
     #[test]
     fn config_driven_ordering_sorts_widgets() {
-        let mut registry = WidgetRegistry::with_config(
-            vec!["b".to_string(), "a".to_string()],
-            10,
-        );
+        let mut registry = WidgetRegistry::with_config(vec!["b".to_string(), "a".to_string()], 10);
         registry.register(Box::new(TestWidget::new("a")));
         registry.register(Box::new(TestWidget::new("b")));
         assert_eq!(registry.widgets()[0].id(), "b");
@@ -979,10 +1003,7 @@ mod tests {
 
     #[test]
     fn a_disabled_widget_takes_no_space_and_is_not_drawn() {
-        let mut registry = WidgetRegistry::with_config(
-            vec!["a".to_string(), "b".to_string()],
-            2,
-        );
+        let mut registry = WidgetRegistry::with_config(vec!["a".to_string(), "b".to_string()], 2);
         registry.register(Box::new(TestWidget::new("a")));
         registry.register_with(
             Box::new(TestWidget::new("b")),
@@ -1102,15 +1123,7 @@ mod tests {
         registry.register(Box::new(ConsumeWidget));
         let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(300.0, 40.0));
         let rects = registry.layout(&ctx);
-        assert!(registry.route_input(
-            &WidgetInput::Click(Vec2::new(50.0, 20.0)),
-            &ctx,
-            &rects,
-        ));
-        assert!(!registry.route_input(
-            &WidgetInput::Click(Vec2::new(200.0, 20.0)),
-            &ctx,
-            &rects,
-        ));
+        assert!(registry.route_input(&WidgetInput::Click(Vec2::new(50.0, 20.0)), &ctx, &rects,));
+        assert!(!registry.route_input(&WidgetInput::Click(Vec2::new(200.0, 20.0)), &ctx, &rects,));
     }
 }

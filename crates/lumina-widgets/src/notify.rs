@@ -1,4 +1,4 @@
-﻿//! The notification widget: a transient card with title, body, and action.
+//! The notification widget: a transient card with title, body, and action.
 //!
 //! # Queue
 //!
@@ -227,7 +227,7 @@ impl NotificationWidget {
         )
     }
 
-    fn draw_card(&self, out: &mut DrawList, rect: Rect, notification: &IslandNotification, now_ms: u64) {
+    fn draw_card(out: &mut DrawList, rect: Rect, notification: &IslandNotification, now_ms: u64) {
         paint::block(out, rect, [0.09, 0.1, 0.12, 0.96], 10.0);
         paint::block(
             out,
@@ -240,14 +240,16 @@ impl NotificationWidget {
         paint::block(out, icon, ACCENT, 5.0);
 
         let text_x = rect.x + 34.0;
-        let text_width = (rect.width - 44.0 - if notification.action.is_some() { 56.0 } else { 0.0 })
-            .max(1.0);
+        let text_width = (rect.width
+            - 44.0
+            - if notification.action.is_some() {
+                56.0
+            } else {
+                0.0
+            })
+        .max(1.0);
         paint::label(out, Rect::new(text_x, rect.y + 6.0, text_width, 10.0), TEXT);
-        paint::label(
-            out,
-            Rect::new(text_x, rect.y + 20.0, text_width, 8.0),
-            DIM,
-        );
+        paint::label(out, Rect::new(text_x, rect.y + 20.0, text_width, 8.0), DIM);
 
         if notification.action.is_some() {
             let action = Self::action_rect(rect);
@@ -299,7 +301,7 @@ impl Widget for NotificationWidget {
             .now
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_millis() as u64);
-        self.draw_card(out, rect, notification, now_ms);
+        Self::draw_card(out, rect, notification, now_ms);
     }
 
     fn on_input(&mut self, ev: &WidgetInput, _ctx: &WidgetContext, rect: Rect) -> bool {
@@ -405,11 +407,7 @@ mod tests {
     fn clicking_dismisses_and_records_the_id() {
         let mut widget = NotificationWidget::new();
         let id = widget.push("title", "body", 5_000, 0);
-        let consumed = widget.on_input(
-            &WidgetInput::Click(Vec2::new(40.0, 30.0)),
-            &ctx(),
-            rect(),
-        );
+        let consumed = widget.on_input(&WidgetInput::Click(Vec2::new(40.0, 30.0)), &ctx(), rect());
         assert!(consumed);
         assert_eq!(widget.take_dismissed(), Some(id));
         assert!(widget.is_empty());
@@ -421,11 +419,7 @@ mod tests {
         widget.push_notification(
             IslandNotification::new(7, "title", "body", 0, 5_000).with_action("Open"),
         );
-        widget.on_input(
-            &WidgetInput::Click(Vec2::new(275.0, 33.0)),
-            &ctx(),
-            rect(),
-        );
+        widget.on_input(&WidgetInput::Click(Vec2::new(275.0, 33.0)), &ctx(), rect());
         assert_eq!(widget.take_action(), Some(7));
     }
 
@@ -433,11 +427,7 @@ mod tests {
     fn a_card_with_no_action_does_not_record_an_action() {
         let mut widget = NotificationWidget::new();
         widget.push("title", "body", 5_000, 0);
-        widget.on_input(
-            &WidgetInput::Click(Vec2::new(275.0, 33.0)),
-            &ctx(),
-            rect(),
-        );
+        widget.on_input(&WidgetInput::Click(Vec2::new(275.0, 33.0)), &ctx(), rect());
         assert_eq!(widget.take_action(), None);
     }
 
@@ -468,10 +458,8 @@ mod tests {
 
     #[test]
     fn accent_colors_are_converted_from_bytes() {
-        let notification = IslandNotification::new(1, "t", "b", 0, 1_000)
-            .with_accent([255, 128, 0, 255]);
+        let notification =
+            IslandNotification::new(1, "t", "b", 0, 1_000).with_accent([255, 128, 0, 255]);
         assert_eq!(notification.accent_color(), [1.0, 128.0 / 255.0, 0.0, 1.0]);
     }
 }
-
-

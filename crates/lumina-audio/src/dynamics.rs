@@ -329,7 +329,10 @@ mod tests {
     fn gate_smoothing_ramps_down_over_two_hundred_milliseconds() {
         let mut smoothing = GateSmoothing::new(ANALYSIS_RATE);
         smoothing.reset();
-        assert!((smoothing.step(false) - 1.0).abs() < 1e-3, "active streams stay open");
+        assert!(
+            (smoothing.step(false) - 1.0).abs() < 1e-3,
+            "active streams stay open"
+        );
         // With a 200 ms time constant the ramp is at roughly 40% after one
         // ramp's worth of frames (9 at 46.875 Hz), and well below a tenth
         // after three constants' worth.

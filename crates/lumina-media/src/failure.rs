@@ -218,19 +218,17 @@ impl FailureAwareWatcher {
         }
 
         // Find the best session
-        let best = sessions
-            .iter()
-            .max_by_key(|s| {
-                let snapshot = s.snapshot();
-                let mut score = 0;
-                if snapshot.is_playing() {
-                    score += 100;
-                }
-                if snapshot.metadata.is_complete() {
-                    score += 30;
-                }
-                score
-            })?;
+        let best = sessions.iter().max_by_key(|s| {
+            let snapshot = s.snapshot();
+            let mut score = 0;
+            if snapshot.is_playing() {
+                score += 100;
+            }
+            if snapshot.metadata.is_complete() {
+                score += 30;
+            }
+            score
+        })?;
 
         let snapshot = best.snapshot();
         self.last_snapshot = Some(snapshot.clone());
@@ -241,11 +239,7 @@ impl FailureAwareWatcher {
     ///
     /// If the session disappeared, the snapshot is cleared and the action
     /// is returned.
-    pub fn handle_command_failure(
-        &mut self,
-        identity: &str,
-        error: &str,
-    ) -> FailureAction {
+    pub fn handle_command_failure(&mut self, identity: &str, error: &str) -> FailureAction {
         if error.contains("disappeared") || error.contains("gone") {
             self.last_snapshot = None;
             self.handler.handle_session_disappeared(identity)
@@ -375,7 +369,7 @@ mod tests {
 
     #[test]
     fn failure_aware_watcher_poll_returns_snapshot() {
-        use crate::session::{Metadata, MediaCapabilities};
+        use crate::session::{MediaCapabilities, Metadata};
         use std::sync::LazyLock;
         use std::time::Duration;
 
@@ -459,9 +453,18 @@ mod tests {
     #[test]
     fn failure_action_has_correct_values() {
         assert_eq!(FailureAction::None, FailureAction::None);
-        assert_eq!(FailureAction::ClearAndCollapse, FailureAction::ClearAndCollapse);
-        assert_eq!(FailureAction::ReadOnlyProgress, FailureAction::ReadOnlyProgress);
-        assert_eq!(FailureAction::ShowGenericIcon, FailureAction::ShowGenericIcon);
+        assert_eq!(
+            FailureAction::ClearAndCollapse,
+            FailureAction::ClearAndCollapse
+        );
+        assert_eq!(
+            FailureAction::ReadOnlyProgress,
+            FailureAction::ReadOnlyProgress
+        );
+        assert_eq!(
+            FailureAction::ShowGenericIcon,
+            FailureAction::ShowGenericIcon
+        );
         assert_eq!(FailureAction::HideWidget, FailureAction::HideWidget);
     }
 }

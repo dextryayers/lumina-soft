@@ -65,9 +65,7 @@ pub fn build_registry(config: &Config) -> WidgetRegistry {
         registry.register(Box::new(WeatherWidget::from_config(&config.weather)));
     }
     if order.iter().any(|id| id == "shortcuts") {
-        registry.register(Box::new(ShortcutsWidget::from_config(
-            &config.shortcuts,
-        )));
+        registry.register(Box::new(ShortcutsWidget::from_config(&config.shortcuts)));
     }
     if order.iter().any(|id| id == "notify") {
         registry.register(Box::new(NotificationWidget::new()));

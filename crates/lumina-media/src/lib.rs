@@ -42,8 +42,14 @@ pub mod gsmtc;
 pub use art::{AlbumArt, ArtCache, ArtPipeline};
 pub use failure::{FailureAction, FailureAwareWatcher, FailureHandler};
 pub use player_cycle::PlayerCycler;
-pub use ranking::{best_snapshot, best_snapshot_with_defaults, rank_sessions, rank_sessions_with_defaults, MediaWatcher, RankingConfig, RankedSession};
-pub use session::{format_duration, MediaCapabilities, MediaSession, MediaSnapshot, Metadata, PlaybackStatus, PositionTracker};
+pub use ranking::{
+    best_snapshot, best_snapshot_with_defaults, rank_sessions, rank_sessions_with_defaults,
+    MediaWatcher, RankedSession, RankingConfig,
+};
+pub use session::{
+    format_duration, MediaCapabilities, MediaSession, MediaSnapshot, Metadata, PlaybackStatus,
+    PositionTracker,
+};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

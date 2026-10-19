@@ -182,15 +182,21 @@ impl Widget for MetricsWidget {
             let (fraction, color) = match row {
                 Row::Cpu => (
                     self.snapshot.cpu_percent.map_or(0.0, |v| v / 100.0),
-                    self.snapshot.cpu_percent.map_or(MUTED, paint::severity_color),
+                    self.snapshot
+                        .cpu_percent
+                        .map_or(MUTED, paint::severity_color),
                 ),
                 Row::Ram => (
                     self.snapshot.ram_percent.map_or(0.0, |v| v / 100.0),
-                    self.snapshot.ram_percent.map_or(MUTED, paint::severity_color),
+                    self.snapshot
+                        .ram_percent
+                        .map_or(MUTED, paint::severity_color),
                 ),
                 Row::Gpu => (
                     self.snapshot.gpu_percent.map_or(0.0, |v| v / 100.0),
-                    self.snapshot.gpu_percent.map_or(MUTED, paint::severity_color),
+                    self.snapshot
+                        .gpu_percent
+                        .map_or(MUTED, paint::severity_color),
                 ),
                 Row::Network => (
                     {
@@ -204,7 +210,12 @@ impl Widget for MetricsWidget {
             paint::gauge(out, gauge_rect, fraction, color, 2.0);
             paint::label(out, Rect::new(line.x, line.y + 7.0, line.width, 1.0), MUTED);
 
-            let spark_rect = Rect::new(line.x, line.y + 9.0, line.width, (row_height - 10.0).max(1.0));
+            let spark_rect = Rect::new(
+                line.x,
+                line.y + 9.0,
+                line.width,
+                (row_height - 10.0).max(1.0),
+            );
             let history = match row {
                 Row::Cpu => &self.cpu_history,
                 Row::Ram => &self.ram_history,

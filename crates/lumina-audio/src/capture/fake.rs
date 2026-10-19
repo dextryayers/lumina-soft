@@ -6,7 +6,7 @@
 //! downstream stage (downmix, DC removal, FFT, bands, envelope) runs the
 //! exact same code a live stream would.
 
-use super::{CaptureError, CaptureFormat, CaptureRequest, ReadySignal, spawn_worker, stop_flagged};
+use super::{spawn_worker, stop_flagged, CaptureError, CaptureFormat, CaptureRequest, ReadySignal};
 use crate::ring::RingWriter;
 use std::f32::consts::TAU;
 use std::sync::Arc;
@@ -37,7 +37,9 @@ impl FakePattern {
     fn sample(self, index: u64) -> f32 {
         // A 32 bit LCG keeps noise deterministic yet flat-ish.
         fn lcg(state: &mut u64) -> f32 {
-            *state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            *state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
             let bits = (*state >> 33) as u32;
             (bits as f32 / u32::MAX as f32) * 2.0 - 1.0
         }
@@ -61,7 +63,11 @@ impl FakePattern {
 /// Spawn a fake capture worker writing `pattern` into the ring.
 ///
 /// The negotiated stereo 48 kHz format matches the PLAN's reference mix.
-pub fn spawn(request: &CaptureRequest, writer: RingWriter, pattern: FakePattern) -> Result<super::RunningCapture, CaptureError> {
+pub fn spawn(
+    request: &CaptureRequest,
+    writer: RingWriter,
+    pattern: FakePattern,
+) -> Result<super::RunningCapture, CaptureError> {
     let _ = request;
     spawn_worker("fake", move |stop: Arc<_>, signal: ReadySignal| {
         let format = CaptureFormat {

@@ -41,6 +41,17 @@ rules run after per-key validation and are reported at the same severity, so a
 user sees all the problems in their file in one pass rather than fixing them one
 run at a time.
 
+## Widgets, scripts, and hotkeys
+
+`[widgets.<id>]` overrides the shared `[layout]` defaults per widget: `enabled`,
+`flex`, `margin_leading`, and `rgb`. Unknown ids are dropped with a warning and
+out-of-range values are clamped, so a typo cannot hide a widget or break the
+strip. `[script]` entries are validated with the same philosophy: the command is
+split without a shell, lines are capped at eight and 120 columns, and a bad
+entry is disabled rather than failing the whole file. `[hotkeys]` strings are
+parsed, normalized, and checked for duplicates; an unparseable binding is
+cleared and reported, and two actions may not silently share a combination.
+
 ## Hot reload
 
 `watch` wraps `notify` with a 150 ms debounce, because every editor writes files

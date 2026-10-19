@@ -20,7 +20,6 @@
 //! first frame. A pipeline that compiles lazily costs a 200 ms hitch on the
 //! first expand, which is exactly when the user is watching.
 
-
 use crate::shaders::{self, ISLAND_WGSL};
 use crate::uniforms::IslandUniforms;
 
@@ -144,9 +143,14 @@ impl IslandPipeline {
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
-            });
+        });
 
-        Ok(Self { pipeline, bind_group, uniform_buffer, is_fallback })
+        Ok(Self {
+            pipeline,
+            bind_group,
+            uniform_buffer,
+            is_fallback,
+        })
     }
 
     /// Write the uniforms for the next draw.
@@ -222,7 +226,10 @@ impl ValidatedShader {
     #[must_use]
     pub fn primary() -> Option<Self> {
         if shaders::validate_wgsl(ISLAND_WGSL).is_none() {
-            Some(Self { source: ISLAND_WGSL, is_fallback: false })
+            Some(Self {
+                source: ISLAND_WGSL,
+                is_fallback: false,
+            })
         } else {
             None
         }
@@ -231,7 +238,10 @@ impl ValidatedShader {
     /// The fallback shader, always available.
     #[must_use]
     pub fn fallback() -> Self {
-        Self { source: FALLBACK_WGSL, is_fallback: true }
+        Self {
+            source: FALLBACK_WGSL,
+            is_fallback: true,
+        }
     }
 }
 
@@ -269,8 +279,13 @@ mod tests {
 
     #[test]
     fn a_validated_shader_reports_which_variant_it_is() {
-        assert!(ValidatedShader::fallback().is_fallback, "the fallback must identify itself");
-        if let Some(primary) = ValidatedShader::primary() { assert!(!primary.is_fallback) }
+        assert!(
+            ValidatedShader::fallback().is_fallback,
+            "the fallback must identify itself"
+        );
+        if let Some(primary) = ValidatedShader::primary() {
+            assert!(!primary.is_fallback);
+        }
     }
 
     #[test]

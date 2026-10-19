@@ -1212,7 +1212,7 @@ impl ShortcutConfig {
 ///
 /// Each entry is a command whose recent output is rendered as a card. Commands
 /// run directly, without a shell, on a bounded interval with a hard timeout.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ScriptConfig {
     /// Master switch. Individual entries can still be disabled by the service
@@ -1220,15 +1220,6 @@ pub struct ScriptConfig {
     pub enabled: bool,
     /// The configured scripts.
     pub entries: Vec<ScriptEntry>,
-}
-
-impl Default for ScriptConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            entries: Vec::new(),
-        }
-    }
 }
 
 /// One script entry.

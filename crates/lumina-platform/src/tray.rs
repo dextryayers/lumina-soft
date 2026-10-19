@@ -321,7 +321,11 @@ impl TrayMenu {
         let items = vec![
             TrayMenuItem::action(
                 "toggle",
-                if state.visible { "Hide Lumina" } else { "Show Lumina" },
+                if state.visible {
+                    "Hide Lumina"
+                } else {
+                    "Show Lumina"
+                },
                 TrayCommand::ToggleVisibility,
             )
             .checked(state.visible),
@@ -375,10 +379,7 @@ impl TrayMenu {
     #[must_use]
     pub fn len(&self) -> usize {
         fn count(items: &[TrayMenuItem]) -> usize {
-            items
-                .iter()
-                .map(|item| 1 + count(&item.children))
-                .sum()
+            items.iter().map(|item| 1 + count(&item.children)).sum()
         }
         count(&self.items)
     }
@@ -386,7 +387,9 @@ impl TrayMenu {
     /// True when the menu has no entries apart from separators.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.items.iter().all(|item| item.command.is_none() && item.children.is_empty())
+        self.items
+            .iter()
+            .all(|item| item.command.is_none() && item.children.is_empty())
     }
 }
 
@@ -478,7 +481,10 @@ mod tests {
     fn the_menu_mirrors_the_layout_order() {
         let config = Config::default();
         let menu = TrayMenu::build(&config, TrayMenuState::default());
-        assert_eq!(menu.find("widget.clock").map(|item| item.label.as_str()), Some("Clock"));
+        assert_eq!(
+            menu.find("widget.clock").map(|item| item.label.as_str()),
+            Some("Clock")
+        );
         assert_eq!(
             menu.command("widget.clock"),
             Some(&TrayCommand::ShowWidget("clock".to_string()))

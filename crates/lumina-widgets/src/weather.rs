@@ -164,7 +164,7 @@ impl WeatherWidget {
         self.next_attempt = Some(now + RETRY_FLOOR);
     }
 
-/// The temperature rendered with the configured unit, for example `"21°C"`.
+    /// The temperature rendered with the configured unit, for example `"21°C"`.
     #[must_use]
     pub fn temperature_text(&self, now: Instant) -> Option<String> {
         let (snapshot, _) = self.cache.stale(now)?;
@@ -182,7 +182,7 @@ impl WeatherWidget {
         Some(self.cache.latest()?.condition.label())
     }
 
-    fn draw_icon(&self, out: &mut DrawList, icon: Rect, snapshot: &WeatherSnapshot, stale: bool) {
+    fn draw_icon(out: &mut DrawList, icon: Rect, snapshot: &WeatherSnapshot, stale: bool) {
         let color = if stale {
             [1.0, 1.0, 1.0, 0.45]
         } else {
@@ -198,15 +198,27 @@ impl WeatherWidget {
                 let dot = icon.width.min(icon.height) * 0.55;
                 paint::block(
                     out,
-                    Rect::new(icon.x + (icon.width - dot) * 0.5, icon.y + (icon.height - dot) * 0.5, dot, dot),
+                    Rect::new(
+                        icon.x + (icon.width - dot) * 0.5,
+                        icon.y + (icon.height - dot) * 0.5,
+                        dot,
+                        dot,
+                    ),
                     color,
                     dot * 0.5,
                 );
             }
-            WeatherCondition::PartlyCloudy | WeatherCondition::Cloudy | WeatherCondition::Unknown => {
+            WeatherCondition::PartlyCloudy
+            | WeatherCondition::Cloudy
+            | WeatherCondition::Unknown => {
                 paint::block(
                     out,
-                    Rect::new(icon.x + 1.0, icon.y + 5.0, icon.width - 2.0, icon.height - 7.0),
+                    Rect::new(
+                        icon.x + 1.0,
+                        icon.y + 5.0,
+                        icon.width - 2.0,
+                        icon.height - 7.0,
+                    ),
                     color,
                     (icon.height - 7.0) * 0.5,
                 );
@@ -223,7 +235,12 @@ impl WeatherWidget {
                 for row in 0..3 {
                     paint::block(
                         out,
-                        Rect::new(icon.x + row as f32, icon.y + 4.0 + row as f32 * 5.0, icon.width - 2.0 * row as f32, 2.0),
+                        Rect::new(
+                            icon.x + row as f32,
+                            icon.y + 4.0 + row as f32 * 5.0,
+                            icon.width - 2.0 * row as f32,
+                            2.0,
+                        ),
                         color,
                         1.0,
                     );
@@ -232,14 +249,24 @@ impl WeatherWidget {
             WeatherCondition::Drizzle | WeatherCondition::Rain => {
                 paint::block(
                     out,
-                    Rect::new(icon.x + 1.0, icon.y + 2.0, icon.width - 2.0, icon.height * 0.55),
+                    Rect::new(
+                        icon.x + 1.0,
+                        icon.y + 2.0,
+                        icon.width - 2.0,
+                        icon.height * 0.55,
+                    ),
                     color,
                     icon.height * 0.3,
                 );
                 for drop in 0..3 {
                     paint::block(
                         out,
-                        Rect::new(icon.x + 3.0 + drop as f32 * 5.0, icon.y + icon.height - 5.0, 2.0, 4.0),
+                        Rect::new(
+                            icon.x + 3.0 + drop as f32 * 5.0,
+                            icon.y + icon.height - 5.0,
+                            2.0,
+                            4.0,
+                        ),
                         ACCENT,
                         1.0,
                     );
@@ -255,13 +282,23 @@ impl WeatherWidget {
             WeatherCondition::Thunder => {
                 paint::block(
                     out,
-                    Rect::new(icon.x + 2.0, icon.y + 1.0, icon.width - 4.0, icon.height * 0.5),
+                    Rect::new(
+                        icon.x + 2.0,
+                        icon.y + 1.0,
+                        icon.width - 4.0,
+                        icon.height * 0.5,
+                    ),
                     color,
                     icon.height * 0.25,
                 );
                 paint::block(
                     out,
-                    Rect::new(icon.x + icon.width * 0.45, icon.y + icon.height * 0.45, 4.0, icon.height * 0.5),
+                    Rect::new(
+                        icon.x + icon.width * 0.45,
+                        icon.y + icon.height * 0.45,
+                        4.0,
+                        icon.height * 0.5,
+                    ),
                     WARN,
                     1.0,
                 );
@@ -300,18 +337,33 @@ impl Widget for WeatherWidget {
         };
         let snapshot = *snapshot;
 
-        let icon = Rect::new(rect.x + 4.0, rect.y + (rect.height - 20.0) * 0.5, 20.0, 20.0);
-        self.draw_icon(out, icon, &snapshot, stale);
+        let icon = Rect::new(
+            rect.x + 4.0,
+            rect.y + (rect.height - 20.0) * 0.5,
+            20.0,
+            20.0,
+        );
+        Self::draw_icon(out, icon, &snapshot, stale);
 
         let text_x = icon.right() + 8.0;
         paint::label(
             out,
-            Rect::new(text_x, rect.y + 6.0, (rect.right() - text_x - 4.0).max(1.0), 10.0),
+            Rect::new(
+                text_x,
+                rect.y + 6.0,
+                (rect.right() - text_x - 4.0).max(1.0),
+                10.0,
+            ),
             if stale { MUTED } else { TEXT },
         );
         paint::label(
             out,
-            Rect::new(text_x, rect.y + 19.0, (rect.right() - text_x - 4.0).max(1.0), 6.0),
+            Rect::new(
+                text_x,
+                rect.y + 19.0,
+                (rect.right() - text_x - 4.0).max(1.0),
+                6.0,
+            ),
             DIM,
         );
         if stale {
@@ -477,8 +529,7 @@ fn condition_from_owm(code: u16) -> WeatherCondition {
         300..=321 => WeatherCondition::Drizzle,
         500..=531 => WeatherCondition::Rain,
         600..=622 => WeatherCondition::Snow,
-        701 | 741 => WeatherCondition::Fog,
-        711 | 721 | 731 | 751 | 761 | 762 | 771 | 781 => WeatherCondition::Fog,
+        701 | 711 | 721 | 731 | 741 | 751 | 761 | 762 | 771 | 781 => WeatherCondition::Fog,
         800 => WeatherCondition::Clear,
         801 | 802 => WeatherCondition::PartlyCloudy,
         803 | 804 => WeatherCondition::Cloudy,
@@ -630,9 +681,7 @@ mod tests {
         }
         let now = Instant::now();
         let mut widget = WeatherWidget::from_config(&config());
-        let error = widget
-            .refresh(&Failing, now)
-            .expect_err("transport fails");
+        let error = widget.refresh(&Failing, now).expect_err("transport fails");
         assert!(matches!(error, WeatherError::Http(_)));
         widget.record_failure(&error, now);
         assert!(!widget.needs_refresh(now));
@@ -718,4 +767,3 @@ mod tests {
         assert_eq!(widget.temperature_text(now).as_deref(), Some("65°F"));
     }
 }
-

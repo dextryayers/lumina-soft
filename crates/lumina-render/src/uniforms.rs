@@ -104,7 +104,11 @@ impl IslandUniforms {
         params: FrameParams,
     ) -> Self {
         let size = geometry.size();
-        let dpr = if params.dpr.is_finite() && params.dpr > 0.0 { params.dpr } else { 1.0 };
+        let dpr = if params.dpr.is_finite() && params.dpr > 0.0 {
+            params.dpr
+        } else {
+            1.0
+        };
         let scale = dpr;
 
         let effective_radius = geometry.effective_radius();
@@ -128,8 +132,16 @@ impl IslandUniforms {
             noise_strength: appearance.noise_strength.max(0.0),
             origin_px: params.position,
             inv_extent: Vec2::new(
-                if size.width > 0.0 { 1.0 / (size.width * 0.5 * scale) } else { 0.0 },
-                if size.height > 0.0 { 1.0 / (size.height * 0.5 * scale) } else { 0.0 },
+                if size.width > 0.0 {
+                    1.0 / (size.width * 0.5 * scale)
+                } else {
+                    0.0
+                },
+                if size.height > 0.0 {
+                    1.0 / (size.height * 0.5 * scale)
+                } else {
+                    0.0
+                },
             ),
             resolution: params.resolution,
             dpr,
@@ -146,10 +158,7 @@ impl IslandUniforms {
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         unsafe {
-            std::slice::from_raw_parts(
-                std::ptr::from_ref(self).cast::<u8>(),
-                Self::SIZE as usize,
-            )
+            std::slice::from_raw_parts(std::ptr::from_ref(self).cast::<u8>(), Self::SIZE as usize)
         }
     }
 
@@ -179,7 +188,10 @@ impl StateFrame {
     /// The frame for a state.
     #[must_use]
     pub fn for_state(state: IslandState) -> Self {
-        Self { geometry: state.geometry(), content_opacity: state.content_opacity() }
+        Self {
+            geometry: state.geometry(),
+            content_opacity: state.content_opacity(),
+        }
     }
 }
 
@@ -192,7 +204,11 @@ mod tests {
         // The shader declares a struct that must match this layout. If this
         // grows past 64 KB the upload fails, and if it shrinks the shader reads
         // garbage.
-        assert_eq!(IslandUniforms::SIZE, 136, "the uniform struct must be 136 bytes");
+        assert_eq!(
+            IslandUniforms::SIZE,
+            136,
+            "the uniform struct must be 136 bytes"
+        );
     }
 
     #[test]
@@ -303,7 +319,10 @@ mod tests {
             uniforms.gradient_strength,
         ];
         for value in values {
-            assert!(value.is_finite(), "a non-finite uniform would corrupt the shape");
+            assert!(
+                value.is_finite(),
+                "a non-finite uniform would corrupt the shape"
+            );
         }
     }
 

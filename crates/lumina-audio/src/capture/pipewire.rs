@@ -23,8 +23,10 @@ use super::{CaptureError, CaptureRequest, RunningCapture};
 
 /// Where the pipewire pulse compatibility socket usually lives.
 pub fn compat_socket_dir() -> std::path::PathBuf {
-    let base = std::env::var_os("XDG_RUNTIME_DIR")
-        .map_or_else(|| std::path::PathBuf::from("/run/user/0"), std::path::PathBuf::from);
+    let base = std::env::var_os("XDG_RUNTIME_DIR").map_or_else(
+        || std::path::PathBuf::from("/run/user/0"),
+        std::path::PathBuf::from,
+    );
     base.join("pulse")
 }
 

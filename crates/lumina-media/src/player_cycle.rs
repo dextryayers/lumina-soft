@@ -18,8 +18,8 @@
 //! selected until it stops playing or disappears. This prevents the active
 //! player from flickering between sessions.
 
+use crate::ranking::{MediaWatcher, RankingConfig};
 use crate::session::{MediaSession, MediaSnapshot};
-use crate::ranking::{RankingConfig, MediaWatcher};
 
 /// The player cycler.
 ///
@@ -60,7 +60,9 @@ impl PlayerCycler {
     /// Get the identity of the currently selected player.
     #[must_use]
     pub fn current_player(&self) -> Option<&str> {
-        self.players.get(self.current_index).map(std::string::String::as_str)
+        self.players
+            .get(self.current_index)
+            .map(std::string::String::as_str)
     }
 
     /// Update the list of active players.
@@ -91,7 +93,8 @@ impl PlayerCycler {
             return None;
         }
         self.current_index = (self.current_index + 1) % self.players.len();
-        self.watcher.set_last_selected(self.current_player().map(std::string::ToString::to_string));
+        self.watcher
+            .set_last_selected(self.current_player().map(std::string::ToString::to_string));
         self.current_player()
     }
 
@@ -108,7 +111,8 @@ impl PlayerCycler {
         } else {
             self.current_index -= 1;
         }
-        self.watcher.set_last_selected(self.current_player().map(std::string::ToString::to_string));
+        self.watcher
+            .set_last_selected(self.current_player().map(std::string::ToString::to_string));
         self.current_player()
     }
 
@@ -141,7 +145,8 @@ impl PlayerCycler {
         if let Some(current) = self.current_player() {
             if snapshot.identity != current {
                 // The current player is no longer the best, fall back
-                self.watcher.set_last_selected(Some(snapshot.identity.clone()));
+                self.watcher
+                    .set_last_selected(Some(snapshot.identity.clone()));
             }
         }
 
@@ -165,7 +170,7 @@ impl Default for PlayerCycler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::{Metadata, MediaCapabilities, PlaybackStatus};
+    use crate::session::{MediaCapabilities, Metadata, PlaybackStatus};
     use std::time::Duration;
 
     struct FakeSession {

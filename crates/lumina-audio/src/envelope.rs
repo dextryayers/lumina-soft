@@ -79,7 +79,11 @@ impl BandEnvelope {
                 continue;
             }
             let clamped = target.clamp(super::bands::DB_FLOOR, 6.0);
-            let coefficient = if clamped > *level { self.attack } else { self.release };
+            let coefficient = if clamped > *level {
+                self.attack
+            } else {
+                self.release
+            };
             *level += coefficient * (clamped - *level);
         }
     }
@@ -87,7 +91,10 @@ impl BandEnvelope {
     /// The smoothed level of band `index`, in dB.
     #[must_use]
     pub fn level(&self, index: usize) -> f32 {
-        self.levels.get(index).copied().unwrap_or(super::bands::DB_FLOOR)
+        self.levels
+            .get(index)
+            .copied()
+            .unwrap_or(super::bands::DB_FLOOR)
     }
 
     /// Borrow the whole smoothed level array, in dB.
@@ -149,7 +156,11 @@ mod tests {
         envelope.update(&[0.0f32; 4]);
         envelope.update(&[0.0f32; 4]);
         envelope.update(&[0.0f32; 4]);
-        assert!(envelope.level(0) > -6.0, "did not charge up: {}", envelope.level(0));
+        assert!(
+            envelope.level(0) > -6.0,
+            "did not charge up: {}",
+            envelope.level(0)
+        );
 
         let start = envelope.level(0);
         let dropped = 100.0f32;

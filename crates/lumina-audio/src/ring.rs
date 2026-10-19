@@ -140,10 +140,7 @@ impl RingWriter {
         if samples.len() >= capacity {
             // Even after a reader wakes up there is no room for this burst, so
             // refuse early and drop it entirely rather than writing garbage.
-            shared
-                .dropped
-                .0
-                .fetch_add(samples.len(), Ordering::Relaxed);
+            shared.dropped.0.fetch_add(samples.len(), Ordering::Relaxed);
             return 0;
         }
 
@@ -156,14 +153,10 @@ impl RingWriter {
             // second half in once the reader catches up.
             if shared.wrap(next) == shared.wrap(shared.tail.get()) {
                 let remaining = samples.len() - written;
-                shared
-                    .dropped
-                    .0
-                    .fetch_add(remaining, Ordering::Relaxed);
+                shared.dropped.0.fetch_add(remaining, Ordering::Relaxed);
                 break;
             }
-            shared.slots[shared.wrap(head)]
-                .store(sample.to_bits(), Ordering::Relaxed);
+            shared.slots[shared.wrap(head)].store(sample.to_bits(), Ordering::Relaxed);
             head = next;
             written += 1;
         }
@@ -357,7 +350,10 @@ mod tests {
     fn read_exact_requires_a_full_window() {
         let (writer, reader) = RingBuffer::new(64).split();
         writer.write(&[1.0, 2.0, 3.0]);
-        assert!(reader.read_exact(&mut [0.0f32; 4]).is_none(), "incomplete window must not resolve");
+        assert!(
+            reader.read_exact(&mut [0.0f32; 4]).is_none(),
+            "incomplete window must not resolve"
+        );
         assert_eq!(reader.pending(), 3, "a failed read must not consume");
 
         writer.write(&[4.0]);
@@ -410,7 +406,6 @@ mod tests {
         const BLOCK: usize = 16;
         let (writer, reader) = RingBuffer::new(8192).split();
         let writer_done = Arc::new(std::sync::atomic::AtomicBool::new(false));
-
 
         thread::scope(|scope| {
             let done = Arc::clone(&writer_done);

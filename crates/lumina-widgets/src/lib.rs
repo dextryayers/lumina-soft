@@ -45,7 +45,9 @@ pub mod volume;
 pub mod weather;
 pub mod widget;
 
-pub use alloc_test::{active_allocations, total_allocations, total_deallocations, reset_counters, FrameGuard};
+pub use alloc_test::{
+    active_allocations, reset_counters, total_allocations, total_deallocations, FrameGuard,
+};
 pub use battery::BatteryWidget;
 pub use calendar::CalendarWidget;
 pub use clock::ClockWidget;

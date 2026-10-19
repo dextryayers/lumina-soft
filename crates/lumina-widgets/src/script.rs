@@ -390,7 +390,10 @@ impl ScriptWidget {
     }
 }
 
-fn spawn_reader(pipe: impl std::io::Read + Send + 'static, buffer: Arc<Mutex<ScriptBuffer>>) -> JoinHandle<()> {
+fn spawn_reader(
+    pipe: impl std::io::Read + Send + 'static,
+    buffer: Arc<Mutex<ScriptBuffer>>,
+) -> JoinHandle<()> {
     std::thread::spawn(move || {
         let reader = BufReader::new(pipe);
         for line in reader.lines().map_while(Result::ok) {
@@ -422,7 +425,12 @@ impl Widget for ScriptWidget {
         );
         paint::label(
             out,
-            Rect::new(rect.x + 13.0, rect.y + 3.0, (rect.width - 20.0).max(1.0), 8.0),
+            Rect::new(
+                rect.x + 13.0,
+                rect.y + 3.0,
+                (rect.width - 20.0).max(1.0),
+                8.0,
+            ),
             TEXT,
         );
 
@@ -453,7 +461,12 @@ impl Widget for ScriptWidget {
             if fallback.is_some() {
                 paint::label(
                     out,
-                    Rect::new(rect.x + 8.0, rect.y + 16.0, (rect.width - 16.0).max(1.0), 6.0),
+                    Rect::new(
+                        rect.x + 8.0,
+                        rect.y + 16.0,
+                        (rect.width - 16.0).max(1.0),
+                        6.0,
+                    ),
                     DIM,
                 );
             }
@@ -538,7 +551,7 @@ mod tests {
             vec!["sh", "-c", "echo hi"]
         );
         assert_eq!(split_command("a\\ b"), vec!["a b"]);
-        assert!(split_command("   ").is_empty());
+        assert_eq!(split_command("   ").len(), 0);
     }
 
     #[test]
@@ -557,7 +570,10 @@ mod tests {
         buffer.push_line("one");
         buffer.push_line("two");
         buffer.push_line("three");
-        assert_eq!(buffer.lines.iter().cloned().collect::<Vec<_>>(), vec!["two", "three"]);
+        assert_eq!(
+            buffer.lines.iter().cloned().collect::<Vec<_>>(),
+            vec!["two", "three"]
+        );
     }
 
     #[test]
@@ -592,17 +608,16 @@ mod tests {
     #[test]
     fn an_empty_command_fails_without_spawning() {
         let mut widget = ScriptWidget::new(entry("", &[]));
-        let error = widget.start(Instant::now()).expect_err("empty command fails");
+        let error = widget
+            .start(Instant::now())
+            .expect_err("empty command fails");
         assert!(error.contains("empty command"));
         assert!(matches!(widget.status(), ScriptStatus::Failed(_)));
     }
 
     #[test]
     fn missing_programs_fail_with_an_error_line() {
-        let mut widget = ScriptWidget::new(entry(
-            "lumina-command-that-does-not-exist-9f3a",
-            &[],
-        ));
+        let mut widget = ScriptWidget::new(entry("lumina-command-that-does-not-exist-9f3a", &[]));
         widget.start(Instant::now()).expect_err("spawn fails");
         let lines = widget.display_lines();
         assert_eq!(lines.len(), 1);
@@ -629,7 +644,10 @@ mod tests {
 
     #[test]
     fn status_colors_are_distinct() {
-        assert_ne!(ScriptStatus::Ok(Some(0)).color(), ScriptStatus::Failed("x".to_string()).color());
+        assert_ne!(
+            ScriptStatus::Ok(Some(0)).color(),
+            ScriptStatus::Failed("x".to_string()).color()
+        );
         assert_eq!(ScriptStatus::Running.color(), WARN);
         assert_eq!(ScriptStatus::TimedOut.color(), CRITICAL);
         assert_eq!(ScriptStatus::Idle.color(), MUTED);
@@ -656,12 +674,15 @@ mod tests {
             std::thread::sleep(Duration::from_millis(10));
         }
         assert!(
-            widget.lines().iter().any(|line| line.contains("lumina-script")),
+            widget
+                .lines()
+                .iter()
+                .any(|line| line.contains("lumina-script")),
             "output was {:?}",
             widget.lines()
         );
         assert!(matches!(widget.status(), ScriptStatus::Ok(Some(0))));
-        assert!(widget.display_lines().len() >= 1);
+        assert_ne!(widget.display_lines().len(), 0);
     }
 
     #[test]
@@ -693,7 +714,9 @@ mod tests {
         let mut widget = ScriptWidget::new(entry("true", &[]));
         assert!(widget.request(&ctx()).is_none());
         widget.display_until = Some(Instant::now() + Duration::from_secs(5));
-        let request = widget.request(&ctx()).expect("fresh output requests a state");
+        let request = widget
+            .request(&ctx())
+            .expect("fresh output requests a state");
         assert_eq!(request.state, IslandState::Notify);
     }
 
@@ -707,9 +730,12 @@ mod tests {
         let mut widget = ScriptWidget::new(entry(program, &args));
         let ctx = ctx();
         let rect = Rect::new(0.0, 0.0, 190.0, 40.0);
-        assert!(widget.on_input(&WidgetInput::Click(lumina_core::geometry::Vec2::ZERO), &ctx, rect));
+        assert!(widget.on_input(
+            &WidgetInput::Click(lumina_core::geometry::Vec2::ZERO),
+            &ctx,
+            rect
+        ));
         assert!(widget.status().is_running() || !widget.lines().is_empty());
         widget.poll(Instant::now() + Duration::from_secs(1));
     }
 }
-

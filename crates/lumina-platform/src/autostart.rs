@@ -44,7 +44,9 @@ impl fmt::Display for AutostartError {
         match self {
             Self::Unsupported => f.write_str("autostart is not supported on this platform"),
             Self::Io(error) => write!(f, "autostart file could not be updated: {error}"),
-            Self::Registry(code) => write!(f, "the registry rejected the autostart entry (code {code})"),
+            Self::Registry(code) => {
+                write!(f, "the registry rejected the autostart entry (code {code})")
+            }
         }
     }
 }
@@ -329,7 +331,10 @@ mod tests {
         // Pure test: an absolute XDG_CONFIG_HOME wins over HOME by design. We
         // only assert the path shape, not the developer's environment.
         if let Some(path) = linux_desktop_path() {
-            assert!(path.ends_with(r"autostart\lumina.desktop") || path.ends_with("autostart/lumina.desktop"));
+            assert!(
+                path.ends_with(r"autostart\lumina.desktop")
+                    || path.ends_with("autostart/lumina.desktop")
+            );
         }
     }
 }

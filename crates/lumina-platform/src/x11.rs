@@ -713,12 +713,12 @@ mod tests {
         // Zero is `X11 None`, so a real colormap proves the dedicated colormap
         // requirement is met rather than silently falling back to the default.
         assert_ne!(
-            backend.colormap().0,
+            backend.colormap(),
             0,
             "a dedicated colormap must exist for ARGB"
         );
         assert_ne!(
-            backend.visual().0,
+            backend.visual(),
             0,
             "an ARGB visual must have been selected"
         );
@@ -746,7 +746,7 @@ mod tests {
             return;
         };
         match choose_argb_visual(&connection, screen) {
-            Ok(visual) => assert_ne!(visual.0, 0),
+            Ok(visual) => assert_ne!(visual, 0),
             Err(e) => {
                 assert!(
                     e.to_string().contains("transparent"),
@@ -773,7 +773,7 @@ mod tests {
         };
         backend.shutdown();
         backend.shutdown();
-        assert_eq!(backend.window(), xproto::Window::NONE);
+        assert_eq!(backend.window(), 0, "X11 None is zero");
     }
 
     #[test]

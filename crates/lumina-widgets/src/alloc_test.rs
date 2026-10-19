@@ -158,9 +158,9 @@ impl Drop for FrameGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widget::{DrawList, Quad, WidgetContext, WidgetInput, WidgetRegistry};
-    use crate::clock::ClockWidget;
     use crate::calendar::CalendarWidget;
+    use crate::clock::ClockWidget;
+    use crate::widget::{DrawList, Quad, WidgetContext, WidgetInput, WidgetRegistry};
     use lumina_core::geometry::{Size, Vec2};
     use lumina_core::state::IslandState;
 
@@ -186,16 +186,37 @@ mod tests {
         reset_counters();
         let mut list = DrawList::with_capacity(100);
         let guard = FrameGuard::new();
-        list.push(Quad::new(Vec2::ZERO, Size::new(10.0, 10.0), Vec2::ZERO, Vec2::ZERO, [1.0; 4]));
-        list.push(Quad::new(Vec2::ZERO, Size::new(10.0, 10.0), Vec2::ZERO, Vec2::ZERO, [1.0; 4]));
-        assert!(!guard.allocated(), "draw list should not allocate after reserve");
+        list.push(Quad::new(
+            Vec2::ZERO,
+            Size::new(10.0, 10.0),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            [1.0; 4],
+        ));
+        list.push(Quad::new(
+            Vec2::ZERO,
+            Size::new(10.0, 10.0),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            [1.0; 4],
+        ));
+        assert!(
+            !guard.allocated(),
+            "draw list should not allocate after reserve"
+        );
     }
 
     #[test]
     fn draw_list_clear_does_not_allocate() {
         reset_counters();
         let mut list = DrawList::with_capacity(100);
-        list.push(Quad::new(Vec2::ZERO, Size::new(10.0, 10.0), Vec2::ZERO, Vec2::ZERO, [1.0; 4]));
+        list.push(Quad::new(
+            Vec2::ZERO,
+            Size::new(10.0, 10.0),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            [1.0; 4],
+        ));
         let guard = FrameGuard::new();
         list.clear();
         assert!(!guard.allocated(), "clear should not allocate");
@@ -215,7 +236,10 @@ mod tests {
         // Second layout should not allocate
         let guard = FrameGuard::new();
         let rects = registry.layout(&ctx);
-        assert!(!guard.allocated(), "layout should not allocate after warmup");
+        assert!(
+            !guard.allocated(),
+            "layout should not allocate after warmup"
+        );
         assert_eq!(rects.len(), 2);
     }
 
@@ -284,6 +308,9 @@ mod tests {
         registry.draw(&mut out, &ctx, &rects);
         let _ = registry.route_input(&WidgetInput::Click(Vec2::new(50.0, 20.0)), &ctx, &rects);
         let _ = registry.requests(&ctx);
-        assert!(!guard.allocated(), "full frame path should not allocate after warmup");
+        assert!(
+            !guard.allocated(),
+            "full frame path should not allocate after warmup"
+        );
     }
 }

@@ -321,8 +321,12 @@ mod tests {
     #[test]
     fn a_fake_worker_reports_its_format_and_stops_cleanly() {
         let (writer, _reader) = RingBuffer::new(4096).split();
-        let mut running = spawn_fake(&request(lumina_config::schema::AudioBackend::Auto), writer, fake::FakePattern::Silence)
-            .expect("fake spawn cannot fail");
+        let mut running = spawn_fake(
+            &request(lumina_config::schema::AudioBackend::Auto),
+            writer,
+            fake::FakePattern::Silence,
+        )
+        .expect("fake spawn cannot fail");
         // Is a mock format path? Fake runs regardless of platform.
         let format = running
             .wait_ready(Duration::from_secs(2))
@@ -335,8 +339,12 @@ mod tests {
     #[test]
     fn double_wait_ready_reports_consumed() {
         let (writer, _reader) = RingBuffer::new(4096).split();
-        let running = spawn_fake(&request(lumina_config::schema::AudioBackend::Auto), writer, fake::FakePattern::Silence)
-            .expect("fake spawn");
+        let running = spawn_fake(
+            &request(lumina_config::schema::AudioBackend::Auto),
+            writer,
+            fake::FakePattern::Silence,
+        )
+        .expect("fake spawn");
         let _ = running.wait_ready(Duration::from_secs(2));
         match running.wait_ready(Duration::from_millis(50)) {
             Err(CaptureError::StreamError(msg)) => assert!(msg.contains("consumed")),

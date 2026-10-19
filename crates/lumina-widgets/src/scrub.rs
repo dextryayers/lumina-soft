@@ -191,8 +191,10 @@ impl ScrubController {
         if self.tooltip_visible && !self.tooltip_text.is_empty() {
             let tooltip_width = self.tooltip_text.len() as f32 * 6.0 + 8.0;
             let tooltip_height = 14.0;
-            let tooltip_x = (self.tooltip_pos.x - tooltip_width * 0.5)
-                .clamp(self.bar_rect.x, self.bar_rect.x + self.bar_rect.width - tooltip_width);
+            let tooltip_x = (self.tooltip_pos.x - tooltip_width * 0.5).clamp(
+                self.bar_rect.x,
+                self.bar_rect.x + self.bar_rect.width - tooltip_width,
+            );
             let tooltip_y = self.tooltip_pos.y;
 
             // Tooltip background

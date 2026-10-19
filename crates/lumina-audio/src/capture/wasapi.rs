@@ -24,21 +24,21 @@
 //! hard deadline contract applies to pro audio callbacks, not to a
 //! visualizer whose ring drops samples rather than blocking.
 
-use super::{CaptureError, CaptureFormat, CaptureRequest, ReadySignal, spawn_worker, stop_flagged};
+use super::{spawn_worker, stop_flagged, CaptureError, CaptureFormat, CaptureRequest, ReadySignal};
 use crate::ring::RingWriter;
 use std::sync::Arc;
+use windows::core::{Interface, PROPVARIANT, PWSTR};
 use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
 use windows::Win32::Media::Audio::{
-    DEVICE_STATE_ACTIVE, IAudioCaptureClient, IAudioClient, IMMDevice, IMMDeviceCollection,
-    IMMDeviceEnumerator, MMDeviceEnumerator, WAVEFORMATEX, WAVEFORMATEXTENSIBLE,
-    AUDCLNT_STREAMFLAGS_LOOPBACK, AUDCLNT_SHAREMODE_SHARED, eCapture, eConsole, eRender,
+    eCapture, eConsole, eRender, IAudioCaptureClient, IAudioClient, IMMDevice, IMMDeviceCollection,
+    IMMDeviceEnumerator, MMDeviceEnumerator, AUDCLNT_SHAREMODE_SHARED,
+    AUDCLNT_STREAMFLAGS_LOOPBACK, DEVICE_STATE_ACTIVE, WAVEFORMATEX, WAVEFORMATEXTENSIBLE,
 };
 use windows::Win32::Media::KernelStreaming::WAVE_FORMAT_EXTENSIBLE;
 use windows::Win32::Media::Multimedia::{KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, WAVE_FORMAT_IEEE_FLOAT};
 use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVariantToStringAlloc};
 use windows::Win32::System::Com::{CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ};
 use windows::Win32::System::Threading::Sleep;
-use windows::core::{Interface, PWSTR, PROPVARIANT};
 
 /// One millisecond in WASAPI reference time: 100 ns ticks.
 const REFERENCE_TIME_MS: i64 = 10_000;
@@ -196,9 +196,7 @@ fn device_is_default(device: &str) -> bool {
 /// `CoTaskMemFree` (the two calls above). Anything else is undefined.
 unsafe fn pwstr_free_to_string(pointer: PWSTR) -> String {
     let text = pointer.to_string().unwrap_or_default();
-    windows::Win32::System::Com::CoTaskMemFree(Some(
-        pointer.as_ptr().cast::<core::ffi::c_void>(),
-    ));
+    windows::Win32::System::Com::CoTaskMemFree(Some(pointer.as_ptr().cast::<core::ffi::c_void>()));
     text
 }
 
@@ -232,8 +230,8 @@ unsafe fn parse_mix_format(
         // WAVEFORMATEXTENSIBLE extends WAVEFORMATEX by 22 bytes. The API
         // may hand a truncated buffer, so the byte budget is verified
         // before the struct is read.
-        let extension = std::mem::size_of::<WAVEFORMATEXTENSIBLE>()
-            - std::mem::size_of::<WAVEFORMATEX>();
+        let extension =
+            std::mem::size_of::<WAVEFORMATEXTENSIBLE>() - std::mem::size_of::<WAVEFORMATEX>();
         if base.cbSize < extension as u16 {
             return Err(CaptureError::DeviceUnavailable(
                 "mix format marks extensible but the struct is truncated".into(),
@@ -274,7 +272,9 @@ fn run_worker(
     // of S_FALSE ("already a member") is a normal outcome; keep it.
     unsafe {
         if let Err(e) = com_init_thread(None, COINIT_MULTITHREADED) {
-            signal.report(Err(CaptureError::StreamError(format!("CoInitializeEx: {e}"))));
+            signal.report(Err(CaptureError::StreamError(format!(
+                "CoInitializeEx: {e}"
+            ))));
             return;
         }
     }
@@ -381,7 +381,9 @@ unsafe fn push_packet(
     mono_scratch: &mut [f32],
 ) {
     let channels = endpoint.channels as usize;
-    let frames = (readable as usize).min(BURST_FRAMES).min(mono_scratch.len());
+    let frames = (readable as usize)
+        .min(BURST_FRAMES)
+        .min(mono_scratch.len());
     if frames == 0 {
         return;
     }
@@ -414,9 +416,8 @@ unsafe fn push_packet(
                     *slot = std::ptr::read_unaligned(pcm.add(index));
                 }
             }
-            for (float_slot, &pcm_value) in interleaved[..count]
-                .iter_mut()
-                .zip(raw16[..count].iter())
+            for (float_slot, &pcm_value) in
+                interleaved[..count].iter_mut().zip(raw16[..count].iter())
             {
                 *float_slot = f32::from(pcm_value) / 32_768.0;
             }
@@ -439,18 +440,16 @@ unsafe fn open_endpoint(
     source: lumina_config::schema::AudioSource,
     device: &str,
 ) -> Result<ConfiguredStream, CaptureError> {
-    let enumerator: IMMDeviceEnumerator =
-        com_create_object(&MMDeviceEnumerator, CLSCTX_ALL)
-            .map_err(|e| CaptureError::DeviceUnavailable(format!("COM enumerator: {e}")))?;
+    let enumerator: IMMDeviceEnumerator = com_create_object(&MMDeviceEnumerator, CLSCTX_ALL)
+        .map_err(|e| CaptureError::DeviceUnavailable(format!("COM enumerator: {e}")))?;
 
     let endpoint: IMMDevice = select_device(&enumerator, source, device)?;
 
     // Activate is the typed wrapper in windows-rs 0.58: interface and iid
     // resolved by the generic, activation params unused for audio clients.
-    let client: IAudioClient =
-        endpoint
-            .Activate::<IAudioClient>(CLSCTX_ALL, None)
-            .map_err(|e| CaptureError::DeviceUnavailable(format!("IAudioClient activate: {e}")))?;
+    let client: IAudioClient = endpoint
+        .Activate::<IAudioClient>(CLSCTX_ALL, None)
+        .map_err(|e| CaptureError::DeviceUnavailable(format!("IAudioClient activate: {e}")))?;
 
     let mix_fmt = client
         .GetMixFormat()
@@ -486,7 +485,9 @@ unsafe fn open_endpoint(
         None,
     ) {
         com_free(Some(mix_fmt.cast::<core::ffi::c_void>()));
-        return Err(CaptureError::StreamError(format!("IAudioClient::Initialize: {e}")));
+        return Err(CaptureError::StreamError(format!(
+            "IAudioClient::Initialize: {e}"
+        )));
     }
     // The format was a loan: the client copies what Initialize needs.
     com_free(Some(mix_fmt.cast::<core::ffi::c_void>()));
@@ -517,7 +518,8 @@ unsafe fn open_endpoint(
 /// Calls into the COM type system; `T` must implement the queried mode.
 unsafe fn com_create_object<T: Interface>(
     clsid: &windows::core::GUID,
-    context: windows::Win32::System::Com::CLSCTX,) -> windows::core::Result<T> {
+    context: windows::Win32::System::Com::CLSCTX,
+) -> windows::core::Result<T> {
     windows::Win32::System::Com::CoCreateInstance(clsid, None, context)
 }
 
@@ -558,7 +560,10 @@ mod tests {
             cbSize: 0,
         };
         let parsed = unsafe { parse_mix_format(std::ptr::from_ref(&float)) };
-        assert_eq!(parsed.expect("float parses"), (SampleLayout::Float32, 2, 48_000));
+        assert_eq!(
+            parsed.expect("float parses"),
+            (SampleLayout::Float32, 2, 48_000)
+        );
 
         let pcm = WAVEFORMATEX {
             wFormatTag: 1,
@@ -570,7 +575,10 @@ mod tests {
             cbSize: 0,
         };
         let parsed = unsafe { parse_mix_format(std::ptr::from_ref(&pcm)) };
-        assert_eq!(parsed.expect("pcm parses"), (SampleLayout::Int16, 2, 44_100));
+        assert_eq!(
+            parsed.expect("pcm parses"),
+            (SampleLayout::Int16, 2, 44_100)
+        );
 
         let junk = WAVEFORMATEX {
             wFormatTag: 0x4242,

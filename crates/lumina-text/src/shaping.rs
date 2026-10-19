@@ -1,4 +1,4 @@
-﻿//! Glyph shaping: turning a string into a sequence of positioned glyphs.
+//! Glyph shaping: turning a string into a sequence of positioned glyphs.
 //!
 //! # The minimal shaper
 //!
@@ -71,7 +71,10 @@ impl Shaper {
     /// Construct a shaper with sensible defaults.
     #[must_use]
     pub fn new() -> Self {
-        Self { detect_rtl: true, apply_kerning: true }
+        Self {
+            detect_rtl: true,
+            apply_kerning: true,
+        }
     }
 
     /// Shape a string using the supplied atlas.
@@ -127,7 +130,12 @@ impl Shaper {
 
     /// Shape a string and report its metrics.
     #[must_use]
-    pub fn metrics(&self, text: &str, atlas: &super::atlas::Atlas, font_size: Scalar) -> TextMetrics {
+    pub fn metrics(
+        &self,
+        text: &str,
+        atlas: &super::atlas::Atlas,
+        font_size: Scalar,
+    ) -> TextMetrics {
         let shaped = self.shape(text, atlas, font_size);
         TextMetrics {
             width: shaped.width * font_size,
@@ -244,7 +252,10 @@ mod tests {
 
     fn atlas_with_glyphs() -> Atlas {
         let mut atlas = Atlas::new();
-        for (i, ch) in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ".chars().enumerate() {
+        for (i, ch) in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz "
+            .chars()
+            .enumerate()
+        {
             atlas.glyphs.push(crate::atlas::GlyphEntry {
                 codepoint: ch as u32,
                 rect: lumina_core::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),

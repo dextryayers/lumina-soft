@@ -269,16 +269,18 @@ impl ConfigDiff {
     pub fn of_kind(&self, section: Section) -> Vec<&ConfigChange> {
         self.changes
             .iter()
-            .filter(|c| matches!(
-                (section, c),
-                (Section::General, ConfigChange::General(_))
-                    | (Section::Appearance, ConfigChange::Appearance(_))
-                    | (Section::Rgb, ConfigChange::Rgb(_))
-                    | (Section::Audio, ConfigChange::Audio(_))
-                    | (Section::Media, ConfigChange::Media(_))
-                    | (Section::Motion, ConfigChange::Motion(_))
-                    | (Section::Text, ConfigChange::Text(_))
-            ))
+            .filter(|c| {
+                matches!(
+                    (section, c),
+                    (Section::General, ConfigChange::General(_))
+                        | (Section::Appearance, ConfigChange::Appearance(_))
+                        | (Section::Rgb, ConfigChange::Rgb(_))
+                        | (Section::Audio, ConfigChange::Audio(_))
+                        | (Section::Media, ConfigChange::Media(_))
+                        | (Section::Motion, ConfigChange::Motion(_))
+                        | (Section::Text, ConfigChange::Text(_))
+                )
+            })
             .collect()
     }
 }
@@ -409,11 +411,17 @@ fn diff_rgb(from: &RgbConfig, to: &RgbConfig, out: &mut Vec<ConfigChange>) {
 }
 
 fn diff_audio(from: &AudioConfig, to: &AudioConfig, out: &mut Vec<ConfigChange>) {
-    if from.enabled != to.enabled || from.source != to.source || from.device != to.device || from.backend != to.backend
+    if from.enabled != to.enabled
+        || from.source != to.source
+        || from.device != to.device
+        || from.backend != to.backend
     {
         out.push(ConfigChange::Audio(AudioChange::Capture));
     }
-    if from.fft_size != to.fft_size || from.band_count != to.band_count || from.normalize != to.normalize {
+    if from.fft_size != to.fft_size
+        || from.band_count != to.band_count
+        || from.normalize != to.normalize
+    {
         out.push(ConfigChange::Audio(AudioChange::Analysis));
     }
     if from.sensitivity != to.sensitivity
@@ -472,7 +480,10 @@ fn diff_motion(from: &MotionConfig, to: &MotionConfig, out: &mut Vec<ConfigChang
 }
 
 fn diff_text(from: &TextConfig, to: &TextConfig, out: &mut Vec<ConfigChange>) {
-    if from.font_size != to.font_size || from.font_weight != to.font_weight || from.font_file != to.font_file {
+    if from.font_size != to.font_size
+        || from.font_weight != to.font_weight
+        || from.font_file != to.font_file
+    {
         out.push(ConfigChange::Text(TextChange::Font));
     }
     if from.color != to.color || from.dim_color != to.dim_color {
@@ -499,7 +510,10 @@ mod tests {
     #[test]
     fn a_config_against_itself_has_no_changes() {
         let config = base();
-        assert!(diff_config(&config, &config).is_empty(), "a config must diff clean against itself");
+        assert!(
+            diff_config(&config, &config).is_empty(),
+            "a config must diff clean against itself"
+        );
     }
 
     #[test]
@@ -508,7 +522,10 @@ mod tests {
         config.general.position = crate::schema::Position::BottomRight;
         let diff = diff_config(&base(), &config);
         assert_eq!(diff.len(), 1);
-        assert_eq!(diff.changes()[0], ConfigChange::General(GeneralChange::Position));
+        assert_eq!(
+            diff.changes()[0],
+            ConfigChange::General(GeneralChange::Position)
+        );
     }
 
     #[test]
@@ -661,7 +678,10 @@ mod tests {
         let diff = diff_config(&base(), &config);
         for change in diff.changes() {
             let path = change.path();
-            assert!(path.contains('.'), "a change path should be dotted, got {path}");
+            assert!(
+                path.contains('.'),
+                "a change path should be dotted, got {path}"
+            );
         }
     }
 

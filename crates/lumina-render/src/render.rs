@@ -239,11 +239,19 @@ mod tests {
     use super::*;
 
     fn idle_intent() -> FrameIntent {
-        FrameIntent { dirty: false, animating: false, audio_active: false, visible: true }
+        FrameIntent {
+            dirty: false,
+            animating: false,
+            audio_active: false,
+            visible: true,
+        }
     }
 
     fn dirty_intent() -> FrameIntent {
-        FrameIntent { dirty: true, ..idle_intent() }
+        FrameIntent {
+            dirty: true,
+            ..idle_intent()
+        }
     }
 
     #[test]
@@ -266,22 +274,41 @@ mod tests {
     #[test]
     fn a_hidden_island_never_renders() {
         let mut loop_ = RenderLoop::new(60, true);
-        let hidden = FrameIntent { visible: false, dirty: true, ..idle_intent() };
-        assert!(!loop_.should_render(hidden), "a hidden island draws nothing");
+        let hidden = FrameIntent {
+            visible: false,
+            dirty: true,
+            ..idle_intent()
+        };
+        assert!(
+            !loop_.should_render(hidden),
+            "a hidden island draws nothing"
+        );
     }
 
     #[test]
     fn animation_counts_as_a_reason_to_draw() {
         let mut loop_ = RenderLoop::new(60, true);
-        let intent = FrameIntent { animating: true, ..idle_intent() };
-        assert!(loop_.should_render(intent), "an in-flight spring needs a frame");
+        let intent = FrameIntent {
+            animating: true,
+            ..idle_intent()
+        };
+        assert!(
+            loop_.should_render(intent),
+            "an in-flight spring needs a frame"
+        );
     }
 
     #[test]
     fn audio_counts_as_a_reason_to_draw() {
         let mut loop_ = RenderLoop::new(60, true);
-        let intent = FrameIntent { audio_active: true, ..idle_intent() };
-        assert!(loop_.should_render(intent), "flowing audio needs a spectrum frame");
+        let intent = FrameIntent {
+            audio_active: true,
+            ..idle_intent()
+        };
+        assert!(
+            loop_.should_render(intent),
+            "flowing audio needs a spectrum frame"
+        );
     }
 
     #[test]
@@ -347,7 +374,10 @@ mod tests {
                 1.0,
                 0.0,
             );
-            assert!(uniforms.half_top > 0.0, "{state} produced a degenerate frame");
+            assert!(
+                uniforms.half_top > 0.0,
+                "{state} produced a degenerate frame"
+            );
             assert!(uniforms.half_h > 0.0, "{state} produced a degenerate frame");
         }
     }

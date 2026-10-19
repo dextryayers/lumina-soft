@@ -1,4 +1,4 @@
-﻿//! The calendar widget: a month grid with today highlighted.
+//! The calendar widget: a month grid with today highlighted.
 //!
 //! # Content drawing
 //!
@@ -244,7 +244,11 @@ impl CalendarWidget {
     /// Emit the day cells.
     fn draw_days(&mut self, out: &mut DrawList, rect: Rect) {
         let header_height = self.header_font_size + 4.0;
-        let weekday_height = if self.show_weekdays { self.day_font_size + 2.0 } else { 0.0 };
+        let weekday_height = if self.show_weekdays {
+            self.day_font_size + 2.0
+        } else {
+            0.0
+        };
         let grid_y = rect.y + header_height + weekday_height;
         let grid_height = rect.height - header_height - weekday_height;
 
@@ -458,7 +462,11 @@ mod tests {
     fn the_calendar_does_not_consume_click_input_by_default() {
         let mut cal = CalendarWidget::new();
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 200.0));
-        assert!(!cal.on_input(&WidgetInput::Click(Vec2::new(50.0, 50.0)), &ctx, Rect::new(0.0, 0.0, 180.0, 140.0)));
+        assert!(!cal.on_input(
+            &WidgetInput::Click(Vec2::new(50.0, 50.0)),
+            &ctx,
+            Rect::new(0.0, 0.0, 180.0, 140.0)
+        ));
     }
 
     #[test]
@@ -512,7 +520,11 @@ mod tests {
         let mut cal = CalendarWidget::new();
         cal.display_month = 6;
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 200.0));
-        cal.on_input(&WidgetInput::Scroll(1.0), &ctx, Rect::new(0.0, 0.0, 180.0, 140.0));
+        cal.on_input(
+            &WidgetInput::Scroll(1.0),
+            &ctx,
+            Rect::new(0.0, 0.0, 180.0, 140.0),
+        );
         assert_eq!(cal.display_month, 7);
     }
 

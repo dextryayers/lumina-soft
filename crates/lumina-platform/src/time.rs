@@ -60,7 +60,7 @@ fn platform_offset() -> i32 {
 
     let mut zone = TIME_ZONE_INFORMATION::default();
     // The return value is a TIME_ZONE_ID_* constant, not an error code.
-    let state = unsafe { GetTimeZoneInformation(&mut zone) };
+    let state = unsafe { GetTimeZoneInformation(&raw mut zone) };
     if state == u32::MAX {
         return 0;
     }
@@ -160,10 +160,7 @@ mod tests {
     #[test]
     fn the_unix_epoch_is_a_thursday() {
         let civil = civil_from_unix_with_offset(0, 0);
-        assert_eq!(
-            (civil.year, civil.month, civil.day),
-            (1970, 1, 1)
-        );
+        assert_eq!((civil.year, civil.month, civil.day), (1970, 1, 1));
         assert_eq!(civil.weekday, 4);
         assert_eq!((civil.hour, civil.minute, civil.second), (0, 0, 0));
     }
@@ -219,6 +216,9 @@ mod tests {
     #[test]
     fn the_offset_is_within_a_sane_range() {
         let offset = local_utc_offset_minutes();
-        assert!((-12 * 60..=14 * 60).contains(&offset), "offset was {offset}");
+        assert!(
+            (-12 * 60..=14 * 60).contains(&offset),
+            "offset was {offset}"
+        );
     }
 }

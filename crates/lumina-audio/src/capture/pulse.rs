@@ -20,7 +20,7 @@
 //!   specific sink.
 //! * `Microphone` means the given source name, or the daemon default.
 
-use super::{CaptureError, CaptureFormat, CaptureRequest, ReadySignal, spawn_worker, stop_flagged};
+use super::{spawn_worker, stop_flagged, CaptureError, CaptureFormat, CaptureRequest, ReadySignal};
 use crate::ring::RingWriter;
 use libpulse_binding::channelmap::Map as ChannelMap;
 use libpulse_binding::sample::{Format as SampleFormat, Spec};
@@ -187,11 +187,17 @@ mod tests {
             "@DEFAULT_MONITOR@"
         );
         assert_eq!(
-            pulse_source_for(lumina_config::schema::AudioSource::System, "alsa_out.pci-0000"),
+            pulse_source_for(
+                lumina_config::schema::AudioSource::System,
+                "alsa_out.pci-0000"
+            ),
             "alsa_out.pci-0000.monitor"
         );
         assert_eq!(
-            pulse_source_for(lumina_config::schema::AudioSource::System, "alsa_out.monitor"),
+            pulse_source_for(
+                lumina_config::schema::AudioSource::System,
+                "alsa_out.monitor"
+            ),
             "alsa_out.monitor"
         );
     }

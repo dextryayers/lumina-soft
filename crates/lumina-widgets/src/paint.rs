@@ -1,4 +1,4 @@
-﻿//! Shared drawing primitives for the data widgets.
+//! Shared drawing primitives for the data widgets.
 //!
 //! These are deliberately small axis aligned helpers. The renderer's SDF rounds
 //! corners, so a square quad with a radius of half its size is a dot, and a row
@@ -52,13 +52,7 @@ pub(crate) fn label(out: &mut DrawList, rect: Rect, color: [f32; 4]) {
 }
 
 /// Draw a horizontal gauge with the given fill fraction.
-pub(crate) fn gauge(
-    out: &mut DrawList,
-    rect: Rect,
-    fraction: f32,
-    fill: [f32; 4],
-    radius: Scalar,
-) {
+pub(crate) fn gauge(out: &mut DrawList, rect: Rect, fraction: f32, fill: [f32; 4], radius: Scalar) {
     block(out, rect, TRACK, radius);
     let fraction = fraction.clamp(0.0, 1.0);
     if fraction <= 0.0 {
@@ -112,8 +106,8 @@ pub(crate) fn dots_ring(
     let completed = (progress * segments as f32).round() as usize;
     let dot = 2.0;
     for i in 0..segments {
-        let angle = -std::f32::consts::FRAC_PI_2
-            + i as f32 / segments as f32 * std::f32::consts::TAU;
+        let angle =
+            -std::f32::consts::FRAC_PI_2 + i as f32 / segments as f32 * std::f32::consts::TAU;
         let position = Vec2::new(
             center.x + radius * angle.cos(),
             center.y + radius * angle.sin(),
@@ -193,15 +187,7 @@ mod tests {
     #[test]
     fn a_ring_draws_every_segment() {
         let mut out = DrawList::new();
-        dots_ring(
-            &mut out,
-            Vec2::new(20.0, 20.0),
-            10.0,
-            16,
-            0.5,
-            GOOD,
-            TRACK,
-        );
+        dots_ring(&mut out, Vec2::new(20.0, 20.0), 10.0, 16, 0.5, GOOD, TRACK);
         assert_eq!(out.len(), 16);
         assert_eq!(out.quads()[0].color, GOOD);
         assert_eq!(out.quads()[15].color, TRACK);
@@ -214,4 +200,3 @@ mod tests {
         assert_eq!(severity_color(95.0), CRITICAL);
     }
 }
-

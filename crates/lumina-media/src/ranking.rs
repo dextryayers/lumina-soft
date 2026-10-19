@@ -189,7 +189,10 @@ pub fn best_snapshot_with_defaults(
 /// so it ranks below a dedicated player. This is a heuristic, not a guarantee.
 fn is_background_browser(identity: &str) -> bool {
     let lower = identity.to_ascii_lowercase();
-    lower.contains("firefox") || lower.contains("chrome") || lower.contains("edge") || lower.contains("safari")
+    lower.contains("firefox")
+        || lower.contains("chrome")
+        || lower.contains("edge")
+        || lower.contains("safari")
 }
 
 /// The media watcher.
@@ -281,10 +284,18 @@ mod tests {
                 identity: identity.to_string(),
                 metadata: Metadata {
                     title: if complete { Some("Song".into()) } else { None },
-                    artist: if complete { Some("Artist".into()) } else { None },
+                    artist: if complete {
+                        Some("Artist".into())
+                    } else {
+                        None
+                    },
                     ..Default::default()
                 },
-                status: if playing { PlaybackStatus::Playing } else { PlaybackStatus::Paused },
+                status: if playing {
+                    PlaybackStatus::Playing
+                } else {
+                    PlaybackStatus::Paused
+                },
                 capabilities: MediaCapabilities::all(),
             }
         }

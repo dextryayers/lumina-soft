@@ -68,14 +68,25 @@ mod tests {
     fn an_empty_shader_is_accepted_as_a_valid_empty_module() {
         // An empty WGSL source parses as a valid module with no items. That is
         // correct behavior, not an error: the shader simply does nothing.
-        assert!(validate_wgsl("").is_none(), "an empty shader is a valid empty module");
+        assert!(
+            validate_wgsl("").is_none(),
+            "an empty shader is a valid empty module"
+        );
     }
 
     #[test]
     fn the_island_shader_declares_the_uniforms_the_render_loop_writes() {
         // The shader and the Rust uniform struct have to agree. A mismatch shows
         // up as a silently wrong render, so this checks the names directly.
-        for name in ["half_top", "half_bottom", "half_h", "radius", "fill_rgba", "glow_rgb", "border_width"] {
+        for name in [
+            "half_top",
+            "half_bottom",
+            "half_h",
+            "radius",
+            "fill_rgba",
+            "glow_rgb",
+            "border_width",
+        ] {
             assert!(
                 ISLAND_WGSL.contains(name),
                 "the island shader must declare {name}"

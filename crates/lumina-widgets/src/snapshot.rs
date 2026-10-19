@@ -144,7 +144,6 @@ impl History {
     /// The scale is fixed at 100 percent rather than auto-scaled to the maximum
     /// sample, so a quiet machine does not render a dramatic looking sparkline
     /// out of noise.
-    #[must_use]
     pub fn normalized(&self) -> impl Iterator<Item = f32> + '_ {
         self.values.iter().map(|v| (v / 100.0).clamp(0.0, 1.0))
     }
@@ -533,7 +532,10 @@ mod tests {
         history.push(30.0);
         history.push(40.0);
         assert_eq!(history.len(), 3);
-        assert_eq!(history.values().iter().copied().collect::<Vec<_>>(), vec![20.0, 30.0, 40.0]);
+        assert_eq!(
+            history.values().iter().copied().collect::<Vec<_>>(),
+            vec![20.0, 30.0, 40.0]
+        );
         assert_eq!(history.latest(), Some(40.0));
     }
 
@@ -588,16 +590,34 @@ mod tests {
 
     #[test]
     fn rates_scale_automatically() {
-        assert_eq!(FormattedRate::new(500, NetworkUnit::Auto).render(), "500 B/s");
-        assert_eq!(FormattedRate::new(1500, NetworkUnit::Auto).render(), "1.5 KB/s");
-        assert_eq!(FormattedRate::new(2_500_000, NetworkUnit::Auto).render(), "2.5 MB/s");
-        assert_eq!(FormattedRate::new(2_500_000_000, NetworkUnit::Auto).render(), "2.5 GB/s");
+        assert_eq!(
+            FormattedRate::new(500, NetworkUnit::Auto).render(),
+            "500 B/s"
+        );
+        assert_eq!(
+            FormattedRate::new(1500, NetworkUnit::Auto).render(),
+            "1.5 KB/s"
+        );
+        assert_eq!(
+            FormattedRate::new(2_500_000, NetworkUnit::Auto).render(),
+            "2.5 MB/s"
+        );
+        assert_eq!(
+            FormattedRate::new(2_500_000_000, NetworkUnit::Auto).render(),
+            "2.5 GB/s"
+        );
     }
 
     #[test]
     fn rates_honour_a_fixed_unit() {
-        assert_eq!(FormattedRate::new(2_500_000, NetworkUnit::Mb).render(), "2.5 MB/s");
-        assert_eq!(FormattedRate::new(2_500_000, NetworkUnit::Kb).render(), "2500 KB/s");
+        assert_eq!(
+            FormattedRate::new(2_500_000, NetworkUnit::Mb).render(),
+            "2.5 MB/s"
+        );
+        assert_eq!(
+            FormattedRate::new(2_500_000, NetworkUnit::Kb).render(),
+            "2500 KB/s"
+        );
     }
 
     #[test]
@@ -618,7 +638,10 @@ mod tests {
     #[test]
     fn wmo_codes_map_to_condition_families() {
         assert_eq!(WeatherCondition::from_wmo(0), WeatherCondition::Clear);
-        assert_eq!(WeatherCondition::from_wmo(2), WeatherCondition::PartlyCloudy);
+        assert_eq!(
+            WeatherCondition::from_wmo(2),
+            WeatherCondition::PartlyCloudy
+        );
         assert_eq!(WeatherCondition::from_wmo(45), WeatherCondition::Fog);
         assert_eq!(WeatherCondition::from_wmo(55), WeatherCondition::Drizzle);
         assert_eq!(WeatherCondition::from_wmo(65), WeatherCondition::Rain);
