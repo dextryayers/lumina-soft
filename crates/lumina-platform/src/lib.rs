@@ -51,6 +51,7 @@ pub mod capability;
 pub mod monitor;
 pub mod overlay;
 pub mod placement;
+pub mod time;
 
 #[cfg(all(unix, not(target_os = "macos")))]
 pub mod x11;
@@ -64,6 +65,7 @@ pub use capability::{Capabilities, Platform, PlatformKind};
 pub use monitor::{Monitor, MonitorSource, ScaleFactor};
 pub use overlay::{OverlayBackend, OverlayError};
 pub use placement::{compute_placement, fit_inside, Placement, WindowGeometry};
+pub use time::{civil_from_days, civil_from_unix_with_offset, local_civil_time, local_utc_offset_minutes, weekday_from_days, CivilTime};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
