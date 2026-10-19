@@ -1,0 +1,35 @@
+[package]
+name = "lumina-audio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+categories.workspace = true
+keywords.workspace = true
+description = "Audio capture and spectrum analysis for the Lumina dynamic island overlay."
+
+[dependencies]
+lumina-core = { workspace = true }
+lumina-config = { workspace = true }
+
+# FFT.
+rustfft = { workspace = true }
+
+# Windows: WASAPI loopback lives in the audio COM plane.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Threading",
+    "Win32_Media_Audio",
+] }
+
+# Linux: PulseAudio (and PipeWire through its PulseAudio compatibility server).
+[target.'cfg(target_os = "linux")'.dependencies]
+libpulse-binding = "2.28"
+
+[lints]
+workspace = true
