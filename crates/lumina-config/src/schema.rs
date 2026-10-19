@@ -38,6 +38,8 @@ pub struct Config {
     pub weather: WeatherConfig,
     /// Widget arrangement.
     pub layout: LayoutConfig,
+    /// Per-widget overrides.
+    pub widgets: WidgetConfig,
     /// Global hotkeys.
     pub hotkeys: HotkeysConfig,
     /// User defined actions.
@@ -70,6 +72,7 @@ impl Default for Config {
             pomodoro: PomodoroConfig::default(),
             weather: WeatherConfig::default(),
             layout: LayoutConfig::default(),
+            widgets: WidgetConfig::default(),
             hotkeys: HotkeysConfig::default(),
             shortcuts: ShortcutsConfig::default(),
             script: ScriptConfig::default(),

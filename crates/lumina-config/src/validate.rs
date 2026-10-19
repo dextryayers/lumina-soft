@@ -18,7 +18,7 @@ use lumina_core::color::parse_hex;
 
 use crate::schema::{
     AudioConfig, Config, FftSize, GeneralConfig, HotkeysConfig, LayoutConfig, MediaConfig,
-    MotionConfig, Position, RgbMode, TextConfig, VisualizerStyle,
+    MotionConfig, Position, RgbMode, TextConfig, VisualizerStyle, KNOWN_WIDGET_IDS,
 };
 
 /// How serious a problem is.
@@ -173,6 +173,7 @@ pub fn validate(mut config: Config) -> (Config, ValidationReport) {
     validate_media(&mut config, &mut report);
     validate_clock(&mut config, &mut report);
     validate_layout(&mut config, &mut report);
+    validate_widgets(&mut config, &mut report);
     validate_hotkeys(&mut config, &mut report);
     validate_script(&mut config, &mut report);
     validate_motion(&mut config, &mut report);
