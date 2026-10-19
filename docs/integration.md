@@ -1,0 +1,67 @@
+# Hotkeys, tray, autostart, and single instance
+
+## Hotkeys
+
+Bindings live in `[hotkeys]`. The syntax is modifiers followed by one key,
+separated by `+`, case insensitive, with modifiers in any order:
+
+```toml
+[hotkeys]
+toggle_visibility = "ctrl+alt+l"
+cycle_widget = "ctrl+alt+tab"
+cycle_back = "ctrl+shift+tab"
+rgb_next_mode = "ctrl+alt+r"
+profile_next = "ctrl+alt+p"
+```
+
+Supported modifiers are `ctrl`, `alt`, `shift`, and `super`; `meta`, `win`,
+`windows`, `cmd`, and `command` are aliases for `super`. Keys are letters,
+digits, `f1` through `f24`, named keys such as `tab`, `enter`, `escape`,
+`space`, `pageup`, `pagedown`, `home`, `end`, `insert`, `delete`, the arrow
+keys, locks, `printscreen`, and `pause`, or the punctuation names `plus`,
+`minus`, `comma`, `period`, `slash`, `backslash`, `semicolon`, `quote`,
+`backquote`, `bracketleft`, `bracketright`, and `equal`. An empty string means
+unbound. Two actions may not share a binding; the validator reports the
+conflict instead of silently dropping one.
+
+On Windows the backend uses `RegisterHotKey` on a dedicated message-loop
+thread. On X11 the binding is translated to `XGrabKey` with Caps Lock, Num Lock,
+and Scroll Lock variants so the combination works regardless of lock state.
+Wayland depends on the `org.freedesktop.portal.GlobalShortcuts` portal; when
+the portal is unavailable, hotkeys are disabled with a log line and the tray
+tooltip says so. macOS is not a target.
+
+## Tray
+
+The menu mirrors `[layout].order` and the RGB mode, plus fixed entries for
+visibility, autostart, settings, documentation, about, and quit. Icons are
+generated at runtime for four states: hidden, idle, active, and muted. Left
+click toggles visibility; right click opens the menu.
+
+Windows uses `Shell_NotifyIcon`. On Linux the tray requires a
+`StatusNotifierItem` host such as KDE, Xfce, or GNOME with the AppIndicator
+extension; without one, the same actions remain available through hotkeys and
+IPC.
+
+## Autostart
+
+```text
+lumina --autostart status
+lumina --autostart install
+lumina --autostart remove
+```
+
+Windows writes the per-user value `Lumina` under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. Linux writes
+`~/.config/autostart/lumina.desktop` (or `$XDG_CONFIG_HOME/autostart`).
+Both record the absolute executable path and add `--hidden` when the island
+should start hidden, so autostart does not override an explicit preference.
+
+## Single instance
+
+The first launch owns a per-user named mutex on Windows or a unix socket on
+Linux. A second launch writes a short activation message and exits with status
+zero; the primary reads it with `InstanceGuard::take_activation` and shows the
+island. A stale activation file from a crashed session is removed when the next
+primary starts, and a stale unix socket is only reclaimed after confirming that
+nobody is listening.

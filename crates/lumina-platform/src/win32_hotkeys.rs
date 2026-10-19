@@ -23,7 +23,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetMessageW, PostThreadMessageW, MSG, WM_HOTKEY, WM_QUIT,
+    GetMessageW, PeekMessageW, PostThreadMessageW, MSG, PM_NOREMOVE, WM_HOTKEY, WM_QUIT,
 };
 
 use crate::hotkey::{
@@ -146,6 +146,11 @@ fn run_loop(
     id_tx: Sender<u32>,
 ) {
     unsafe {
+        // Force the thread message queue to exist before publishing the id.
+        // Without this, a very fast drop can post WM_QUIT before the queue
+        // exists, lose it, and then block forever in join.
+        let mut message = MSG::default();
+        let _ = PeekMessageW(&mut message, HWND::default(), 0, 0, PM_NOREMOVE);
         let _ = id_tx.send(GetCurrentThreadId());
     }
 
