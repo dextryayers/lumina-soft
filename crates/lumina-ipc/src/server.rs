@@ -18,7 +18,7 @@ use serde_json::Value;
 use crate::events::EventSender;
 use crate::framing::{encode_line, FrameError, LineReader};
 use crate::protocol::{Command, IpcError, Request, Response, MAX_CLIENTS};
-use crate::rate_limit::{DEFAULT_RATE_PER_SECOND, RateLimiter};
+use crate::rate_limit::{RateLimiter, DEFAULT_RATE_PER_SECOND};
 use crate::transport::{Connection, IpcAddress, Listener};
 
 /// Default number of milliseconds between accept attempts.
@@ -136,7 +136,7 @@ impl Server {
         let dispatcher = thread::Builder::new()
             .name("lumina-ipc-dispatch".to_string())
             .spawn({
-                let shutdown = Arc::clone(&shutdown);
+                let shutdown = Arc::clone(shutdown);
                 move || dispatch_loop(handler, &job_receiver, &shutdown, poll)
             })?;
 
@@ -151,7 +151,7 @@ impl Server {
                     clients.fetch_add(1, Ordering::Relaxed);
                     let client_jobs = job_sender.clone();
                     let client_events = events.clone();
-                    let client_shutdown = Arc::clone(&shutdown);
+                    let client_shutdown = Arc::clone(shutdown);
                     let counter = Arc::clone(&clients);
                     let spawned = thread::Builder::new()
                         .name("lumina-ipc-client".to_string())
@@ -258,21 +258,19 @@ fn run_connection(
     let closed = Arc::new(AtomicBool::new(false));
     let forward_closed = Arc::clone(&closed);
     let forward_sender = out_sender.clone();
-    let forwarder = thread::spawn(move || {
-        loop {
-            match subscription.recv_timeout(EVENT_POLL) {
-                Ok(line) => {
-                    if forward_sender.send(line).is_err() {
-                        break;
-                    }
+    let forwarder = thread::spawn(move || loop {
+        match subscription.recv_timeout(EVENT_POLL) {
+            Ok(line) => {
+                if forward_sender.send(line).is_err() {
+                    break;
                 }
-                Err(RecvTimeoutError::Timeout) => {
-                    if forward_closed.load(Ordering::Acquire) {
-                        break;
-                    }
-                }
-                Err(RecvTimeoutError::Disconnected) => break,
             }
+            Err(RecvTimeoutError::Timeout) => {
+                if forward_closed.load(Ordering::Acquire) {
+                    break;
+                }
+            }
+            Err(RecvTimeoutError::Disconnected) => break,
         }
     });
 
@@ -286,7 +284,10 @@ fn run_connection(
             Ok(Some(line)) => line,
             Ok(None) | Err(FrameError::Io(_)) => break,
             Err(FrameError::TooLong) => {
-                send(&out_sender, &Response::failure(None, IpcError::line_too_long()));
+                send(
+                    &out_sender,
+                    &Response::failure(None, IpcError::line_too_long()),
+                );
                 break;
             }
             Err(FrameError::InvalidUtf8) => {
@@ -326,10 +327,7 @@ fn run_connection(
         if jobs.send(job).is_err() {
             send(
                 &out_sender,
-                &Response::failure(
-                    request.id,
-                    IpcError::internal("server is shutting down"),
-                ),
+                &Response::failure(request.id, IpcError::internal("server is shutting down")),
             );
             break;
         }
@@ -446,6 +444,7 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
     struct TestListener {
         listener: TcpListener,
         address: IpcAddress,

@@ -29,7 +29,7 @@ impl IpcAddress {
     pub fn default_for_user() -> io::Result<Self> {
         #[cfg(unix)]
         {
-            unix::default_for_user()
+            Ok(unix::default_for_user())
         }
         #[cfg(windows)]
         {
@@ -74,7 +74,7 @@ pub trait Connection: Read + Write + Send + fmt::Debug {
 }
 
 /// A non-blocking accept source.
-pub trait Listener: Send {
+pub trait Listener: Send + fmt::Debug {
     /// Accept one pending connection.
     ///
     /// `Ok(None)` means no client is waiting; callers should retry. The
@@ -116,11 +116,17 @@ mod tests {
         #[cfg(unix)]
         {
             assert!(address.as_str().ends_with("lumina.sock"), "{}", address);
-            assert!(address.as_str().contains("lumina-") || address.as_str().contains("lumina.sock"));
+            assert!(
+                address.as_str().contains("lumina-") || address.as_str().contains("lumina.sock")
+            );
         }
         #[cfg(windows)]
         {
-            assert!(address.as_str().starts_with(r"\\.\pipe\lumina-S-1-5-"), "{}", address);
+            assert!(
+                address.as_str().starts_with(r"\\.\pipe\lumina-S-1-5-"),
+                "{}",
+                address
+            );
         }
     }
 

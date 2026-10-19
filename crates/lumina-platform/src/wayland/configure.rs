@@ -338,10 +338,7 @@ mod tests {
 
     #[test]
     fn stale_errors_render_readable_messages() {
-        let error = ConfigureError::StaleSerial {
-            serial: 4,
-            last: 9,
-        };
+        let error = ConfigureError::StaleSerial { serial: 4, last: 9 };
         let text = error.to_string();
         assert!(text.contains('4'));
         assert!(text.contains('9'));

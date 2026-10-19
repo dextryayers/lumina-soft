@@ -47,11 +47,9 @@ use raw_window_handle::{
 };
 use wayland_client::globals::{registry_queue_init, GlobalListContents};
 use wayland_client::protocol::{
-    wl_compositor, wl_keyboard, wl_output, wl_registry, wl_region, wl_seat, wl_surface,
+    wl_compositor, wl_keyboard, wl_output, wl_region, wl_registry, wl_seat, wl_surface,
 };
-use wayland_client::{
-    delegate_noop, Connection, Dispatch, EventQueue, Proxy, QueueHandle, WEnum,
-};
+use wayland_client::{delegate_noop, Connection, Dispatch, EventQueue, Proxy, QueueHandle, WEnum};
 use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_base};
 use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1};
 
@@ -172,9 +170,12 @@ impl WaylandBackend {
                 .collect()
         });
         for (index, (name, _interface, version)) in output_globals.into_iter().enumerate() {
-            let proxy = globals
-                .registry()
-                .bind::<wl_output::WlOutput, _, _>(name, version.min(4), &qh, index);
+            let proxy = globals.registry().bind::<wl_output::WlOutput, _, _>(
+                name,
+                version.min(4),
+                &qh,
+                index,
+            );
             state.outputs.push(OutputBinding {
                 proxy,
                 name: String::new(),
@@ -369,7 +370,9 @@ impl WaylandBackend {
                 );
                 let size = self.state.tracker.preferred_size();
                 layer_surface.set_size(size.0, size.1);
-                layer_surface.set_anchor(zwlr_layer_surface_v1::Anchor::from_bits_truncate(self.state.layer.anchor.bits()));
+                layer_surface.set_anchor(zwlr_layer_surface_v1::Anchor::from_bits_truncate(
+                    self.state.layer.anchor.bits(),
+                ));
                 let margins = self.state.layer.margins;
                 layer_surface.set_margin(margins.top, margins.right, margins.bottom, margins.left);
                 layer_surface.set_exclusive_zone(self.state.layer.exclusive_zone);
@@ -410,12 +413,7 @@ impl WaylandBackend {
         self.state.scale = output
             .and_then(|index| self.state.outputs.iter().find(|o| o.index == index))
             .map_or_else(
-                || {
-                    self.state
-                        .outputs
-                        .first()
-                        .map_or(1.0, |o| o.scale as f32)
-                },
+                || self.state.outputs.first().map_or(1.0, |o| o.scale as f32),
                 |o| o.scale as f32,
             );
 
@@ -469,7 +467,9 @@ impl WaylandBackend {
         };
         let size = self.state.tracker.preferred_size();
         layer_surface.set_size(size.0, size.1);
-        layer_surface.set_anchor(zwlr_layer_surface_v1::Anchor::from_bits_truncate(self.state.layer.anchor.bits()));
+        layer_surface.set_anchor(zwlr_layer_surface_v1::Anchor::from_bits_truncate(
+            self.state.layer.anchor.bits(),
+        ));
         let margins = self.state.layer.margins;
         layer_surface.set_margin(margins.top, margins.right, margins.bottom, margins.left);
         layer_surface.set_exclusive_zone(self.state.layer.exclusive_zone);
@@ -570,7 +570,9 @@ impl OverlayBackend for WaylandBackend {
             self.recreate_surface(requested)?;
         }
 
-        self.state.tracker.set_preferred((logical_width, logical_height));
+        self.state
+            .tracker
+            .set_preferred((logical_width, logical_height));
         self.recompute_layer();
         self.apply_layer_geometry()
     }
@@ -820,16 +822,14 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for State {
         _queue: &QueueHandle<Self>,
     ) {
         match event {
-            wl_keyboard::Event::Key { time, key, state: key_state, .. } => {
-                let pressed = matches!(
-                    key_state,
-                    WEnum::Value(wl_keyboard::KeyState::Pressed)
-                );
-                state.keys.push_back(KeyEvent {
-                    key,
-                    pressed,
-                    time,
-                });
+            wl_keyboard::Event::Key {
+                time,
+                key,
+                state: key_state,
+                ..
+            } => {
+                let pressed = matches!(key_state, WEnum::Value(wl_keyboard::KeyState::Pressed));
+                state.keys.push_back(KeyEvent { key, pressed, time });
             }
             wl_keyboard::Event::Modifiers {
                 mods_depressed,
@@ -922,9 +922,7 @@ impl Dispatch<xdg_toplevel::XdgToplevel, ()> for State {
         _queue: &QueueHandle<Self>,
     ) {
         match event {
-            xdg_toplevel::Event::Configure {
-                width, height, ..
-            } => {
+            xdg_toplevel::Event::Configure { width, height, .. } => {
                 state.xdg_size = Some((width.max(0) as u32, height.max(0) as u32));
             }
             xdg_toplevel::Event::Close => state.closed = true,

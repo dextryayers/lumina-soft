@@ -113,14 +113,14 @@ fn parse(arguments: &[String]) -> Result<Action, String> {
             #[cfg(unix)]
             {
                 address = Some(IpcAddress::unix(path));
+                index += 2;
+                continue;
             }
             #[cfg(not(unix))]
             {
                 let _ = path;
                 return Err("--socket is only available on Unix".to_string());
             }
-            index += 2;
-            continue;
         }
         if argument == "--pipe" {
             let name = arguments
@@ -134,14 +134,14 @@ fn parse(arguments: &[String]) -> Result<Action, String> {
                     format!(r"\\.\pipe\{name}")
                 };
                 address = Some(IpcAddress::pipe(full));
+                index += 2;
+                continue;
             }
             #[cfg(not(windows))]
             {
                 let _ = name;
                 return Err("--pipe is only available on Windows".to_string());
             }
-            index += 2;
-            continue;
         }
         if let Some(json) = argument.strip_prefix("--payload=") {
             merge_payload(&mut payload, json)?;
@@ -234,11 +234,7 @@ fn merge_payload(payload: &mut Map<String, Value>, json: &str) -> Result<(), Str
     Ok(())
 }
 
-fn insert_payload(
-    payload: &mut Map<String, Value>,
-    key: &str,
-    value: &str,
-) -> Result<(), String> {
+fn insert_payload(payload: &mut Map<String, Value>, key: &str, value: &str) -> Result<(), String> {
     if key == "arg" {
         let entry = payload
             .entry("args".to_string())
@@ -298,19 +294,18 @@ fn send(options: &SendOptions) -> ExitCode {
             }
         },
     };
-    let command = match Command::from_payload(&options.command, &Value::Object(options.payload.clone())) {
-        Ok(command) => command,
-        Err(error) => {
-            eprintln!("lumina-send: {error}");
-            return ExitCode::from(3);
-        }
-    };
+    let command =
+        match Command::from_payload(&options.command, &Value::Object(options.payload.clone())) {
+            Ok(command) => command,
+            Err(error) => {
+                eprintln!("lumina-send: {error}");
+                return ExitCode::from(3);
+            }
+        };
     let mut client = match Client::connect(&address) {
         Ok(client) => client,
         Err(error) => {
-            eprintln!(
-                "lumina-send: cannot connect to {address}: {error}. Is Lumina running?"
-            );
+            eprintln!("lumina-send: cannot connect to {address}: {error}. Is Lumina running?");
             return ExitCode::from(1);
         }
     };

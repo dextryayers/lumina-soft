@@ -29,10 +29,7 @@ impl fmt::Display for FrameError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io(error) => write!(formatter, "read failed: {error}"),
-            Self::TooLong => write!(
-                formatter,
-                "line exceeds the {MAX_LINE_BYTES} byte limit"
-            ),
+            Self::TooLong => write!(formatter, "line exceeds the {MAX_LINE_BYTES} byte limit"),
             Self::InvalidUtf8 => formatter.write_str("line is not valid UTF-8"),
         }
     }
@@ -181,29 +178,20 @@ mod tests {
         let mut input = vec![b'x'; MAX_LINE_BYTES + 1];
         input.push(b'\n');
         let mut reader = reader(&input);
-        assert!(matches!(
-            reader.read_line(),
-            Err(FrameError::TooLong)
-        ));
+        assert!(matches!(reader.read_line(), Err(FrameError::TooLong)));
     }
 
     #[test]
     fn an_unterminated_line_over_the_limit_is_rejected() {
         let input = vec![b'x'; MAX_LINE_BYTES + 1];
         let mut reader = reader(&input);
-        assert!(matches!(
-            reader.read_line(),
-            Err(FrameError::TooLong)
-        ));
+        assert!(matches!(reader.read_line(), Err(FrameError::TooLong)));
     }
 
     #[test]
     fn invalid_utf8_is_reported() {
         let mut reader = reader(b"\xff\n");
-        assert!(matches!(
-            reader.read_line(),
-            Err(FrameError::InvalidUtf8)
-        ));
+        assert!(matches!(reader.read_line(), Err(FrameError::InvalidUtf8)));
     }
 
     #[test]

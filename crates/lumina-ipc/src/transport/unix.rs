@@ -9,21 +9,19 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::os::unix::fs::{FileTypeExt, PermissionsExt};
 use std::os::unix::net::{UnixListener as StdListener, UnixStream};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use super::{Connection, IpcAddress, Listener};
 
 /// Build the default socket address for this user.
-pub(super) fn default_for_user() -> io::Result<IpcAddress> {
+pub(super) fn default_for_user() -> IpcAddress {
     if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
         if !runtime.is_empty() {
-            return Ok(IpcAddress::Unix(PathBuf::from(runtime).join("lumina.sock")));
+            return IpcAddress::Unix(PathBuf::from(runtime).join("lumina.sock"));
         }
     }
     let uid = unsafe { libc::getuid() };
-    Ok(IpcAddress::Unix(PathBuf::from(format!(
-        "/tmp/lumina-{uid}.sock"
-    ))))
+    IpcAddress::Unix(PathBuf::from(format!("/tmp/lumina-{uid}.sock")))
 }
 
 /// Bind the socket, replacing a stale file left by a crashed instance.

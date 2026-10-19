@@ -5,7 +5,7 @@
 //! of relying on the default, so a permissive machine-wide policy cannot open
 //! the control surface to other users.
 
-use std::ffi::{OsStr, c_void};
+use std::ffi::{c_void, OsStr};
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::mem::size_of;
@@ -15,22 +15,22 @@ use std::time::{Duration, Instant};
 
 use windows::core::{HRESULT, PCWSTR, PWSTR};
 use windows::Win32::Foundation::{
-    ERROR_FILE_NOT_FOUND, ERROR_PIPE_BUSY, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING,
-    FALSE, HANDLE, HLOCAL, LocalFree,
+    LocalFree, ERROR_FILE_NOT_FOUND, ERROR_PIPE_BUSY, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING,
+    FALSE, HANDLE, HLOCAL,
 };
 use windows::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
 };
 use windows::Win32::Security::{
-    GetTokenInformation, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER,
-    TokenUser,
+    GetTokenInformation, TokenUser, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, TOKEN_QUERY,
+    TOKEN_USER,
 };
 use windows::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING, PIPE_ACCESS_DUPLEX,
 };
 use windows::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, PIPE_NOWAIT, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS,
-    PIPE_TYPE_BYTE, PIPE_WAIT, SetNamedPipeHandleState,
+    ConnectNamedPipe, CreateNamedPipeW, SetNamedPipeHandleState, PIPE_NOWAIT, PIPE_READMODE_BYTE,
+    PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
 };
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
@@ -52,6 +52,7 @@ pub(super) fn bind(address: &IpcAddress) -> io::Result<Box<dyn Listener>> {
         name: name.clone(),
         address: address.clone(),
         security: SecurityDescriptor::new(SDDL)?,
+        pending: None,
     }))
 }
 
@@ -139,8 +140,7 @@ fn user_sid() -> io::Result<String> {
 
         let user = &*buffer.as_ptr().cast::<TOKEN_USER>();
         let mut sid_string = PWSTR::null();
-        ConvertSidToStringSidW(user.User.Sid, &raw mut sid_string)
-            .map_err(io::Error::from)?;
+        ConvertSidToStringSidW(user.User.Sid, &raw mut sid_string).map_err(io::Error::from)?;
         let text = sid_string
             .to_string()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "SID is not UTF-16"))?;
@@ -197,6 +197,7 @@ struct PipeListener {
     name: String,
     address: IpcAddress,
     security: SecurityDescriptor,
+    pending: Option<OwnedHandle>,
 }
 
 impl PipeListener {
@@ -207,10 +208,7 @@ impl PipeListener {
             CreateNamedPipeW(
                 PCWSTR(wide.as_ptr()),
                 PIPE_ACCESS_DUPLEX,
-                PIPE_TYPE_BYTE
-                    | PIPE_READMODE_BYTE
-                    | PIPE_NOWAIT
-                    | PIPE_REJECT_REMOTE_CLIENTS,
+                PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_NOWAIT | PIPE_REJECT_REMOTE_CLIENTS,
                 crate::protocol::MAX_CLIENTS as u32,
                 PIPE_BUFFER_BYTES,
                 PIPE_BUFFER_BYTES,
@@ -227,7 +225,10 @@ impl PipeListener {
 
 impl Listener for PipeListener {
     fn accept(&mut self) -> io::Result<Option<Box<dyn Connection>>> {
-        let pipe = self.create_instance()?;
+        let pipe = match self.pending.take() {
+            Some(pipe) => pipe,
+            None => self.create_instance()?,
+        };
         let connected = match unsafe { ConnectNamedPipe(HANDLE(pipe.as_raw_handle()), None) } {
             Ok(()) => true,
             Err(error) if error.code() == HRESULT::from_win32(ERROR_PIPE_CONNECTED.0) => true,
@@ -235,6 +236,7 @@ impl Listener for PipeListener {
             Err(error) => return Err(io::Error::from(error)),
         };
         if !connected {
+            self.pending = Some(pipe);
             return Ok(None);
         }
         set_wait_mode(&pipe)?;

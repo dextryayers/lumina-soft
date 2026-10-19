@@ -40,14 +40,13 @@ pub mod transport;
 
 pub use client::{Client, ClientError};
 pub use events::{Event, EventKind, EventSender, Subscription};
-pub use framing::{FrameError, LineReader, MAX_LINE_BYTES, encode_line};
+pub use framing::{encode_line, FrameError, LineReader, MAX_LINE_BYTES};
 pub use protocol::{
-    Command, ExecuteArgs, GeometryArgs, GetConfigArgs, IpcError, IpcErrorCode, MAX_CLIENTS,
-    MediaAction, MediaArgs, MediaSnapshot, NotifyArgs, Request, RequestId, Response, SetConfigArgs,
-    SetProfileArgs, SetRgbArgs, ShowArgs, SpectrumArgs, StateSnapshot, GeometrySnapshot,
-    RgbSnapshot,
+    Command, ExecuteArgs, GeometryArgs, GeometrySnapshot, GetConfigArgs, IpcError, IpcErrorCode,
+    MediaAction, MediaArgs, MediaSnapshot, NotifyArgs, Request, RequestId, Response, RgbSnapshot,
+    SetConfigArgs, SetProfileArgs, SetRgbArgs, ShowArgs, SpectrumArgs, StateSnapshot, MAX_CLIENTS,
 };
-pub use rate_limit::{DEFAULT_RATE_PER_SECOND, RateLimiter};
+pub use rate_limit::{RateLimiter, DEFAULT_RATE_PER_SECOND};
 pub use server::{Handler, Server, ServerHandle, ServerOptions};
 pub use transport::{Connection, IpcAddress, Listener};
 

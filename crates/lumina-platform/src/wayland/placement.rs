@@ -202,9 +202,7 @@ pub const fn margins_for(position: Position, offset_x: i32, offset_y: i32) -> Ma
         Position::TopRight | Position::BottomRight => {
             Margins::new(0, clamp_positive(-offset_x), 0, 0)
         }
-        Position::TopCenter | Position::BottomCenter => {
-            Margins::new(0, offset_x, 0, -offset_x)
-        }
+        Position::TopCenter | Position::BottomCenter => Margins::new(0, offset_x, 0, -offset_x),
     };
     if position.is_top() {
         Margins::new(
@@ -450,7 +448,10 @@ mod tests {
     fn the_island_reserves_the_strip_it_occupies() {
         let placement = layer_placement(Position::TopCenter, 0, 12, true, 36, false);
         assert_eq!(placement.exclusive_zone, 48);
-        assert_eq!(placement.anchor, Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT));
+        assert_eq!(
+            placement.anchor,
+            Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT)
+        );
     }
 
     #[test]
@@ -477,7 +478,10 @@ mod tests {
             KeyboardInteractivity::for_island(),
             KeyboardInteractivity::OnDemand
         );
-        assert_eq!(KeyboardInteractivity::default(), KeyboardInteractivity::OnDemand);
+        assert_eq!(
+            KeyboardInteractivity::default(),
+            KeyboardInteractivity::OnDemand
+        );
     }
 
     #[test]

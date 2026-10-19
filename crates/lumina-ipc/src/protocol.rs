@@ -518,9 +518,7 @@ impl Validate for MediaArgs {
             validate_text("player", player, 128)?;
         }
         if self.action == MediaAction::Seek && self.position_ms.is_none() {
-            return Err(IpcError::invalid_argument(
-                "`seek` requires `position_ms`",
-            ));
+            return Err(IpcError::invalid_argument("`seek` requires `position_ms`"));
         }
         if let Some(position) = self.position_ms {
             validate_duration("position_ms", position, 86_400_000)?;
@@ -818,7 +816,10 @@ impl Command {
                 serde_json::to_value(id).unwrap_or(Value::Null)
             }),
         );
-        object.insert("command".to_string(), Value::String(self.name().to_string()));
+        object.insert(
+            "command".to_string(),
+            Value::String(self.name().to_string()),
+        );
         object.insert("params".to_string(), self.payload()?);
         Ok(Value::Object(object))
     }
@@ -847,9 +848,10 @@ impl Request {
         };
         let id = match object.remove("id") {
             None | Some(Value::Null) => None,
-            Some(value) => Some(serde_json::from_value(value).map_err(|_| {
-                IpcError::bad_request("`id` must be a number or a string")
-            })?),
+            Some(value) => Some(
+                serde_json::from_value(value)
+                    .map_err(|_| IpcError::bad_request("`id` must be a number or a string"))?,
+            ),
         };
         let Some(Value::String(name)) = object.remove("command") else {
             return Err(IpcError::bad_request("missing required field `command`"));
@@ -1053,10 +1055,8 @@ mod tests {
 
     #[test]
     fn top_level_fields_outside_the_envelope_are_rejected() {
-        let error = Request::parse(
-            r#"{"id":1,"command":"notify","title":"Build done"}"#,
-        )
-        .unwrap_err();
+        let error =
+            Request::parse(r#"{"id":1,"command":"notify","title":"Build done"}"#).unwrap_err();
         assert_eq!(error.code, IpcErrorCode::BadRequest);
         assert!(error.message.contains("params"));
     }
@@ -1076,8 +1076,7 @@ mod tests {
 
     #[test]
     fn string_ids_are_preserved_exactly() {
-        let request =
-            Request::parse(r#"{"id":"abc-1","command":"hide"}"#).unwrap();
+        let request = Request::parse(r#"{"id":"abc-1","command":"hide"}"#).unwrap();
         assert_eq!(request.id, Some(RequestId::String("abc-1".to_string())));
         let line = request.to_line().unwrap();
         assert!(line.ends_with('\n'));
@@ -1129,8 +1128,8 @@ mod tests {
 
     #[test]
     fn no_argument_commands_reject_extra_fields() {
-        let error = Command::from_payload("hide", &payload(serde_json::json!({"x":1})))
-            .unwrap_err();
+        let error =
+            Command::from_payload("hide", &payload(serde_json::json!({"x":1}))).unwrap_err();
         assert_eq!(error.code, IpcErrorCode::InvalidArgument);
     }
 
@@ -1146,9 +1145,8 @@ mod tests {
 
     #[test]
     fn an_empty_title_is_rejected() {
-        let error =
-            Command::from_payload("notify", &payload(serde_json::json!({"title":"  "})))
-                .unwrap_err();
+        let error = Command::from_payload("notify", &payload(serde_json::json!({"title":"  "})))
+            .unwrap_err();
         assert_eq!(error.code, IpcErrorCode::InvalidArgument);
     }
 
@@ -1173,19 +1171,16 @@ mod tests {
 
     #[test]
     fn media_seek_requires_a_position() {
-        let error =
-            Command::from_payload("media", &payload(serde_json::json!({"action":"seek"})))
-                .unwrap_err();
+        let error = Command::from_payload("media", &payload(serde_json::json!({"action":"seek"})))
+            .unwrap_err();
         assert_eq!(error.code, IpcErrorCode::InvalidArgument);
     }
 
     #[test]
     fn media_volume_requires_a_volume() {
-        let error = Command::from_payload(
-            "media",
-            &payload(serde_json::json!({"action":"volume"})),
-        )
-        .unwrap_err();
+        let error =
+            Command::from_payload("media", &payload(serde_json::json!({"action":"volume"})))
+                .unwrap_err();
         assert_eq!(error.code, IpcErrorCode::InvalidArgument);
     }
 
@@ -1202,11 +1197,9 @@ mod tests {
     #[test]
     fn media_accepts_every_documented_action() {
         for action in ["play", "pause", "play_pause", "next", "previous", "stop"] {
-            let command = Command::from_payload(
-                "media",
-                &payload(serde_json::json!({"action": action})),
-            )
-            .unwrap();
+            let command =
+                Command::from_payload("media", &payload(serde_json::json!({"action": action})))
+                    .unwrap();
             assert_eq!(command.name(), "media");
         }
     }

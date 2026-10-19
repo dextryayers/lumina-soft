@@ -125,19 +125,15 @@ impl Client {
     }
 
     /// Send a command with an explicit id.
-    pub fn call_with_id(
-        &mut self,
-        id: RequestId,
-        command: &Command,
-    ) -> Result<Value, ClientError> {
+    pub fn call_with_id(&mut self, id: RequestId, command: &Command) -> Result<Value, ClientError> {
         let request = Request {
             id: Some(id),
             command: command.clone(),
         };
         let expected = request.id.clone();
-        let line = request.to_line().map_err(|error| {
-            ClientError::Protocol(format!("could not encode request: {error}"))
-        })?;
+        let line = request
+            .to_line()
+            .map_err(|error| ClientError::Protocol(format!("could not encode request: {error}")))?;
         self.writer.write_all(line.as_bytes())?;
         self.writer.flush()?;
 
@@ -150,9 +146,11 @@ impl Client {
             match parse_incoming(&line)? {
                 Incoming::Event(event) => self.push_event(event),
                 Incoming::Response(response) => {
-                    if response.id.as_ref().is_some_and(|received| {
-                        expected.as_ref() != Some(received)
-                    }) {
+                    if response
+                        .id
+                        .as_ref()
+                        .is_some_and(|received| expected.as_ref() != Some(received))
+                    {
                         let received = response
                             .id
                             .as_ref()

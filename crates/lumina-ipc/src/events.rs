@@ -166,7 +166,9 @@ impl EventSender {
 
     fn unsubscribe(&self, id: u64) {
         let mut inner = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
-        inner.subscribers.retain(|(subscriber, _)| *subscriber != id);
+        inner
+            .subscribers
+            .retain(|(subscriber, _)| *subscriber != id);
     }
 
     /// Number of clients currently subscribed.
@@ -248,8 +250,12 @@ mod tests {
         let subscription = bus.subscribe();
         bus.emit(&Event::state_changed("hover")).unwrap();
         bus.emit(&Event::state_changed("clock")).unwrap();
-        let first = subscription.recv_timeout(Duration::from_millis(50)).unwrap();
-        let second = subscription.recv_timeout(Duration::from_millis(50)).unwrap();
+        let first = subscription
+            .recv_timeout(Duration::from_millis(50))
+            .unwrap();
+        let second = subscription
+            .recv_timeout(Duration::from_millis(50))
+            .unwrap();
         assert!(String::from_utf8(first).unwrap().contains("hover"));
         assert!(String::from_utf8(second).unwrap().contains("clock"));
     }
