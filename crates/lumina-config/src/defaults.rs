@@ -216,6 +216,7 @@ mod tests {
             "[weather]",
             "[layout]",
             "[hotkeys]",
+            "[script]",
             "[tray]",
             "[motion]",
             "[text]",

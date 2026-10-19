@@ -18,5 +18,11 @@ lumina-core = { workspace = true }
 lumina-config = { workspace = true }
 lumina-text = { workspace = true }
 lumina-media = { workspace = true }
+serde_json = { workspace = true }
+ureq = { version = "2.12", optional = true, default-features = false, features = ["tls"] }
+
+[features]
+default = []
+http = ["dep:ureq"]
 
 [dev-dependencies]

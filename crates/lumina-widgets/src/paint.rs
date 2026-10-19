@@ -1,4 +1,4 @@
-//! Shared drawing primitives for the data widgets.
+﻿//! Shared drawing primitives for the data widgets.
 //!
 //! These are deliberately small axis aligned helpers. The renderer's SDF rounds
 //! corners, so a square quad with a radius of half its size is a dot, and a row
@@ -122,7 +122,7 @@ pub(crate) fn dots_ring(
         let origin = Vec2::new(position.x - dot * 0.5, position.y - dot * 0.5);
         block(
             out,
-            Rect::from_size(origin, Size::uniform(dot)),
+            Rect::from_size(origin, Size::new(dot, dot)),
             color,
             dot * 0.5,
         );
@@ -214,3 +214,4 @@ mod tests {
         assert_eq!(severity_color(95.0), CRITICAL);
     }
 }
+

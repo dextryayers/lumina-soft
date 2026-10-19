@@ -16,7 +16,7 @@
 
 use std::collections::VecDeque;
 
-use lumina_core::geometry::{Rect, Size, Vec2};
+use lumina_core::geometry::{Rect, Size};
 use lumina_core::state::{IslandState, StateRequest};
 
 use crate::paint::{self, ACCENT, DIM, TEXT, TRACK};
@@ -343,6 +343,7 @@ fn now_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lumina_core::geometry::Vec2;
 
     fn rect() -> Rect {
         Rect::new(0.0, 0.0, 300.0, 66.0)
@@ -457,7 +458,7 @@ mod tests {
     fn drawing_emits_the_card_and_a_progress_track() {
         let mut widget = NotificationWidget::new();
         widget.push_notification(
-            IslandNotification::new(1, "title", "body", 0, 5_000).with_action("Open"),
+            IslandNotification::new(1, "title", "body", now_ms(), 5_000).with_action("Open"),
         );
         let mut out = DrawList::new();
         let ctx = ctx();
@@ -472,4 +473,5 @@ mod tests {
         assert_eq!(notification.accent_color(), [1.0, 128.0 / 255.0, 0.0, 1.0]);
     }
 }
+
 

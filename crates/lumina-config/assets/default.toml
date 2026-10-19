@@ -313,6 +313,27 @@ toggle_debug_overlay = "ctrl+alt+d"
 # show_in_island = true
 # ipc_only = false                         # true means clicking does nothing
 
+# Custom script widgets. Commands run directly, without a shell, on a fixed
+# interval with a hard timeout. Output is capped at 120 characters per line and
+# max_lines lines. See docs/script-widget.md before adding one.
+[script]
+enabled = false
+entries = []
+#
+# [[script.entries]]
+# id = "uptime"                            # required, unique
+# label = "Uptime"                         # required
+# command = "uptime"                       # required, program name
+# args = ["-p"]                            # optional arguments
+# cwd = ""                                 # optional working directory
+# interval_ms = 60000                      # minimum 250
+# timeout_ms = 5000                        # minimum 1000
+# display_ms = 8000                        # how long the result stays visible
+# max_lines = 3                            # 1 to 8
+# display = "text"                         # text, icon
+# icon = "terminal"                        # bundled icon name
+# show_in_island = true
+
 [tray]
 enabled = true
 # Show the tray icon immediately rather than only once the island is hidden.

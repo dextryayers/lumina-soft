@@ -25,26 +25,54 @@
 #![deny(missing_docs)]
 
 pub mod alloc_test;
+pub mod battery;
 pub mod calendar;
 pub mod clock;
 pub mod config;
 pub mod input;
 pub mod layout;
 pub mod media;
+pub mod metrics;
+pub mod network;
+pub mod notify;
+pub mod paint;
+pub mod pomodoro;
+pub mod script;
 pub mod scrub;
+pub mod shortcuts;
+pub mod snapshot;
 pub mod volume;
+pub mod weather;
 pub mod widget;
 
 pub use alloc_test::{active_allocations, total_allocations, total_deallocations, reset_counters, FrameGuard};
+pub use battery::BatteryWidget;
 pub use calendar::CalendarWidget;
 pub use clock::ClockWidget;
 pub use config::{registry_from_config, update_registry};
 pub use input::InputRouter;
 pub use layout::{layout_row, layout_row_with_options, FlexLayout, VerticalAlign};
 pub use media::MediaWidget;
+pub use metrics::MetricsWidget;
+pub use network::NetworkWidget;
+pub use notify::{IslandNotification, NotificationWidget};
+pub use pomodoro::{PomodoroEvent, PomodoroPhase, PomodoroTimer, PomodoroWidget};
+pub use script::{ScriptStatus, ScriptWidget};
 pub use scrub::ScrubController;
+pub use shortcuts::ShortcutsWidget;
+pub use snapshot::{
+    format_countdown, format_short_duration, BatterySnapshot, FormattedRate, History,
+    MetricsSnapshot, NetworkSnapshot, WeatherCache, WeatherCondition, WeatherSnapshot,
+};
 pub use volume::VolumeSlider;
+pub use weather::{
+    parse_open_meteo, parse_open_weather_map, request_url, WeatherError, WeatherTransport,
+    WeatherWidget,
+};
 pub use widget::{DrawList, Quad, Widget, WidgetContext, WidgetInput, WidgetRegistry};
+
+#[cfg(feature = "http")]
+pub use weather::UreqTransport;
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

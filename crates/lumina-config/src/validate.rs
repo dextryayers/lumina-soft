@@ -174,6 +174,7 @@ pub fn validate(mut config: Config) -> (Config, ValidationReport) {
     validate_clock(&mut config, &mut report);
     validate_layout(&mut config, &mut report);
     validate_hotkeys(&mut config, &mut report);
+    validate_script(&mut config, &mut report);
     validate_motion(&mut config, &mut report);
     validate_text(&mut config, &mut report);
     validate_advanced(&mut config, &mut report);
@@ -910,6 +911,76 @@ fn field_mut<'a>(h: &'a mut HotkeysConfig, name: &str) -> &'a mut String {
         "toggle_debug_overlay" => &mut h.toggle_debug_overlay,
         other => unreachable!("{other} is not in ALL_HOTKEYS"),
     }
+}
+
+fn validate_script(config: &mut Config, report: &mut ValidationReport) {
+    let script = &mut config.script;
+    let mut seen: Vec<String> = Vec::new();
+    let mut kept = Vec::with_capacity(script.entries.len());
+
+    for entry in std::mem::take(&mut script.entries) {
+        let path = format!("script.entries.{}", if entry.id.is_empty() { "?" } else { entry.id.as_str() });
+        if !entry.is_runnable() {
+            report.warn(
+                path,
+                "entry needs a non-empty id and command",
+                "dropping the entry",
+            );
+            continue;
+        }
+        if seen.contains(&entry.id) {
+            report.warn(
+                path,
+                "duplicate script id",
+                "dropping the duplicate",
+            );
+            continue;
+        }
+        let mut entry = entry;
+        entry.interval_ms = clamp_u32(
+            entry.interval_ms,
+            250,
+            86_400_000,
+            &format!("{path}.interval_ms"),
+            60_000,
+            report,
+        );
+        entry.timeout_ms = clamp_u32(
+            entry.timeout_ms,
+            1_000,
+            120_000,
+            &format!("{path}.timeout_ms"),
+            5_000,
+            report,
+        );
+        entry.display_ms = clamp_u32(
+            entry.display_ms,
+            500,
+            60_000,
+            &format!("{path}.display_ms"),
+            8_000,
+            report,
+        );
+        entry.max_lines = clamp_u32(
+            entry.max_lines,
+            1,
+            8,
+            &format!("{path}.max_lines"),
+            3,
+            report,
+        );
+        if entry.label.trim().is_empty() {
+            entry.label = entry.id.clone();
+            report.warn(
+                format!("{path}.label"),
+                "empty label",
+                "using the id instead",
+            );
+        }
+        seen.push(entry.id.clone());
+        kept.push(entry);
+    }
+    script.entries = kept;
 }
 
 fn validate_motion(config: &mut Config, report: &mut ValidationReport) {

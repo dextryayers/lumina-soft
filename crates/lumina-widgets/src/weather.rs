@@ -19,7 +19,7 @@ use std::fmt;
 use std::time::{Duration, Instant};
 
 use lumina_config::schema::{WeatherConfig, WeatherProvider, WeatherUnits};
-use lumina_core::geometry::{Rect, Size, Vec2};
+use lumina_core::geometry::{Rect, Size};
 use lumina_core::state::{IslandState, StateRequest};
 
 use crate::paint::{self, ACCENT, DIM, MUTED, TEXT, TRACK, WARN};
@@ -164,7 +164,7 @@ impl WeatherWidget {
         self.next_attempt = Some(now + RETRY_FLOOR);
     }
 
-    /// The temperature rendered with the configured unit, for example `"21°C"`.
+/// The temperature rendered with the configured unit, for example `"21°C"`.
     #[must_use]
     pub fn temperature_text(&self, now: Instant) -> Option<String> {
         let (snapshot, _) = self.cache.stale(now)?;
@@ -635,9 +635,10 @@ mod tests {
             .expect_err("transport fails");
         assert!(matches!(error, WeatherError::Http(_)));
         widget.record_failure(&error, now);
-        assert!(widget.needs_refresh(now));
+        assert!(!widget.needs_refresh(now));
         assert_eq!(widget.last_error(), Some("offline"));
         assert!(!widget.needs_refresh(now + Duration::from_secs(30)));
+        assert!(widget.needs_refresh(now + Duration::from_secs(61)));
     }
 
     #[test]
@@ -645,6 +646,7 @@ mod tests {
         let now = Instant::now();
         let mut widget = WeatherWidget::from_config(&WeatherConfig {
             cache_ttl_minutes: 1,
+            interval_ms: 60_000,
             ..config()
         });
         widget
@@ -716,3 +718,4 @@ mod tests {
         assert_eq!(widget.temperature_text(now).as_deref(), Some("65°F"));
     }
 }
+

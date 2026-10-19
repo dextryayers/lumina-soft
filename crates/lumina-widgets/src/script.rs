@@ -90,7 +90,7 @@ impl ScriptBuffer {
 
     fn push_line(&mut self, line: &str) {
         let trimmed = line.trim_end_matches(['\r', '\n']);
-        if trimmed.is_empty() {
+        if trimmed.trim().is_empty() {
             return;
         }
         let truncated = truncate_chars(trimmed, MAX_LINE_CHARS);
@@ -290,7 +290,7 @@ impl ScriptWidget {
             }
         };
 
-        if let Ok(buffer) = self.buffer.lock() {
+        if let Ok(mut buffer) = self.buffer.lock() {
             buffer.lines.clear();
         }
         self.readers.clear();
@@ -313,10 +313,11 @@ impl ScriptWidget {
 
     /// Check the running process, enforcing the timeout, and clear old output.
     pub fn poll(&mut self, now: Instant) {
+        let timeout = self.timeout();
         if let Some(child) = self.child.as_mut() {
             let timed_out = self
                 .started_at
-                .is_some_and(|started| now.saturating_duration_since(started) >= self.timeout());
+                .is_some_and(|started| now.saturating_duration_since(started) >= timeout);
             if timed_out {
                 let _ = child.kill();
             }
@@ -711,3 +712,4 @@ mod tests {
         widget.poll(Instant::now() + Duration::from_secs(1));
     }
 }
+

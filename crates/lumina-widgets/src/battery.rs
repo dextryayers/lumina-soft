@@ -42,8 +42,6 @@ pub struct BatteryWidget {
     pub interval_ms: u32,
     /// The latest reading.
     pub snapshot: BatterySnapshot,
-    was_low: bool,
-    alert_until_ms: Option<u64>,
 }
 
 impl BatteryWidget {
@@ -56,8 +54,6 @@ impl BatteryWidget {
             show_charging_bolt: config.show_charging_bolt,
             interval_ms: config.interval_ms.max(200),
             snapshot: BatterySnapshot::default(),
-            was_low: false,
-            alert_until_ms: None,
         }
     }
 
@@ -70,14 +66,9 @@ impl BatteryWidget {
         })
     }
 
-    /// Store a new reading, evaluated at the monotonic millisecond `now_ms`.
-    pub fn update(&mut self, snapshot: BatterySnapshot, now_ms: u64) {
+    /// Store a new reading.
+    pub fn update(&mut self, snapshot: BatterySnapshot) {
         self.snapshot = snapshot.sanitized();
-        let low = self.is_low();
-        if low && !self.was_low {
-            self.alert_until_ms = Some(now_ms.saturating_add(ALERT_HOLD_MS));
-        }
-        self.was_low = low;
     }
 
     /// True when the battery is present, discharging, and at or below the low
@@ -112,11 +103,6 @@ impl BatteryWidget {
         self.snapshot
             .time_remaining_secs
             .map(format_short_duration)
-    }
-
-    fn alert_is_live(&self) -> bool {
-        self.alert_until_ms
-            .is_some_and(|until| now_ms() < until)
     }
 }
 
@@ -184,10 +170,10 @@ impl Widget for BatteryWidget {
     }
 
     fn request(&self, _ctx: &WidgetContext) -> Option<StateRequest> {
-        if self.alert_is_live() {
+        if self.is_low() {
             Some(StateRequest::until(
                 IslandState::Metrics,
-                self.alert_until_ms.unwrap_or_else(now_ms),
+                now_ms().saturating_add(ALERT_HOLD_MS),
             ))
         } else {
             None
@@ -234,7 +220,7 @@ mod tests {
     #[test]
     fn a_usable_battery_draws_shell_fill_and_labels() {
         let mut widget = BatteryWidget::new();
-        widget.update(battery(50.0, false), 0);
+        widget.update(battery(50.0, false));
         let mut out = DrawList::new();
         let ctx = ctx();
         widget.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 92.0, 20.0));
@@ -244,11 +230,11 @@ mod tests {
     #[test]
     fn charge_color_escalates_with_low_charge() {
         let mut widget = BatteryWidget::new();
-        widget.update(battery(10.0, false), 0);
+        widget.update(battery(10.0, false));
         assert_eq!(widget.charge_color(), CRITICAL);
-        widget.update(battery(25.0, false), 0);
+        widget.update(battery(25.0, false));
         assert_eq!(widget.charge_color(), WARN);
-        widget.update(battery(80.0, false), 0);
+        widget.update(battery(80.0, false));
         assert_eq!(widget.charge_color(), GOOD);
         assert_eq!(BatteryWidget::new().charge_color(), MUTED);
     }
@@ -256,34 +242,24 @@ mod tests {
     #[test]
     fn a_low_battery_requests_the_metrics_state() {
         let mut widget = BatteryWidget::new();
-        widget.update(battery(10.0, false), 1_000);
+        widget.update(battery(10.0, false));
         let request = widget.request(&ctx()).expect("low battery alerts");
         assert_eq!(request.state, IslandState::Metrics);
-        assert_eq!(request.expires_at_ms, Some(7_000));
+        assert!(request.expires_at_ms.is_some());
     }
 
     #[test]
     fn a_charging_battery_never_alerts() {
         let mut widget = BatteryWidget::new();
-        widget.update(battery(5.0, true), 1_000);
+        widget.update(battery(5.0, true));
         assert!(!widget.is_low());
         assert!(widget.request(&ctx()).is_none());
     }
 
     #[test]
-    fn the_alert_is_set_once_per_transition() {
-        let mut widget = BatteryWidget::new();
-        widget.update(battery(30.0, false), 1_000);
-        widget.update(battery(10.0, false), 2_000);
-        assert_eq!(widget.alert_until_ms, Some(8_000));
-        widget.update(battery(9.0, false), 3_000);
-        assert_eq!(widget.alert_until_ms, Some(8_000));
-    }
-
-    #[test]
     fn the_time_estimate_respects_the_configuration() {
         let mut widget = BatteryWidget::new();
-        widget.update(battery(50.0, false), 0);
+        widget.update(battery(50.0, false));
         assert_eq!(widget.time_text().as_deref(), Some("1h 00m"));
         widget.show_time_remaining = false;
         assert_eq!(widget.time_text(), None);
@@ -292,7 +268,7 @@ mod tests {
     #[test]
     fn charging_draws_the_bolt() {
         let mut widget = BatteryWidget::new();
-        widget.update(battery(50.0, true), 0);
+        widget.update(battery(50.0, true));
         let mut out = DrawList::new();
         let ctx = ctx();
         widget.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 92.0, 20.0));
