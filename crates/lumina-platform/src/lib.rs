@@ -81,7 +81,7 @@ pub use hotkey::{
 pub use monitor::{Monitor, MonitorSource, ScaleFactor};
 pub use overlay::{OverlayBackend, OverlayError};
 pub use placement::{compute_placement, fit_inside, Placement, WindowGeometry};
-pub use single_instance::{claim, notify_existing, AlreadyRunning, InstanceGuard};
+pub use single_instance::{claim, is_running, notify_existing, AlreadyRunning, InstanceGuard};
 pub use time::{
     civil_from_days, civil_from_unix_with_offset, local_civil_time, local_utc_offset_minutes,
     weekday_from_days, CivilTime,

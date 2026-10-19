@@ -61,6 +61,57 @@ pub fn notify_existing(name: &str, message: &str) -> bool {
     std::fs::write(activation_path(name), message).is_ok()
 }
 
+/// True when a primary instance for `name` is currently running.
+///
+/// [`notify_existing`] always writes the activation file, so callers that are
+/// not already sure an instance exists (the `--activate` command, for example)
+/// must probe with this first.
+#[must_use]
+pub fn is_running(name: &str) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::core::PCWSTR;
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::Threading::{OpenMutexW, SYNCHRONIZATION_ACCESS_RIGHTS};
+
+        /// `SYNCHRONIZE` from the platform SDK; the `windows` crate exposes it
+        /// outside `Win32::Foundation` in this version.
+        const SYNCHRONIZE: u32 = 0x0010_0000;
+
+        let mut wide: Vec<u16> = format!("Local\\Lumina.{:016x}", stable_hash(name))
+            .encode_utf16()
+            .collect();
+        wide.push(0);
+        match unsafe {
+            OpenMutexW(
+                SYNCHRONIZATION_ACCESS_RIGHTS(SYNCHRONIZE),
+                false,
+                PCWSTR(wide.as_ptr()),
+            )
+        } {
+            Ok(handle) => {
+                let _ = unsafe { CloseHandle(handle) };
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    #[cfg(all(unix, not(target_os = "windows")))]
+    {
+        use std::os::unix::net::UnixStream;
+
+        let socket = std::env::temp_dir().join(format!("lumina-{:016x}.sock", stable_hash(name)));
+        UnixStream::connect(socket).is_ok()
+    }
+
+    #[cfg(not(any(target_os = "windows", unix)))]
+    {
+        let _ = name;
+        false
+    }
+}
+
 /// The primary-instance handle.
 ///
 /// Holding it keeps the lock held. Dropping it releases the mutex or socket and
@@ -260,6 +311,16 @@ mod tests {
         assert_eq!(guard.take_activation().as_deref(), Some("show"));
         assert_eq!(guard.take_activation(), None);
         drop(guard);
+    }
+
+    #[test]
+    fn a_running_instance_is_detectable() {
+        let name = unique_name();
+        assert!(!is_running(&name));
+        let guard = claim(&name).expect("primary");
+        assert!(is_running(&name));
+        drop(guard);
+        assert!(!is_running(&name));
     }
 
     #[test]

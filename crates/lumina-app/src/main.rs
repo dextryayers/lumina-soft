@@ -230,15 +230,18 @@ fn main() -> ExitCode {
     }
 
     if args.iter().any(|a| a == "--activate") {
-        if single_instance::notify_existing("lumina", "show") {
+        if !single_instance::is_running("lumina") {
+            eprintln!("error: no running Lumina instance was found.");
+            ExitCode::FAILURE
+        } else if single_instance::notify_existing("lumina", "show") {
             println!("Asked the running Lumina instance to show itself.");
             ExitCode::SUCCESS
         } else {
-            eprintln!("error: no running Lumina instance was found.");
+            eprintln!("error: could not reach the running Lumina instance.");
             ExitCode::FAILURE
         }
-    } else if !args.is_empty() {
-        eprintln!("error: unknown argument '{}'", args[0]);
+    } else if let Some(unknown) = args.iter().find(|a| a.as_str() != "--hidden") {
+        eprintln!("error: unknown argument '{unknown}'");
         eprintln!("Try 'lumina --help' for more information.");
         ExitCode::from(2)
     } else if let Ok(_guard) = single_instance::claim("lumina") {

@@ -56,6 +56,23 @@ Wayland layer-shell arrives in Phase 12. Until then a Wayland session runs
 Lumina through XWayland, which is a working arrangement with documented limits
 rather than a broken one.
 
+## System integration
+
+| Module | Purpose |
+|---|---|
+| `hotkey` | Parsing, canonical spelling, conflict detection, and `HotkeysConfig` to `HotkeyBinding` mapping behind the `HotkeyRegistry` trait |
+| `win32_hotkeys` | `RegisterHotKey` on a dedicated message-loop thread, with `MOD_NOREPEAT` |
+| `x11_hotkeys` | `XGrabKey` for every Caps/Num/Scroll Lock variant |
+| `wayland_hotkeys` | Documented stub: the GlobalShortcuts portal belongs to Phase 12 |
+| `tray` | State icons rasterized at runtime and the menu model built from the configuration |
+| `autostart` | Per-user autostart through the Windows `Run` key or a Linux `.desktop` file |
+| `single_instance` | Named mutex or unix socket, with the activation hand-off to the primary |
+| `time` | Pure civil-date math and the current UTC offset |
+
+The tray's native host (`Shell_NotifyIcon` on Windows, `StatusNotifierItem` on
+Linux) and the runtime hotkey registration attach to the application's message
+loop, so they land together with the window in Phase 6.
+
 ## Error policy
 
 Nothing in this crate is allowed to take the process down. Every platform call
