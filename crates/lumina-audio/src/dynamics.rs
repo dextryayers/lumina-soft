@@ -17,9 +17,12 @@ use crate::bands::DB_FLOOR;
 
 /// The PLAN §17 default silence threshold: -60 dBFS RMS.
 pub const DEFAULT_SILENCE_THRESHOLD_DB: f32 = -60.0;
-/// How long the trailing RMS average looks back, effectively: with a leak
-/// time constant a quarter of this, 500 ms of true silence drops the
-/// detector well below any legitimate signal.
+/// The leaky RMS average follows the stream with this time constant: fast
+/// enough that real dead air reads as dead, slow enough that a hi-hat does
+/// not blip the measure.
+pub const SILENCE_METER_MS: f32 = 20.0;
+/// How much continuous quiet it takes to call a stream silent: the PLAN
+/// §17 default, half a second of sub-threshold RMS.
 pub const SILENCE_WINDOW_MS: f32 = 500.0;
 /// The un-gate ramp: shorter than the gate ramp, hearing silence fade in
 /// slowly feels broken while a fade out should be gradual.
@@ -34,11 +37,13 @@ pub const NORMALIZER_MAX_GAIN_DB: f32 = 12.0;
 /// quieter, but not for the first fraction of a second.
 pub const NORMALIZER_DECAY_S: f32 = 3.0;
 
-/// A leaky RMS detector with a configurable threshold, in linear amplitude.
+/// A leaky RMS detector with a configured threshold, in linear amplitude.
 ///
-/// The leak time constant is `SILENCE_WINDOW_MS / 4`, so roughly 500 ms of
-/// dead air brings the tracked RMS to a small fraction of the pre-silence
-/// level: an honest measure of "nothing has come through lately".
+/// Gating is a hold timer, not an instant read of the leaky average: the
+/// stream counts as silent only after the tracked RMS has stayed below the
+/// threshold for [`SILENCE_WINDOW_MS`] of wall time. The leak average is
+/// what keeps the *measure* from spiking on transients; the hold counter is
+/// what keeps a 40 ms fade between songs from flickering the visualizer.
 #[derive(Debug, Clone)]
 pub struct SilenceGate {
     /// Per sample leak factor for the squared amplitude integrator.
@@ -47,29 +52,47 @@ pub struct SilenceGate {
     square_mean: f32,
     /// Linear amplitude threshold.
     threshold: f32,
+    /// How many samples the RMS has been below the threshold, in a row.
+    quiet_samples: u32,
+    /// Samples per second, for turning samples into wall time.
+    rate: f32,
 }
 
 impl SilenceGate {
     /// Build a gate for a stream at the given rate, gating below
-    /// `threshold_db` (dBFS RMS).
+    /// `threshold_db` (dBFS RMS) after half a second of quiet.
     #[must_use]
     pub fn new(sample_rate: u32, threshold_db: f32) -> Self {
         let rate = sample_rate.max(8_000) as f32;
-        // Time constant: a quarter of the listen window, so four constants
-        // of silence collapse the detector by e^-4.
-        let tau = (SILENCE_WINDOW_MS / 4.0) / 1000.0;
+        // Time constant of the meter itself; the hold counter below is
+        // what the listen window buys.
+        let tau = SILENCE_METER_MS / 1000.0;
         let leak = (-1.0 / (rate * tau)).exp();
-        let threshold = (threshold_db.clamp(DB_FLOOR, 6.0) / 20.0).exp2();
+        // Linear amplitude from dBFS: 10^(db/20). The exp2 shortcut some
+        // calculators reach for would silently mean powers of two.
+        let threshold = 10f32.powf(threshold_db.clamp(DB_FLOOR, 6.0) / 20.0);
         Self {
             leak,
             square_mean: 0.0,
             threshold,
+            quiet_samples: 0,
+            rate,
         }
+    }
+
+    /// How much silence in a row it takes to count as silent.
+    fn hold_samples(&self) -> f32 {
+        self.rate * (SILENCE_WINDOW_MS / 1000.0).max(0.01)
     }
 
     /// Feed one sample.
     pub fn detect(&mut self, sample: f32) {
         self.square_mean += (1.0 - self.leak) * (sample * sample - self.square_mean);
+        if self.square_mean.sqrt() < self.threshold {
+            self.quiet_samples += 1;
+        } else {
+            self.quiet_samples = 0;
+        }
     }
 
     /// Feed a whole buffer, the common path.
@@ -94,12 +117,19 @@ impl SilenceGate {
     /// True when the stream has been quiet long enough to gate.
     #[must_use]
     pub fn is_silent(&self) -> bool {
-        self.square_mean.sqrt() < self.threshold
+        self.quiet_samples as f32 >= self.hold_samples()
     }
 
-    /// Clear the integrator, on stream restart.
+    /// Clear the integrator and the hold counter, on stream restart.
     pub fn reset(&mut self) {
         self.square_mean = 0.0;
+        self.quiet_samples = 0;
+    }
+
+    /// The hold counter, exposed for engine wiring tests.
+    #[must_use]
+    pub fn quiet_samples(&self) -> u32 {
+        self.quiet_samples
     }
 }
 
@@ -314,7 +344,10 @@ mod tests {
                 nearly_gone = true;
             }
         }
-        assert!(halfway.unwrap_or(64) <= 11, "ramp fell too fast: {:?} frames", halfway);
+        assert!(
+            halfway.unwrap_or(64) <= 11,
+            "ramp fell too fast: {halfway:?} frames"
+        );
         assert!(nearly_gone, "the gate ramp never reached zero");
     }
 

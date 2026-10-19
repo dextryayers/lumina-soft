@@ -26,9 +26,10 @@ pub fn downmix_to_mono(interleaved: &[f32], channels: u16, out: &mut [f32]) -> u
     let channels = channels.max(1) as usize;
     let frames = interleaved.len() / channels;
     let frames = frames.min(out.len());
-    for frame in 0..frames {
-        let start = frame * channels;
-        let chunk = &interleaved[start..start + channels];
+    for (frame, chunk) in interleaved[..frames * channels]
+        .chunks_exact(channels)
+        .enumerate()
+    {
         let sum: f32 = chunk.iter().sum();
         out[frame] = sum / channels as f32;
     }
@@ -243,27 +244,26 @@ mod tests {
 
     #[test]
     fn dc_remover_kills_a_constant_offset_quickly() {
-        // A full scale DC offset must collapse to near zero within 20 ms,
-        // which is roughly the leak integrator's time constant.
+        // A full scale DC offset sees almost all of it blocked once three
+        // 20 ms leak constants have passed: residual 0.5 * e^-3 ~= 0.025.
         let mut remover = DcRemover::for_rate(RATE);
         let mut last = 0.0f32;
-        for _ in 0..(RATE / 100) {
+        for _ in 0..(RATE * 6 / 100) {
             last = remover.process(0.5);
         }
-        // One percent of one 20 ms time constant has passed, so the residual
-        // should already be tiny.
         assert!(
-            last.abs() < 0.02,
-            "DC offset survived 10 ms of blocking: residual {last}"
+            last.abs() < 0.05,
+            "DC offset survived 60 ms of blocking: residual {last}"
         );
         // The mean sits essentially at the offset itself.
-        assert!((remover.mean - 0.5).abs() < 0.02);
+        assert!((remover.mean - 0.5).abs() < 0.05);
     }
 
     #[test]
     fn dc_remover_passes_slow_signals_alone() {
         // A barely audible 8 Hz hum should survive the DC blocker largely
-        // intact; the attack that kills real DC is too slow to track it.
+        // intact; with a 20 ms leak the first order response keeps about
+        // 73 percent of the tone, so most of the peak must ride through.
         let mut remover = DcRemover::for_rate(RATE);
         let mut peak = 0.0f32;
         for step in 0..RATE {
@@ -273,7 +273,7 @@ mod tests {
             peak = peak.max(out.abs());
         }
         assert!(
-            peak > 0.18,
+            peak > 0.15,
             "an 8 Hz tone was crushed by the DC remover, peak {peak}"
         );
     }

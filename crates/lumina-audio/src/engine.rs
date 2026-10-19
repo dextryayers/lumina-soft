@@ -446,7 +446,17 @@ mod tests {
             .collect()
     }
 
-    fn write_silent(engine: &mut AudioEngine, writer: &RingWriter, windows: usize) {
+    /// Feed a stream the way a capture thread would: bursts far smaller
+    /// than the ring, never a whole second at once, because the ring
+    /// refuses bursts larger than its capacity outright.
+    fn stream(writer: &RingWriter, samples: &[f32]) {
+        const BURST: usize = 1024;
+        for chunk in samples.chunks(BURST) {
+            writer.write(chunk);
+        }
+    }
+
+    fn write_silent(writer: &RingWriter, windows: usize) {
         for _ in 0..windows {
             writer.write(&[0.0f32; WINDOW]);
         }
@@ -455,8 +465,7 @@ mod tests {
     #[test]
     fn a_sine_stream_lights_the_mutated_bands_up() {
         let (mut engine, writer) = AudioEngine::new(settings(false));
-        writer.write(&sine(0.5, 100.0, 0.5));
-        let mut last = None;
+        stream(&writer, &sine(0.5, 100.0, 0.5));        let mut last = None;
         for _ in 0..20 {
             last = Some(engine.poll());
         }
@@ -485,14 +494,16 @@ mod tests {
     #[test]
     fn five_hundred_milliseconds_of_silence_fades_the_bars() {
         let (mut engine, writer) = AudioEngine::new(settings(false));
-        writer.write(&sine(0.4, 1000.0, 0.4));
+        stream(&writer, &sine(0.4, 1000.0, 0.4));
         for _ in 0..8 {
             let _ = engine.poll();
         }
-        // Half a second of dead air: eight windows is 0.68 s.
-        write_silent(&mut engine, &writer, 40);
+        // Half a second of dead air, fed the way a capture thread does:
+        // one window at a time, drained between bursts, because the ring
+        // refuses bursts beyond its capacity.
         let mut last = None;
-        for _ in 0..30 {
+        for _ in 0..24 {
+            writer.write(&[0.0f32; WINDOW]);
             last = Some(engine.poll());
         }
         let frame = last.expect("polls ran");
@@ -520,11 +531,11 @@ mod tests {
     #[test]
     fn held_peaks_outlive_the_bars_they_follow() {
         let (mut engine, writer) = AudioEngine::new(settings(false));
-        writer.write(&sine(0.5, 1000.0, 0.6));
+        stream(&writer, &sine(0.5, 1000.0, 0.6));
         for _ in 0..10 {
             let _ = engine.poll();
         }
-        write_silent(&mut engine, &writer, 60);
+        write_silent(&writer, 60);
         let mut frame = None;
         for _ in 0..12 {
             frame = Some(engine.poll());
@@ -551,13 +562,13 @@ mod tests {
     #[test]
     fn the_normalizer_lifts_a_quiet_track() {
         let (mut engine, writer) = AudioEngine::new(settings(true));
-        writer.write(&sine(0.5, 1000.0, 0.002));
+        stream(&writer, &sine(0.5, 1000.0, 0.002));
         let mut normalized = None;
         for _ in 0..16 {
             normalized = Some(engine.poll());
         }
         let (mut engine_plain, writer_plain) = AudioEngine::new(settings(false));
-        writer_plain.write(&sine(0.5, 1000.0, 0.002));
+        stream(&writer_plain, &sine(0.5, 1000.0, 0.002));
         let mut plain = None;
         for _ in 0..16 {
             plain = Some(engine_plain.poll());
@@ -577,7 +588,7 @@ mod tests {
         let (mut engine, writer) = AudioEngine::new(settings(false));
         engine.reconfigure(44_100);
         assert_eq!(engine.settings().sample_rate, 44_100);
-        writer.write(&sine(0.5, 1000.0, 0.5));
+        stream(&writer, &sine(0.5, 1000.0, 0.5));
         let mut last = None;
         for _ in 0..20 {
             last = Some(engine.poll());
@@ -594,20 +605,28 @@ mod tests {
     #[test]
     fn ring_drops_do_not_break_frame_pacing() {
         let (mut engine, writer) = AudioEngine::new(settings(false));
-        // A burst larger than the ring: some dropped, but the engine must
-        // keep ticking and the FFT keeps consuming when it can.
-        writer.write(&sine(2.0, 500.0, 0.5));
-        let mut frames = Vec::new();
-        for _ in 0..25 {
-            frames.push(engine.poll());
+        let mut all_frames = Vec::new();
+        // A stream long enough to wrap the ring repeatedly: some dropped,
+        // but the engine must keep ticking and the FFT keeps consuming
+        // while a fresh window is still available.
+        for _ in 0..6 {
+            stream(&writer, &sine(0.3, 500.0, 0.5));
+            let mut frames = Vec::new();
+            for _ in 0..5 {
+                frames.push(engine.poll());
+            }
+            all_frames.extend(frames);
         }
         let mut monotonic = true;
-        for pair in frames.windows(2) {
+        for pair in all_frames.windows(2) {
             monotonic &= pair[0].frame_index < pair[1].frame_index;
         }
         assert!(monotonic, "frame indices must be monotonically increasing");
         assert!(
-            frames[24].bands.iter().any(|b| *b > 0.01),
+            all_frames
+                .last()
+                .and_then(|f| f.bands.iter().find(|b| **b > 0.01))
+                .is_some(),
             "with fresh data available the bands must move"
         );
     }
@@ -615,7 +634,7 @@ mod tests {
     #[test]
     fn clearing_the_backlog_removes_history() {
         let (mut engine, writer) = AudioEngine::new(settings(false));
-        writer.write(&sine(0.4, 300.0, 0.8));
+        stream(&writer, &sine(0.4, 300.0, 0.8));
         assert!(engine.pending_samples() > 0);
         engine.clear_backlog();
         assert_eq!(engine.pending_samples(), 0);

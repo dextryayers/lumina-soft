@@ -86,7 +86,7 @@ pub fn spawn(
     let source = request.source;
     let device = request.device.clone();
     spawn_worker("wasapi", move |stop: Arc<_>, signal: ReadySignal| {
-        run_worker(stop, signal, source, &device, writer);
+        run_worker(&stop, signal, source, &device, &writer);
     })
 }
 
@@ -127,9 +127,8 @@ unsafe fn select_device(
 
     let wanted = device.trim().to_lowercase();
     for index in 0..count {
-        let candidate = match collection.Item(index) {
-            Ok(candidate) => candidate,
-            Err(_) => continue,
+        let Ok(candidate) = collection.Item(index) else {
+            continue;
         };
         // One id read requires one free; matching is string only.
         if let Ok(id) = candidate.GetId() {
@@ -139,7 +138,7 @@ unsafe fn select_device(
             }
         }
         if device_friendly_name(&candidate)
-            .map_or(false, |name| name.to_lowercase().contains(&wanted))
+            .is_some_and(|name| name.to_lowercase().contains(&wanted))
         {
             return Ok(candidate);
         }
@@ -162,14 +161,14 @@ unsafe fn device_friendly_name(device: &IMMDevice) -> Option<String> {
         // Nothing registered: there is just no friendly name.
         return None;
     }
-    let outcome = PropVariantToStringAlloc(&prop)
+    let outcome = PropVariantToStringAlloc(std::ptr::from_ref(&prop))
         .ok()
         .map(|pwstr| pwstr_free_to_string(pwstr));
     // Clear a deep copy rather than rviolating the caller's reference:
     // `PROPVARIANT`'s `Clone` runs `PropVariantCopy`, so the cleared value
     // is private and the property's own allocation stays owned by `prop`.
     let mut owned = propvariant_take(&prop);
-    let _ = PropVariantClear(&mut owned);
+    let _ = PropVariantClear(std::ptr::from_mut(&mut owned));
     outcome
 }
 
@@ -265,11 +264,11 @@ unsafe fn parse_mix_format(
 
 /// The worker body: COM init, endpoint resolution, then the pull loop.
 fn run_worker(
-    stop: Arc<std::sync::atomic::AtomicBool>,
+    stop: &Arc<std::sync::atomic::AtomicBool>,
     signal: ReadySignal,
     source: lumina_config::schema::AudioSource,
     device: &str,
-    writer: RingWriter,
+    writer: &RingWriter,
 ) {
     // COM apartment setup is per thread. On a joining thread an HRESULT
     // of S_FALSE ("already a member") is a normal outcome; keep it.
@@ -305,7 +304,7 @@ fn run_worker(
 
     unsafe {
         loop {
-            if stop_flagged(&stop) {
+            if stop_flagged(stop) {
                 // Flush the endpoint state; the ring simply keeps whatever
                 // samples were pushed.
                 let _ = endpoint.client.Stop();
@@ -314,12 +313,9 @@ fn run_worker(
 
             // Query one packet at a time; a zero packet count means the
             // mixer has nothing new this instant, so rest briefly.
-            let packet_frames = match endpoint.capture.GetNextPacketSize() {
-                Ok(frames) => frames,
-                Err(_) => {
-                    Sleep(PACKET_WAIT_MS);
-                    continue;
-                }
+            let Ok(packet_frames) = endpoint.capture.GetNextPacketSize() else {
+                Sleep(PACKET_WAIT_MS);
+                continue;
             };
             if packet_frames == 0 {
                 Sleep(PACKET_WAIT_MS);
@@ -331,7 +327,13 @@ fn run_worker(
             let mut flags: u32 = 0;
             if endpoint
                 .capture
-                .GetBuffer(&mut data, &mut readable, &mut flags, None, None)
+                .GetBuffer(
+                    std::ptr::addr_of_mut!(data),
+                    std::ptr::addr_of_mut!(readable),
+                    std::ptr::addr_of_mut!(flags),
+                    None,
+                    None,
+                )
                 .is_err()
             {
                 Sleep(PACKET_WAIT_MS);
@@ -340,7 +342,7 @@ fn run_worker(
 
             push_packet(
                 &mut post,
-                &writer,
+                writer,
                 &endpoint,
                 data,
                 readable,
@@ -361,6 +363,11 @@ fn run_worker(
 ///
 /// `data` must point to `readable * channels` samples of the layout in
 /// [`ConfiguredStream`], exactly as handed out by `GetBuffer`.
+///
+/// The mixes are read with `read_unaligned`, so the `data.cast::<T>()`
+/// below is an address computation, never a dereference; that is why the
+/// alignment lint would be a false positive here.
+#[allow(clippy::cast_ptr_alignment)]
 #[allow(clippy::too_many_arguments)]
 unsafe fn push_packet(
     post: &mut crate::dsp::CapturePost,
@@ -386,25 +393,32 @@ unsafe fn push_packet(
             if silent {
                 interleaved[..count].fill(0.0);
             } else {
-                // SAFETY: GetBuffer hands `readable * channels` f32s of
-                // mix data; `count` covers that exactly.
-                let mix = std::slice::from_raw_parts(data.cast::<f32>(), count);
-                interleaved[..count].copy_from_slice(mix);
+                // Unaligned reads: the shared-mode mix format does not
+                // promise 4 byte alignment, and these packets are far too
+                // short for the load cost to matter.
+                let mix = data.cast::<f32>();
+                for (slot, index) in interleaved[..count].iter_mut().zip(0..count) {
+                    // SAFETY: GetBuffer hands `readable * channels` f32s of
+                    // mix data; `count` covers that exactly.
+                    *slot = std::ptr::read_unaligned(mix.add(index));
+                }
             }
         }
         SampleLayout::Int16 => {
+            let pcm = data.cast::<i16>();
             if silent {
                 raw16[..count].fill(0);
             } else {
-                // SAFETY: same packet shape as above, in i16 units.
-                let mix = std::slice::from_raw_parts(data.cast::<i16>(), count);
-                raw16[..count].copy_from_slice(mix);
+                for (slot, index) in raw16[..count].iter_mut().zip(0..count) {
+                    // SAFETY: same packet shape as above, in i16 units.
+                    *slot = std::ptr::read_unaligned(pcm.add(index));
+                }
             }
-            for (float_slot, &pcm) in interleaved[..count]
+            for (float_slot, &pcm_value) in interleaved[..count]
                 .iter_mut()
                 .zip(raw16[..count].iter())
             {
-                *float_slot = f32::from(pcm) / 32_768.0;
+                *float_slot = f32::from(pcm_value) / 32_768.0;
             }
         }
     }
@@ -496,7 +510,6 @@ unsafe fn open_endpoint(
 
 /// Thin local wrappers keeping the awkward generic/Option call shapes out
 /// of the body of the flow functions.
-
 /// `CoCreateInstance` for apartment aware class ids, typed directly.
 ///
 /// # Safety
@@ -504,8 +517,7 @@ unsafe fn open_endpoint(
 /// Calls into the COM type system; `T` must implement the queried mode.
 unsafe fn com_create_object<T: Interface>(
     clsid: &windows::core::GUID,
-    context: windows::Win32::System::Com::CLSCTX,
-) -> windows::core::Result<T> {
+    context: windows::Win32::System::Com::CLSCTX,) -> windows::core::Result<T> {
     windows::Win32::System::Com::CoCreateInstance(clsid, None, context)
 }
 
@@ -545,7 +557,7 @@ mod tests {
             wBitsPerSample: 32,
             cbSize: 0,
         };
-        let parsed = unsafe { parse_mix_format(&float) };
+        let parsed = unsafe { parse_mix_format(std::ptr::from_ref(&float)) };
         assert_eq!(parsed.expect("float parses"), (SampleLayout::Float32, 2, 48_000));
 
         let pcm = WAVEFORMATEX {
@@ -557,7 +569,7 @@ mod tests {
             wBitsPerSample: 16,
             cbSize: 0,
         };
-        let parsed = unsafe { parse_mix_format(&pcm) };
+        let parsed = unsafe { parse_mix_format(std::ptr::from_ref(&pcm)) };
         assert_eq!(parsed.expect("pcm parses"), (SampleLayout::Int16, 2, 44_100));
 
         let junk = WAVEFORMATEX {
@@ -569,7 +581,7 @@ mod tests {
             wBitsPerSample: 24,
             cbSize: 0,
         };
-        match unsafe { parse_mix_format(&junk) } {
+        match unsafe { parse_mix_format(std::ptr::from_ref(&junk)) } {
             Err(CaptureError::DeviceUnavailable(msg)) => {
                 assert!(msg.contains("unsupported mix format"), "message: {msg}");
             }

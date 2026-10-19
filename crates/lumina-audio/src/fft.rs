@@ -63,10 +63,15 @@ pub struct Analyzer {
 impl core::fmt::Debug for Analyzer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // The plan is Arc<dyn Fft>, which is not Debug, so it is described
-        // only by its owned size.
+        // by the sizes it serves.
         f.debug_struct("Analyzer")
             .field("window_size", &self.window_size)
             .field("bin_count", &self.half)
+            .field("plan_scratch_len", &self.plan.get_inplace_scratch_len())
+            .field("scratch_len", &self.scratch.len())
+            .field("window_len", &self.window.len())
+            .field("twiddles_len", &self.twiddles.len())
+            .field("packed_len", &self.packed.len())
             .finish()
     }
 }
@@ -237,13 +242,11 @@ mod tests {
         // just the even bins.
         let mut analyzer = Analyzer::new(16);
         let mut magnitudes = vec![0.0f32; 8];
-        let mut reference = vec![0.0f32; 8];
         for offset in 0..4usize {
             let mut impulse = vec![0.0f32; 16];
             impulse[offset] = 1.0;
             analyzer.process(&impulse, &mut magnitudes);
-            let wanted = reference_magnitudes(&windowed(&analyzer, &impulse), 8);
-            reference.copy_from_slice(&wanted);
+            let reference = reference_magnitudes(&windowed(&analyzer, &impulse), 8);
             for (got, want) in magnitudes.iter().zip(reference.iter()) {
                 assert!(
                     (got - want).abs() < 1e-4,
@@ -274,7 +277,8 @@ mod tests {
     fn pure_dc_lands_only_in_bin_zero() {
         let mut analyzer = Analyzer::new(256);
         let mut magnitudes = vec![0.0f32; 128];
-        analyzer.process(&vec![1.0; 256], &mut magnitudes);
+        let ones = [1.0f32; 256];
+        analyzer.process(&ones, &mut magnitudes);
 
         let dc = magnitudes[0];
         // Full scale DC times the Hann coherent gain: ~M/2.
@@ -369,9 +373,54 @@ mod tests {
             analyzer.process(&samples, &mut magnitudes);
         }
         let per_frame = started.elapsed() / 2000;
+        eprintln!("probe per_frame={per_frame:?}");
         assert!(
             per_frame < std::time::Duration::from_micros(35),
             "the 4096 point frame took {per_frame:?}, budget is 35 us"
         );
+    }
+
+    #[test]
+    #[ignore = "instrumentation probe"]
+    fn probe_where_time_goes() {
+        let mut analyzer = Analyzer::new(4096);
+        let samples = sine(4096, 100.0);
+        let mut magnitudes = vec![0.0f32; 2048];
+        for _ in 0..500 {
+            analyzer.process(&samples, &mut magnitudes);
+        }
+
+        // Pack + FFT only: stop before the untangle.
+        let mut scratch = analyzer.scratch.clone();
+        let started = Instant::now();
+        for _ in 0..2000 {
+            let half = analyzer.half;
+            for k in 0..half {
+                let even = samples[2 * k] * analyzer.window[2 * k];
+                let odd = samples[2 * k + 1] * analyzer.window[2 * k + 1];
+                analyzer.packed[k] = num_complex::Complex::new(even, odd);
+            }
+            analyzer
+                .plan
+                .process_with_scratch(&mut analyzer.packed, &mut scratch);
+        }
+        let fft_only = started.elapsed() / 2000;
+
+        // Untangle only, on whatever the planner left behind.
+        let started = Instant::now();
+        for _ in 0..2000 {
+            let half = analyzer.half;
+            for k in 0..half {
+                let c_here = analyzer.packed[k];
+                let c_mirror = analyzer.packed[(half - k) % half].conj();
+                let sum = (c_here + c_mirror) * num_complex::Complex::new(0.5, 0.0);
+                let diff = (c_here - c_mirror) * num_complex::Complex::new(0.5, 0.0);
+                let b_term = num_complex::Complex::new(diff.im, -diff.re);
+                let bin = sum + analyzer.twiddles[k] * b_term;
+                magnitudes[k] = bin.norm();
+            }
+        }
+        let untangle_only = started.elapsed() / 2000;
+        eprintln!("probe fft_only={fft_only:?} untangle={untangle_only:?}");
     }
 }

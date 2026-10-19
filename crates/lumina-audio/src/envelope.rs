@@ -166,16 +166,19 @@ mod tests {
     fn attack_is_faster_than_release_spectrally() {
         let mut envelope = BandEnvelope::new(2, DEFAULT_ATTACK_MS, DEFAULT_RELEASE_MS, RATE);
         envelope.update(&[-100.0f32; 2]);
-        // Rise: one frame toward a hit.
+        // Rise: one attack frame toward a hit.
         envelope.update(&[0.0f32; 2]);
         let rise = envelope.level(0) + 100.0;
-        // Reset via floor and go down: one frame away from the hit.
-        envelope.reset();
-        envelope.update(&[0.0f32; 2]);
-        let fall = envelope.level(0) + 100.0;
+        // From the settled top, one release frame back toward the floor.
+        for _ in 0..4 {
+            envelope.update(&[0.0f32; 2]);
+        }
+        let start = envelope.level(0);
+        envelope.update(&[-100.0f32; 2]);
+        let fall = start - envelope.level(0);
         assert!(
-            rise > fall || rise.abs() < 1e-5 && fall.abs() < 1e-5,
-            "rise {rise} must exceed the matching fall {fall} with these constants"
+            rise > fall * 2.0,
+            "rise {rise} must far outpace the matching release fall {fall}"
         );
     }
 

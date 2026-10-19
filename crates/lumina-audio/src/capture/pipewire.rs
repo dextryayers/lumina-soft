@@ -32,6 +32,7 @@ pub fn compat_socket_dir() -> std::path::PathBuf {
 ///
 /// When the compatibility socket is missing, the error names it so the
 /// user (and support) know exactly what to fix.
+#[cfg_attr(not(target_os = "linux"), allow(clippy::needless_pass_by_value))]
 pub fn spawn(
     request: &CaptureRequest,
     writer: crate::ring::RingWriter,

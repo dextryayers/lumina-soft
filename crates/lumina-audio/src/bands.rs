@@ -124,6 +124,12 @@ impl BandMapper {
 
     /// Fold RAW linear magnitudes into dBFS bands into `out_bands`.
     ///
+    /// Each band takes the *maximum* magnitude inside its bin range, not
+    /// the mean: averaging smears a narrow peak across every bin it shares
+    /// a band with, and a spectrum that is supposed to look alive then
+    /// reads twenty dB low. Taken as max, a bin-centered full scale sine
+    /// measures at the 0 dBFS rail regardless of band width.
+    ///
     /// Out of range or empty bands land at [`DB_FLOOR`], clamped back to a
     /// fixed number so the visualizer has a stable rail.
     ///
@@ -144,21 +150,20 @@ impl BandMapper {
                 *out = DB_FLOOR;
                 continue;
             }
-            let mut sum = 0.0f32;
+            let mut peak = 0.0f32;
             let mut taken = 0usize;
             for bin in lo..hi.min(self.bin_count.max(1)) {
                 if bin >= magnitudes.len() {
                     break;
                 }
-                sum += magnitudes[bin];
+                peak = peak.max(magnitudes[bin]);
                 taken += 1;
             }
             if taken == 0 {
                 *out = DB_FLOOR;
                 continue;
             }
-            let mean = sum / taken as f32;
-            let db = mean.max(1e-6).log10() * 20.0 - (self.full_scale_magnitude.log10() * 20.0);
+            let db = peak.max(1e-6).log10() * 20.0 - (self.full_scale_magnitude.log10() * 20.0);
             let center = self.center_freqs[band];
             let tilt = if center < BASS_TILT_ANCHOR_HZ && self.tilt_db_per_octave > 0.0 {
                 let octaves = (BASS_TILT_ANCHOR_HZ / center.max(1.0)).log2();
@@ -194,7 +199,7 @@ mod tests {
     const WINDOW: usize = 4096;
     const BINS: usize = WINDOW / 2;
 
-    fn full_scale_sine(window: usize, freq_hz: f32, rate: u32) -> Vec<f32> {
+    fn full_scale_sine(window: usize, freq_hz: f32, _rate: u32) -> Vec<f32> {
         // Full scale to place the projected magnitude near the 0 dBFS rail.
         (0..window)
             .map(|i| ((std::f32::consts::TAU * freq_hz * i as f32) / RATE as f32).sin())
@@ -335,12 +340,19 @@ mod tests {
     #[test]
     fn a_short_magnitude_slice_falls_back_gracefully() {
         let mapper = BandMapper::new(RATE, WINDOW, 32, DEFAULT_MIN_HZ, DEFAULT_MAX_HZ, 0.0, 0.0);
-        // Ten real bins against a request for the whole thing.
+        // Ten real bins against a request for the whole thing. Bin ranges
+        // grow monotonically, so the bands that saw those ten bins form a
+        // prefix and everything after them must sit at the floor.
         let mut bands = [0.0f32; 32];
         let magnitudes = vec![500.0f32; 10];
         mapper.map(&magnitudes, &mut bands);
+        let floored_at = bands
+            .iter()
+            .position(|band| (*band - DB_FLOOR).abs() < 1e-3)
+            .unwrap_or(bands.len());
+        assert!(floored_at >= 1, "at least the DC neighbor had data");
         for (i, band) in bands.iter().enumerate() {
-            if i < 3 {
+            if i < floored_at {
                 assert!(*band > DB_FLOOR, "band {i} should have had data");
             } else {
                 assert!((*band - DB_FLOOR).abs() < 1e-3, "band {i} should floor");

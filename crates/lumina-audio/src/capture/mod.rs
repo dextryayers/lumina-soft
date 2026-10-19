@@ -128,8 +128,8 @@ impl RunningCapture {
     /// Consumes the startup message: calling twice reports that the
     /// startup result was already taken rather than re waiting.
     pub fn wait_ready(&self, timeout: Duration) -> Result<CaptureFormat, CaptureError> {
-        let guard = &mut *self.ready.lock().expect("ready mutex poisoned");
-        let Some(receiver) = guard.as_ref() else {
+        let receiver = self.ready.lock().expect("ready mutex poisoned").take();
+        let Some(receiver) = receiver else {
             return Err(CaptureError::StreamError("startup already consumed".into()));
         };
         match receiver.recv_timeout(timeout) {
@@ -149,9 +149,14 @@ impl RunningCapture {
     }
 
     /// Whether the worker thread is still running.
+    ///
+    /// After `stop` the handle is gone, so the answer is `false` rather
+    /// than an optimistic default.
     #[must_use]
     pub fn is_running(&self) -> bool {
-        self.handle.as_ref().map_or(true, |handle| !handle.is_finished())
+        self.handle
+            .as_ref()
+            .is_some_and(|handle| !handle.is_finished())
     }
 
     /// Signal stop and join the thread. Blocks at most a few hundred
@@ -171,11 +176,14 @@ impl RunningCapture {
 /// same protocol, so one code path covers both daemons; see the README.
 #[must_use]
 pub fn resolve_backend(request: &CaptureRequest) -> ResolvedBackend {
+    use lumina_config::schema::AudioBackend;
     match request.backend {
-        lumina_config::schema::AudioBackend::Wasapi => ResolvedBackend::Wasapi,
-        lumina_config::schema::AudioBackend::Pulse => ResolvedBackend::Pulse,
-        lumina_config::schema::AudioBackend::Pipewire => ResolvedBackend::Pulse,
-        lumina_config::schema::AudioBackend::Auto => {
+        // One backend slot per protocol: pipewire speaks the pulse
+        // protocol through its compatibility server, so both map onto the
+        // Pulse code path and only the socket presence check differs.
+        AudioBackend::Wasapi => ResolvedBackend::Wasapi,
+        AudioBackend::Pulse | AudioBackend::Pipewire => ResolvedBackend::Pulse,
+        AudioBackend::Auto => {
             if cfg!(windows) {
                 ResolvedBackend::Wasapi
             } else if cfg!(any(target_os = "linux", target_os = "freebsd")) {
@@ -200,11 +208,15 @@ pub fn spawn_capture(
         #[cfg(windows)]
         ResolvedBackend::Wasapi => wasapi::spawn(request, writer),
         #[cfg(not(windows))]
-        ResolvedBackend::Wasapi => Err(CaptureError::UnsupportedBackend),
+        ResolvedBackend::Wasapi => {
+            let _ = writer;
+            Err(CaptureError::UnsupportedBackend)
+        }
         #[cfg(target_os = "linux")]
         ResolvedBackend::Pulse => pulse::spawn(request, writer),
         #[cfg(not(target_os = "linux"))]
-        ResolvedBackend::Pulse => Err(CaptureError::UnsupportedBackend),
+        ResolvedBackend::Pulse | ResolvedBackend::Fake => Err(CaptureError::UnsupportedBackend),
+        #[cfg(target_os = "linux")]
         ResolvedBackend::Fake => Err(CaptureError::UnsupportedBackend),
     }
 }
@@ -317,14 +329,13 @@ mod tests {
             .expect("fake reports fast");
         assert!(format.sample_rate >= 8_000);
         assert!(format.channels >= 1);
-        let mut running = running;
         running.stop();
         assert!(!running.is_running());
     }
     #[test]
     fn double_wait_ready_reports_consumed() {
         let (writer, _reader) = RingBuffer::new(4096).split();
-        let mut running = spawn_fake(&request(lumina_config::schema::AudioBackend::Auto), writer, fake::FakePattern::Silence)
+        let running = spawn_fake(&request(lumina_config::schema::AudioBackend::Auto), writer, fake::FakePattern::Silence)
             .expect("fake spawn");
         let _ = running.wait_ready(Duration::from_secs(2));
         match running.wait_ready(Duration::from_millis(50)) {

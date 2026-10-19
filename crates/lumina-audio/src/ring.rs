@@ -409,32 +409,45 @@ mod tests {
     fn a_concurrent_reader_never_sees_a_torn_block() {
         const BLOCK: usize = 16;
         let (writer, reader) = RingBuffer::new(8192).split();
+        let writer_done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
 
         thread::scope(|scope| {
+            let done = Arc::clone(&writer_done);
             scope.spawn(move || {
                 let mut rng = Lcg(0x1234_5678);
                 let mut tag = 1u32;
+                let mut refusals = 0u32;
                 loop {
+                    if tag > 9000 || refusals >= 10_000 {
+                        // The refusal budget is what keeps this test from
+                        // hanging: a dead reader cannot renew the ring, and
+                        // a healthy one frees a block well before this.
+                        break;
+                    }
                     if rng.next() % 4 == 0 {
                         thread::sleep(std::time::Duration::from_micros(20));
                     }
-                    if tag > 5000 {
-                        return;
-                    }
                     if writer.free_space() < BLOCK {
-                        continue; // refuse the hole block, keep the alignment
+                        refusals += 1;
+                        continue;
                     }
+                    refusals = 0;
                     let sample = tag as f32 * 0.25;
                     writer.write(&[sample; BLOCK]);
                     tag += 1;
                 }
+                done.store(true, Ordering::Release);
             });
 
             scope.spawn(move || {
                 let mut out = [0.0f32; BLOCK];
                 let mut last_tag = 0u32;
                 let mut resolved = 0u32;
-                while resolved < 4000 {
+                // The termination condition is the writer's exit flag, not
+                // a resolution target: a fixed target can starve one block
+                // short of its goal and hang the scope.
+                while !writer_done.load(Ordering::Acquire) {
                     // Only drain on block boundaries so the stream stays
                     // aligned, exactly like the real analysis thread would.
                     if reader.pending() < BLOCK {
@@ -457,6 +470,10 @@ mod tests {
                         resolved += 1;
                     }
                 }
+                assert!(
+                    resolved > 3000,
+                    "far fewer blocks resolved than written: {resolved}"
+                );
             });
         });
     }
