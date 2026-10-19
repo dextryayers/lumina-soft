@@ -50,11 +50,28 @@ case can be written down as a test, and there are thirty of them.
 |---|---|---|
 | `win32` | Windows 10 and 11 | Full: topmost, tool window, per-pixel alpha, click-through, acrylic, DPI v2, monitor enumeration |
 | `x11` | Linux X11 | Full: dock window type, ARGB visual with a dedicated colormap, EWMH atoms, empty input region for click-through, XRandR monitors |
+| `wayland` | Linux Wayland | Layer-shell: top layer, all six positions, margins, exclusive zone, click-through, on-demand keyboard on layer-shell 4+, configure acknowledgement. Uses `xdg_toplevel` when the compositor has no `zwlr_layer_shell_v1` |
 | `null` | Anywhere | Headless and test. Creates no window, reports every operation as a no-op |
 
-Wayland layer-shell arrives in Phase 12. Until then a Wayland session runs
-Lumina through XWayland, which is a working arrangement with documented limits
-rather than a broken one.
+The Wayland backend is built directly on `wayland-client` and
+`wayland-protocols-wlr`; it does not pull in a toolkit. It binds
+`zwlr_layer_shell_v1` when present and degrades to `xdg_toplevel` when it is
+not, so a session without layer-shell still opens a window instead of failing.
+Runtime verification on sway, Hyprland, and KDE Plasma 6 remains pending because
+the development host is Windows; the protocol mapping and configure state
+machine are covered by unit tests.
+
+Known limits on native Wayland:
+
+- `zwlr_layer_shell_v1` is not implemented by GNOME Mutter. The
+  `xdg_toplevel` fallback opens a normal window there, so topmost placement,
+  click-through, and exact positioning are subject to compositor policy. The
+  XWayland path remains the predictable choice on GNOME.
+- Global hotkeys need `org.freedesktop.portal.GlobalShortcuts`, which is not
+  implemented yet. `WaylandHotkeys` reports `Unsupported` on native Wayland.
+- The idle-inhibit policy is implemented, but the `org.freedesktop.portal.Inhibit`
+  D-Bus call belongs to the runtime layer and is not wired yet, so a pinned
+  island may still let the screen blank.
 
 ## System integration
 
@@ -63,7 +80,7 @@ rather than a broken one.
 | `hotkey` | Parsing, canonical spelling, conflict detection, and `HotkeysConfig` to `HotkeyBinding` mapping behind the `HotkeyRegistry` trait |
 | `win32_hotkeys` | `RegisterHotKey` on a dedicated message-loop thread, with `MOD_NOREPEAT` |
 | `x11_hotkeys` | `XGrabKey` for every Caps/Num/Scroll Lock variant |
-| `wayland_hotkeys` | Documented stub: the GlobalShortcuts portal belongs to Phase 12 |
+| `wayland_hotkeys` | Documented stub: the GlobalShortcuts portal is not implemented yet |
 | `tray` | State icons rasterized at runtime and the menu model built from the configuration |
 | `autostart` | Per-user autostart through the Windows `Run` key or a Linux `.desktop` file |
 | `single_instance` | Named mutex or unix socket, with the activation hand-off to the primary |

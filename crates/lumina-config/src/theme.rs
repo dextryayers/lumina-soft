@@ -236,7 +236,7 @@ impl ThemeStore {
     }
 }
 
-/// The eight themes that ship with Lumina.
+/// The nine themes that ship with Lumina.
 #[must_use]
 pub fn builtin_themes() -> Vec<(&'static str, Theme)> {
     vec![
@@ -248,6 +248,7 @@ pub fn builtin_themes() -> Vec<(&'static str, Theme)> {
         ("glass", glass_theme()),
         ("nord", nord_theme()),
         ("catppuccin", catppuccin_theme()),
+        ("high-contrast", high_contrast_theme()),
     ]
 }
 
@@ -435,6 +436,51 @@ pub fn catppuccin_theme() -> Theme {
     )
 }
 
+/// Maximum legibility: opaque black, pure white text, no glow or translucency.
+///
+/// This is a real theme rather than an internal mode because users should be
+/// able to select, extend, and inspect it like any other. It deliberately
+/// disables decorative effects that reduce contrast.
+#[must_use]
+pub fn high_contrast_theme() -> Theme {
+    theme_from(
+        r##"
+        name = "High Contrast"
+
+        [appearance]
+        fill = "#000000"
+        border_color = "#FFFFFFFF"
+        border_width = 2.0
+        corner_radius = 8.0
+        glow_spread = 0.0
+        shadow_opacity = 0.0
+        backdrop_blur = "off"
+        backdrop_darken = 0.0
+        noise_strength = 0.0
+
+        [rgb]
+        mode = "static"
+        primary = "#FFFFFF"
+        secondary = "#FFFFFF"
+        brightness = 1.0
+        saturation = 0.0
+        glow_intensity = 0.0
+
+        [accessibility]
+        enforce_contrast = true
+        contrast_target = 7.0
+        keyboard_focus = true
+        focus_ring_width = 3.0
+        focus_ring_offset = 2.0
+        focus_ring_color = "#FFFF00FF"
+
+        [text]
+        color = "#FFFFFFFF"
+        dim_color = "#FFFFFFFF"
+    "##,
+    )
+}
+
 /// Where themes live for a given configuration directory.
 #[must_use]
 pub fn themes_directory(config_dir: &Path) -> PathBuf {
@@ -476,8 +522,22 @@ mod tests {
     }
 
     #[test]
-    fn eight_themes_ship_with_lumina() {
-        assert_eq!(builtin_themes().len(), 8);
+    fn nine_themes_ship_with_lumina() {
+        assert_eq!(builtin_themes().len(), 9);
+    }
+
+    #[test]
+    fn high_contrast_theme_is_opaque_and_glow_free() {
+        let store = ThemeStore::empty().with_theme("high-contrast", high_contrast_theme());
+        let themed = store.apply(&Config::default(), "high-contrast");
+
+        assert_eq!(themed.appearance.fill, "#000000");
+        assert_eq!(themed.appearance.border_color, "#FFFFFFFF");
+        assert_eq!(themed.rgb.glow_intensity, 0.0);
+        assert_eq!(themed.appearance.glow_spread, 0.0);
+        assert_eq!(themed.accessibility.contrast_target, 7.0);
+        assert_eq!(themed.text.color, "#FFFFFFFF");
+        assert_eq!(themed.text.dim_color, "#FFFFFFFF");
     }
 
     #[test]
@@ -577,8 +637,8 @@ mod tests {
     #[test]
     fn loading_a_missing_directory_is_not_an_error() {
         let store = ThemeStore::load(Path::new("/nonexistent/lumina/themes/path"));
-        // The eight built-in themes are still there.
-        assert!(store.len() >= 8);
+        // The nine built-in themes are still there.
+        assert!(store.len() >= 9);
         assert!(store.problems().is_empty(), "{:?}", store.problems());
     }
 

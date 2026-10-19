@@ -307,3 +307,15 @@ The envelope, command names, error codes, and event names are stable for the
 0.1 series. New optional fields may be added; clients must ignore fields they do
 not understand inside `data` and event payloads. Unknown fields in requests are
 rejected, so an older server will refuse a newer request that sends one.
+
+## Testing
+
+`cargo test -p lumina-ipc` covers parsing, framing, rate limiting, fan-out, and
+end-to-end request/response over the real transport. The deterministic mutation
+harness exercises random bytes against the parser and framing layer:
+
+```sh
+cargo run -p lumina-ipc --example fuzz_protocol -- 60
+```
+
+The Python and Node clients carry their own test suites; see their READMEs.

@@ -15,3 +15,8 @@ Thumbs.db
 # Local config and logs
 *.log
 /config/local.toml
+
+# Client build artifacts
+__pycache__/
+*.py[cod]
+node_modules/

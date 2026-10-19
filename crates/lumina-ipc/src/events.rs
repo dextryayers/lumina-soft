@@ -293,9 +293,7 @@ mod tests {
         }
         assert_eq!(bus.subscriber_count(), 0);
         assert!(
-            subscription
-                .recv_timeout(Duration::from_millis(10))
-                .is_ok(),
+            subscription.recv_timeout(Duration::from_millis(10)).is_ok(),
             "buffered events remain readable after unsubscription"
         );
     }

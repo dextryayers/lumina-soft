@@ -50,6 +50,8 @@ pub struct Config {
     pub tray: TrayConfig,
     /// Animation tuning and accessibility.
     pub motion: MotionConfig,
+    /// Accessibility preferences beyond motion.
+    pub accessibility: AccessibilityConfig,
     /// Typography.
     pub text: TextConfig,
     /// Expert settings that most users never touch.
@@ -78,6 +80,7 @@ impl Default for Config {
             script: ScriptConfig::default(),
             tray: TrayConfig::default(),
             motion: MotionConfig::default(),
+            accessibility: AccessibilityConfig::default(),
             text: TextConfig::default(),
             advanced: AdvancedConfig::default(),
         }
@@ -1351,6 +1354,64 @@ impl Default for MotionConfig {
             startup_reveal: true,
         }
     }
+}
+
+/// Accessibility preferences that apply to colour, focus, and announcements.
+///
+/// These are deliberately separate from `[motion]`: motion is about animation,
+/// while this section covers legibility and assistive technology. Every value
+/// is safe to leave at its default, and disabling enforcement is an explicit
+/// opt out rather than something a malformed theme can do by accident.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AccessibilityConfig {
+    /// Adjust text colours until they clear [`Self::contrast_target`].
+    pub enforce_contrast: bool,
+    /// WCAG contrast ratio to preserve, from 3.0 (large text) to 7.0 (AAA).
+    pub contrast_target: f32,
+    /// Draw a visible ring around the keyboard focused widget.
+    pub keyboard_focus: bool,
+    /// Focus ring stroke width in logical pixels. Zero hides the ring.
+    pub focus_ring_width: f32,
+    /// Distance between the focus ring and the widget bounds.
+    pub focus_ring_offset: f32,
+    /// Focus ring colour as a hex string.
+    pub focus_ring_color: String,
+    /// Follow the operating system's reduce-motion preference.
+    pub respect_os_reduced_motion: bool,
+    /// When to mirror status changes to the screen reader.
+    pub screen_reader: ScreenReaderMode,
+    /// Minimum time between spoken announcements, in milliseconds.
+    pub announce_min_interval_ms: u32,
+}
+
+impl Default for AccessibilityConfig {
+    fn default() -> Self {
+        Self {
+            enforce_contrast: true,
+            contrast_target: 4.5,
+            keyboard_focus: true,
+            focus_ring_width: 2.0,
+            focus_ring_offset: 2.0,
+            focus_ring_color: "#FFFFFFFF".to_string(),
+            respect_os_reduced_motion: true,
+            screen_reader: ScreenReaderMode::Auto,
+            announce_min_interval_ms: 1500,
+        }
+    }
+}
+
+/// When screen reader announcements are emitted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ScreenReaderMode {
+    /// Announce only when the operating system reports a screen reader.
+    #[default]
+    Auto,
+    /// Always announce, even without a detected screen reader.
+    On,
+    /// Never announce.
+    Off,
 }
 
 /// Typography.

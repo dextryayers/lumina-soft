@@ -32,11 +32,11 @@ works regardless of lock state. Both backends live in `lumina-platform` and
 are covered by tests.
 
 Native Wayland sessions cannot grab global keys. The supported path is the
-`org.freedesktop.portal.GlobalShortcuts` portal, which belongs to the Wayland
-layer (PLAN Phase 12) and is not implemented yet. Until then
-`WaylandHotkeys::new` reports `HotkeyError::Unsupported` and the caller is
-expected to run without global hotkeys. Under XWayland the session still talks
-X11, so the X11 backend applies. macOS is not a target.
+`org.freedesktop.portal.GlobalShortcuts` portal, which is not implemented yet.
+`WaylandHotkeys::new` reports `HotkeyError::Unsupported` and the caller runs
+without global hotkeys. The layer-shell window itself is implemented, so native
+Wayland users get the island and IPC but not global key bindings. Under XWayland
+the session still talks X11, so the X11 backend applies. macOS is not a target.
 
 ## Tray
 

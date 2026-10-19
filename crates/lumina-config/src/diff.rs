@@ -17,8 +17,8 @@
 //! subscription.
 
 use crate::schema::{
-    AppearanceConfig, AudioConfig, Config, GeneralConfig, MediaConfig, MotionConfig, RgbConfig,
-    TextConfig,
+    AccessibilityConfig, AppearanceConfig, AudioConfig, Config, GeneralConfig, MediaConfig,
+    MotionConfig, RgbConfig, TextConfig,
 };
 
 /// One thing that changed between two configurations.
@@ -34,8 +34,10 @@ pub enum ConfigChange {
     Audio(AudioChange),
     /// Media integration settings moved.
     Media(MediaChange),
-    /// Animation tuning or accessibility moved.
+    /// Animation tuning or motion accessibility moved.
     Motion(MotionChange),
+    /// Contrast, focus, or announcement settings moved.
+    Accessibility(AccessibilityChange),
     /// Typography moved.
     Text(TextChange),
     /// Widget arrangement moved.
@@ -60,6 +62,7 @@ impl ConfigChange {
             Self::Audio(change) => format!("audio.{}", change.path()),
             Self::Media(change) => format!("media.{}", change.path()),
             Self::Motion(change) => format!("motion.{}", change.path()),
+            Self::Accessibility(change) => format!("accessibility.{}", change.path()),
             Self::Text(change) => format!("text.{}", change.path()),
             Self::Layout => "layout".to_string(),
             Self::Hotkeys => "hotkeys".to_string(),
@@ -213,6 +216,27 @@ impl MotionChange {
     }
 }
 
+/// A change inside `[accessibility]`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessibilityChange {
+    /// Contrast enforcement or its target moved.
+    Contrast,
+    /// The focus ring or keyboard focus policy moved.
+    Focus,
+    /// Announcement policy or cadence moved.
+    Announcements,
+}
+
+impl AccessibilityChange {
+    fn path(self) -> &'static str {
+        match self {
+            Self::Contrast => "contrast_target",
+            Self::Focus => "focus_ring_width",
+            Self::Announcements => "screen_reader",
+        }
+    }
+}
+
 /// A change inside `[text]`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextChange {
@@ -278,6 +302,7 @@ impl ConfigDiff {
                         | (Section::Audio, ConfigChange::Audio(_))
                         | (Section::Media, ConfigChange::Media(_))
                         | (Section::Motion, ConfigChange::Motion(_))
+                        | (Section::Accessibility, ConfigChange::Accessibility(_))
                         | (Section::Text, ConfigChange::Text(_))
                 )
             })
@@ -300,6 +325,8 @@ pub enum Section {
     Media,
     /// `[motion]`.
     Motion,
+    /// `[accessibility]`.
+    Accessibility,
     /// `[text]`.
     Text,
     /// `[layout]`.
@@ -324,6 +351,7 @@ pub fn diff_config(from: &Config, to: &Config) -> ConfigDiff {
     diff_audio(&from.audio, &to.audio, &mut changes);
     diff_media(&from.media, &to.media, &mut changes);
     diff_motion(&from.motion, &to.motion, &mut changes);
+    diff_accessibility(&from.accessibility, &to.accessibility, &mut changes);
     diff_text(&from.text, &to.text, &mut changes);
 
     if from.layout != to.layout {
@@ -479,6 +507,35 @@ fn diff_motion(from: &MotionConfig, to: &MotionConfig, out: &mut Vec<ConfigChang
     }
     if from.reduced != to.reduced {
         out.push(ConfigChange::Motion(MotionChange::Accessibility));
+    }
+}
+
+fn diff_accessibility(
+    from: &AccessibilityConfig,
+    to: &AccessibilityConfig,
+    out: &mut Vec<ConfigChange>,
+) {
+    if from.enforce_contrast != to.enforce_contrast
+        || from.contrast_target != to.contrast_target
+        || from.respect_os_reduced_motion != to.respect_os_reduced_motion
+    {
+        out.push(ConfigChange::Accessibility(
+            AccessibilityChange::Contrast,
+        ));
+    }
+    if from.keyboard_focus != to.keyboard_focus
+        || from.focus_ring_width != to.focus_ring_width
+        || from.focus_ring_offset != to.focus_ring_offset
+        || from.focus_ring_color != to.focus_ring_color
+    {
+        out.push(ConfigChange::Accessibility(AccessibilityChange::Focus));
+    }
+    if from.screen_reader != to.screen_reader
+        || from.announce_min_interval_ms != to.announce_min_interval_ms
+    {
+        out.push(ConfigChange::Accessibility(
+            AccessibilityChange::Announcements,
+        ));
     }
 }
 

@@ -31,13 +31,14 @@ pub use merge::{expand_dotted, merge_tables, overlay_config};
 
 pub use profile::{resolve, ProfileStore};
 pub use schema::{
-    AdvancedConfig, AppearanceConfig, AudioBackend, AudioConfig, AudioSource, BackdropMode,
-    BatteryConfig, ClockConfig, ClockFormat, Config, FftSize, FontWeight, GeneralConfig,
-    GpuBackend, HotkeysConfig, LayoutAlign, LayoutConfig, LogLevel, MediaConfig, MetricsConfig,
-    MonitorSelector, MotionConfig, NetworkConfig, NetworkUnit, PomodoroConfig, Position,
-    ReactiveConfig, RgbConfig, RgbMode, ScriptConfig, ScriptDisplay, ScriptEntry, ShortcutConfig,
-    ShortcutsConfig, SpectrumConfig, TextConfig, TrayConfig, VisualizerStyle, WeatherConfig,
-    WeatherProvider, WeatherUnits, WidgetConfig, WidgetEntry, WidgetRgb, KNOWN_WIDGET_IDS,
+    AccessibilityConfig, AdvancedConfig, AppearanceConfig, AudioBackend, AudioConfig, AudioSource,
+    BackdropMode, BatteryConfig, ClockConfig, ClockFormat, Config, FftSize, FontWeight,
+    GeneralConfig, GpuBackend, HotkeysConfig, LayoutAlign, LayoutConfig, LogLevel, MediaConfig,
+    MetricsConfig, MonitorSelector, MotionConfig, NetworkConfig, NetworkUnit, PomodoroConfig,
+    Position, ReactiveConfig, RgbConfig, RgbMode, ScreenReaderMode, ScriptConfig, ScriptDisplay,
+    ScriptEntry, ShortcutConfig, ShortcutsConfig, SpectrumConfig, TextConfig, TrayConfig,
+    VisualizerStyle, WeatherConfig, WeatherProvider, WeatherUnits, WidgetConfig, WidgetEntry,
+    WidgetRgb, KNOWN_WIDGET_IDS,
 };
 pub use validate::{validate, Issue, Severity, ValidationReport};
 

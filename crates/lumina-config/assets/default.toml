@@ -373,6 +373,29 @@ content_fade_ms = 160
 # Animate the island in on startup.
 startup_reveal = true
 
+[accessibility]
+# Adjust text colours until they clear the contrast target below. Turning this
+# off is an explicit choice; the default keeps every theme legible.
+enforce_contrast = true
+# WCAG contrast ratio to preserve. 4.5 is AA for normal text, 7.0 is AAA.
+contrast_target = 4.5
+# Show a visible ring around the widget that has keyboard focus.
+keyboard_focus = true
+# Focus ring thickness in logical pixels. 0 hides the ring.
+focus_ring_width = 2.0
+# Gap between the focus ring and the widget bounds.
+focus_ring_offset = 2.0
+# Focus ring colour.
+focus_ring_color = "#FFFFFFFF"
+# Follow the operating system's reduce motion preference. The explicit
+# [motion] reduced setting still applies when this is off.
+respect_os_reduced_motion = true
+# Mirror status changes to a screen reader.
+# One of: auto (only when the OS reports one), on, off
+screen_reader = "auto"
+# Minimum time between spoken announcements, in milliseconds.
+announce_min_interval_ms = 1500
+
 [text]
 # Base font size. The minimum is 12 for legibility.
 font_size = 14.0

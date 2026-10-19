@@ -18,7 +18,8 @@ use lumina_core::color::parse_hex;
 
 use crate::schema::{
     AudioConfig, Config, FftSize, GeneralConfig, HotkeysConfig, LayoutConfig, MediaConfig,
-    MotionConfig, Position, RgbMode, TextConfig, VisualizerStyle, KNOWN_WIDGET_IDS,
+    AccessibilityConfig, MotionConfig, Position, RgbMode, TextConfig, VisualizerStyle,
+    KNOWN_WIDGET_IDS,
 };
 
 /// How serious a problem is.
@@ -177,6 +178,7 @@ pub fn validate(mut config: Config) -> (Config, ValidationReport) {
     validate_hotkeys(&mut config, &mut report);
     validate_script(&mut config, &mut report);
     validate_motion(&mut config, &mut report);
+    validate_accessibility(&mut config, &mut report);
     validate_text(&mut config, &mut report);
     validate_advanced(&mut config, &mut report);
     validate_cross_field(&mut config, &mut report);
@@ -1094,6 +1096,62 @@ fn validate_motion(config: &mut Config, report: &mut ValidationReport) {
         m.morph_damping = 1.0;
         m.content_fade_ms = 0;
         m.startup_reveal = false;
+    }
+}
+
+fn validate_accessibility(config: &mut Config, report: &mut ValidationReport) {
+    let a: &mut AccessibilityConfig = &mut config.accessibility;
+
+    // WCAG AA normal text is the safe default. Three is the large-text floor and
+    // seven is AAA; outside that range the value is not meaningful.
+    a.contrast_target = clamp_float(
+        a.contrast_target,
+        3.0,
+        7.0,
+        "accessibility.contrast_target",
+        4.5,
+        report,
+    );
+    a.focus_ring_width = clamp_float(
+        a.focus_ring_width,
+        0.0,
+        8.0,
+        "accessibility.focus_ring_width",
+        2.0,
+        report,
+    );
+    a.focus_ring_offset = clamp_float(
+        a.focus_ring_offset,
+        0.0,
+        8.0,
+        "accessibility.focus_ring_offset",
+        2.0,
+        report,
+    );
+    a.announce_min_interval_ms = clamp_u32(
+        a.announce_min_interval_ms,
+        0,
+        60_000,
+        "accessibility.announce_min_interval_ms",
+        1500,
+        report,
+    );
+    check_color(
+        &mut a.focus_ring_color,
+        "accessibility.focus_ring_color",
+        "#FFFFFFFF",
+        report,
+    );
+
+    // A ring with no visible thickness is the same as no ring, so keep the
+    // keyboard-focus flag honest rather than leaving contradictory settings.
+    if a.keyboard_focus && a.focus_ring_width <= 0.0 {
+        report.warn(
+            "accessibility.focus_ring_width",
+            "keyboard focus is enabled but the ring width is zero",
+            "using 2.0",
+        );
+        a.focus_ring_width = 2.0;
     }
 }
 

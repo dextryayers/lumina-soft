@@ -220,6 +220,7 @@ mod tests {
             "[script]",
             "[tray]",
             "[motion]",
+            "[accessibility]",
             "[text]",
             "[advanced]",
         ] {
