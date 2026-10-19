@@ -81,7 +81,7 @@ fn platform_offset() -> i32 {
         return 0;
     }
     let mut local = unsafe { std::mem::zeroed::<libc::tm>() };
-    let result = unsafe { libc::localtime_r(&now, &mut local) };
+    let result = unsafe { libc::localtime_r(&raw const now, &raw mut local) };
     if result.is_null() {
         return 0;
     }

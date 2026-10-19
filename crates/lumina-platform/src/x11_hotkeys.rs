@@ -178,8 +178,8 @@ fn keyboard_map(
     connection: &RustConnection,
 ) -> Result<HashMap<u32, u8>, x11rb::errors::ReplyOrIdError> {
     let setup = connection.setup();
-    let min = u8::from(setup.min_keycode);
-    let max = u8::from(setup.max_keycode);
+    let min = setup.min_keycode;
+    let max = setup.max_keycode;
     let count = max.saturating_sub(min).saturating_add(1);
     if count == 0 {
         return Ok(HashMap::new());
@@ -242,28 +242,20 @@ impl HotkeyRegistry for X11Hotkeys {
 
     fn poll(&mut self) -> Vec<HotkeyEvent> {
         let mut events = Vec::new();
-        loop {
-            match self.connection.poll_for_event() {
-                Ok(Some(event)) => {
-                    if let x11rb::protocol::Event::KeyPress(press) = event {
-                        let state = u16::from(press.state)
-                            & u16::from(
-                                ModMask::SHIFT | ModMask::CONTROL | ModMask::M1 | ModMask::M4,
-                            );
-                        for grab in &self.grabs {
-                            if grab.keycode == press.detail
-                                && u16::from(modifier_mask(grab.hotkey)) == state
-                            {
-                                events.push(HotkeyEvent {
-                                    action: grab.action.clone(),
-                                    hotkey: grab.hotkey,
-                                });
-                            }
-                        }
+        while let Ok(Some(event)) = self.connection.poll_for_event() {
+            if let x11rb::protocol::Event::KeyPress(press) = event {
+                let state = u16::from(press.state)
+                    & u16::from(ModMask::SHIFT | ModMask::CONTROL | ModMask::M1 | ModMask::M4);
+                for grab in &self.grabs {
+                    if grab.keycode == press.detail
+                        && u16::from(modifier_mask(grab.hotkey)) == state
+                    {
+                        events.push(HotkeyEvent {
+                            action: grab.action.clone(),
+                            hotkey: grab.hotkey,
+                        });
                     }
                 }
-                Ok(None) => break,
-                Err(_) => break,
             }
         }
         let _ = self.connection.flush();

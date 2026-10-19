@@ -160,6 +160,8 @@ pub struct LayerPlacement {
     pub layer: Layer,
     /// Keyboard interactivity mode.
     pub keyboard: KeyboardInteractivity,
+    /// True when the input region must be empty.
+    pub click_through: bool,
 }
 
 /// The anchor set for a position.

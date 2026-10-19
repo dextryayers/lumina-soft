@@ -35,4 +35,6 @@ pub mod placement;
 mod backend;
 
 #[cfg(all(unix, not(target_os = "macos")))]
-pub use backend::{WaylandBackend, WaylandSurfaceKind};
+pub use backend::{
+    KeyEvent, KeyboardModifiers, WaylandBackend, WaylandSurfaceKind,
+};

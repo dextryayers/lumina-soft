@@ -87,13 +87,13 @@ mod tests {
 
     #[test]
     fn registration_reports_the_missing_portal() {
-        let mut backend = WaylandHotkeys::default();
+        let mut backend = WaylandHotkeys;
         let binding = HotkeyBinding {
             action: "toggle_visibility".to_string(),
             hotkey: crate::hotkey::Hotkey::parse("ctrl+alt+l").unwrap().unwrap(),
         };
         assert_eq!(backend.register(binding), Err(HotkeyError::Unsupported));
         assert_eq!(backend.unregister("toggle_visibility"), Ok(()));
-        assert!(backend.poll().is_empty());
+        assert_eq!(backend.poll().len(), 0);
     }
 }

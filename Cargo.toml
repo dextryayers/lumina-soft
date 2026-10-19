@@ -11,6 +11,7 @@ members = [
     "crates/lumina-media",
     "crates/lumina-audio",
     "crates/lumina-color",
+    "crates/lumina-ipc",
 ]
 
 [workspace.package]
@@ -35,6 +36,7 @@ lumina-widgets = { path = "crates/lumina-widgets", version = "0.1.0-alpha.1" }
 lumina-media = { path = "crates/lumina-media", version = "0.1.0-alpha.1" }
 lumina-audio = { path = "crates/lumina-audio", version = "0.1.0-alpha.1" }
 lumina-color = { path = "crates/lumina-color", version = "0.1.0-alpha.1" }
+lumina-ipc = { path = "crates/lumina-ipc", version = "0.1.0-alpha.1" }
 
 # Serialization and configuration.
 serde = { version = "1.0", features = ["derive"] }

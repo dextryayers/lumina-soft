@@ -46,7 +46,10 @@ libc = "0.2"
 # Layer-shell is the only Wayland protocol that lets a client place a window,
 # reserve screen space, and pass clicks through. xdg-shell is the fallback for
 # compositors such as GNOME that do not implement it.
-wayland-client = "0.31"
+# The `system` backend is what exposes `wl_display` and `wl_surface` pointers,
+# which wgpu needs to create a Vulkan or GL surface. `dlopen` keeps the crate
+# buildable on machines that do not have libwayland development headers.
+wayland-client = { version = "0.31", features = ["system", "dlopen"] }
 wayland-protocols = { version = "0.32", features = ["client"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 

@@ -671,9 +671,8 @@ mod tests {
     #[test]
     fn connecting_without_a_display_fails_cleanly() {
         match X11Backend::new() {
-            Err(OverlayError::NoDisplay(_)) => {}
+            Ok(_) | Err(OverlayError::NoDisplay(_)) => {}
             Err(other) => panic!("expected a display error, got {other:?}"),
-            Ok(_) => {}
         }
     }
 
@@ -762,7 +761,7 @@ mod tests {
             return;
         };
         // A monitor list the placement code can iterate, even if RandR is a stub.
-        assert!(!backend.monitors().is_empty());
+        assert_ne!(backend.monitors().len(), 0);
         assert!(backend.monitors().iter().all(|m| m.bounds.width > 0.0));
     }
 
