@@ -1,0 +1,24 @@
+name: Report CI result to Lumina
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+jobs:
+  notify:
+    runs-on: [self-hosted, linux, lumina]
+    steps:
+      - name: Send the result to the island
+        run: |
+          conclusion="${{ github.event.workflow_run.conclusion }}"
+          if [ "$conclusion" = "success" ]; then
+            accent="#34c759"
+          else
+            accent="#ff3b30"
+          fi
+          lumina-send notify \
+            --title "CI: ${{ github.event.workflow_run.name }}" \
+            --body "${{ github.repository }} on ${{ github.event.workflow_run.head_branch }}: $conclusion" \
+            --accent "$accent" \
+            --duration-ms 8000 || true

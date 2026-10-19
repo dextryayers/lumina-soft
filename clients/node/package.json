@@ -1,0 +1,32 @@
+{
+  "name": "lumina-node",
+  "version": "0.1.0-alpha.1",
+  "description": "EventEmitter client for the Lumina dynamic island IPC protocol",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "MIT",
+  "author": "Lumina Contributors",
+  "homepage": "https://github.com/lumina-sh/lumina",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lumina-sh/lumina.git",
+    "directory": "clients/node"
+  },
+  "keywords": [
+    "lumina",
+    "ipc",
+    "dynamic-island",
+    "desktop"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lumina-py"
+version = "0.1.0a1"
+description = "Standard-library client for the Lumina dynamic island IPC protocol"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Lumina Contributors" }]
+keywords = ["lumina", "ipc", "dynamic-island", "desktop"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/lumina-sh/lumina"
+Documentation = "https://github.com/lumina-sh/lumina/blob/main/docs/ipc.md"
+
+[tool.setuptools]
+packages = ["lumina_py"]
+
+[tool.setuptools.package-data]
+lumina_py = ["py.typed"]

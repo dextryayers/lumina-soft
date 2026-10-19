@@ -6,7 +6,7 @@
 //! client that cannot keep up must reconnect.
 
 use std::fmt;
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -114,10 +114,13 @@ impl Event {
     }
 }
 
+/// Events a client may fall behind before it is unsubscribed.
+const EVENT_BUFFER: usize = 256;
+
 #[derive(Debug, Default)]
 struct Inner {
     next_id: u64,
-    subscribers: Vec<(u64, Sender<Vec<u8>>)>,
+    subscribers: Vec<(u64, SyncSender<Vec<u8>>)>,
 }
 
 /// Fan-out handle held by the orchestrator and by every client thread.
@@ -143,16 +146,20 @@ impl EventSender {
     }
 
     /// Broadcast an already encoded line.
+    ///
+    /// A subscriber that has not drained its queue is unsubscribed instead of
+    /// blocking the orchestrator. That client must reconnect to receive events
+    /// again.
     pub fn emit_line(&self, line: &[u8]) {
         let mut inner = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
         inner
             .subscribers
-            .retain(|(_, sender)| sender.send(line.to_vec()).is_ok());
+            .retain(|(_, sender)| sender.try_send(line.to_vec()).is_ok());
     }
 
     /// Register a client.
     pub fn subscribe(&self) -> Subscription {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::sync_channel(EVENT_BUFFER);
         let mut inner = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
         let id = inner.next_id;
         inner.next_id += 1;
@@ -275,6 +282,22 @@ mod tests {
         let bus = EventSender::new();
         bus.emit(&Event::state_changed("collapsed")).unwrap();
         assert_eq!(bus.subscriber_count(), 0);
+    }
+
+    #[test]
+    fn a_subscriber_that_falls_behind_is_unsubscribed() {
+        let bus = EventSender::new();
+        let subscription = bus.subscribe();
+        for index in 0..=EVENT_BUFFER {
+            bus.emit(&Event::state_changed(index.to_string())).unwrap();
+        }
+        assert_eq!(bus.subscriber_count(), 0);
+        assert!(
+            subscription
+                .recv_timeout(Duration::from_millis(10))
+                .is_ok(),
+            "buffered events remain readable after unsubscription"
+        );
     }
 
     #[test]

@@ -27,6 +27,9 @@ const DEFAULT_POLL_MS: u64 = 10;
 /// How often a connection thread checks for shutdown while waiting on events.
 const EVENT_POLL: Duration = Duration::from_millis(50);
 
+/// Lines queued for one client's writer before events are dropped.
+const CLIENT_QUEUE: usize = 256;
+
 /// Tunables for a [`Server`].
 #[derive(Debug, Clone)]
 pub struct ServerOptions {
@@ -239,7 +242,7 @@ fn run_connection(
     let Ok(writer) = connection.try_clone_box() else {
         return;
     };
-    let (out_sender, out_receiver) = mpsc::channel::<Vec<u8>>();
+    let (out_sender, out_receiver) = mpsc::sync_channel::<Vec<u8>>(CLIENT_QUEUE);
 
     let writer_thread = thread::spawn(move || {
         let mut writer = writer;
@@ -261,7 +264,7 @@ fn run_connection(
     let forwarder = thread::spawn(move || loop {
         match subscription.recv_timeout(EVENT_POLL) {
             Ok(line) => {
-                if forward_sender.send(line).is_err() {
+                if forward_sender.try_send(line).is_err() {
                     break;
                 }
             }
@@ -353,7 +356,7 @@ fn run_connection(
     let _ = writer_thread.join();
 }
 
-fn send(out: &Sender<Vec<u8>>, response: &Response) {
+fn send(out: &SyncSender<Vec<u8>>, response: &Response) {
     if let Ok(line) = encode_line(response) {
         let _ = out.send(line);
     }
