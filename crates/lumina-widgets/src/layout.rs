@@ -1,4 +1,4 @@
-﻿//! Flex row layout: the single layout model Lumina needs.
+//! Flex row layout: the single layout model Lumina needs.
 //!
 //! # The model
 //!
@@ -110,8 +110,9 @@ impl FlexLayout {
         let total_desired: Scalar = self
             .items
             .iter()
-            .map(|i| i.desired.width + i.margin_leading + self.spacing)
-            .sum();
+            .map(|i| i.desired.width + i.margin_leading)
+            .sum::<Scalar>()
+            + self.spacing * (self.items.len().saturating_sub(1) as Scalar);
         let available = self.available.width;
 
         let mut rects = Vec::with_capacity(self.items.len());
@@ -122,8 +123,9 @@ impl FlexLayout {
             for item in &self.items {
                 let width = item.desired.width.min(item.max_width);
                 let y = self.align_y(item.desired.height);
+                self.cursor += item.margin_leading;
                 rects.push(Rect::new(self.cursor, y, width, item.desired.height));
-                self.cursor += width + item.margin_leading + self.spacing;
+                self.cursor += width + self.spacing;
             }
         } else {
             // Shrink proportionally to (min_width, desired_width).
@@ -143,8 +145,9 @@ impl FlexLayout {
                 };
                 let width = (item.desired.width - shrink).max(item.min_width).min(item.max_width);
                 let y = self.align_y(item.desired.height);
+                self.cursor += item.margin_leading;
                 rects.push(Rect::new(self.cursor, y, width, item.desired.height));
-                self.cursor += width + item.margin_leading + self.spacing;
+                self.cursor += width + self.spacing;
             }
         }
 
@@ -165,8 +168,9 @@ impl FlexLayout {
     pub fn total_width(&self) -> Scalar {
         self.items
             .iter()
-            .map(|i| i.desired.width + i.margin_leading + self.spacing)
-            .sum()
+            .map(|i| i.desired.width + i.margin_leading)
+            .sum::<Scalar>()
+            + self.spacing * (self.items.len().saturating_sub(1) as Scalar)
     }
 
     /// The number of items in the layout.
@@ -260,7 +264,7 @@ mod tests {
         layout.add(Size::new(100.0, 40.0), 1.0, 10.0);
         layout.add(Size::new(100.0, 40.0), 1.0, 0.0);
         let rects = layout.finish();
-        assert_eq!(rects[0].x, 0.0);
+        assert_eq!(rects[0].x, 10.0);
         assert_eq!(rects[1].x, 110.0);
     }
 

@@ -1702,6 +1702,46 @@ mod tests {
     }
 
     #[test]
+    fn opt_in_widgets_may_be_placed_in_the_order() {
+        let (config, report) = run(
+            "[layout]\norder = [\"clock\", \"weather\", \"notify\", \"script\", \"calendar\"]\n",
+        );
+        assert_eq!(config.layout.order.len(), 5);
+        assert!(
+            report.is_clean(),
+            "opt-in widgets are known, not unknown: {}",
+            report.render()
+        );
+    }
+
+    #[test]
+    fn unknown_widget_overrides_are_dropped() {
+        let (config, report) = run("[widgets.teleporter]\nflex = 2.0\n");
+        assert!(config.widgets.widgets.is_empty());
+        assert!(report
+            .issues()
+            .iter()
+            .any(|issue| issue.path == "widgets.teleporter"));
+    }
+
+    #[test]
+    fn widget_overrides_are_clamped_and_invalid_colors_dropped() {
+        let (config, report) = run(
+            "[widgets.media]\nflex = 99.0\nmargin_leading = -5.0\n[widgets.media.rgb]\nglow_intensity = 9.0\nprimary = \"chartreuse\"\n",
+        );
+        let entry = &config.widgets.widgets["media"];
+        assert_eq!(entry.flex, Some(8.0));
+        assert_eq!(entry.margin_leading, Some(0.0));
+        let rgb = entry.rgb.as_ref().expect("the rgb table is kept");
+        assert_eq!(rgb.glow_intensity, Some(3.0));
+        assert_eq!(rgb.primary, None);
+        assert!(report
+            .issues()
+            .iter()
+            .any(|issue| issue.path == "widgets.media.rgb.primary"));
+    }
+
+    #[test]
     fn implausible_timezone_is_cleared() {
         let (config, report) = run("[clock]\nsecond_timezone = \"Mars/Olympus_Mons\"\n");
         assert_eq!(config.clock.second_timezone, "");

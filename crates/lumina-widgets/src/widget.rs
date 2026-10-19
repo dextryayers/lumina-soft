@@ -662,7 +662,8 @@ impl WidgetRegistry {
                 return false;
             }
             WidgetInput::PointerMove(_) => {
-                self.hovered_id = target.map(|(_, index)| self.widgets[index].id());
+                let target_id = target.map(|(_, index)| self.widgets[index].id());
+                self.update_hover(target_id, ctx);
             }
             _ => {}
         }
@@ -974,5 +975,142 @@ mod tests {
         assert_eq!(ctx.config_id, "media");
         assert_eq!(ctx.config_flex, 2.0);
         assert_eq!(ctx.config_margin, 5.0);
+    }
+
+    #[test]
+    fn a_disabled_widget_takes_no_space_and_is_not_drawn() {
+        let mut registry = WidgetRegistry::with_config(
+            vec!["a".to_string(), "b".to_string()],
+            2,
+        );
+        registry.register(Box::new(TestWidget::new("a")));
+        registry.register_with(
+            Box::new(TestWidget::new("b")),
+            WidgetEntry {
+                enabled: Some(false),
+                ..Default::default()
+            },
+        );
+        let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(300.0, 40.0));
+        let rects = registry.layout(&ctx);
+        assert_eq!(rects.len(), 1);
+        assert_eq!(registry.visible_count(), 1);
+
+        let mut out = DrawList::new();
+        registry.draw(&mut out, &ctx, &rects);
+        // Only the enabled widget emits quads; TestWidget draws nothing, so the
+        // assertion is about the visible set rather than quad count.
+        assert_eq!(registry.visible_count(), 1);
+    }
+
+    #[test]
+    fn max_widgets_counts_only_enabled_widgets() {
+        let mut registry = WidgetRegistry::with_config(vec![], 1);
+        registry.register(Box::new(TestWidget::new("a")));
+        registry.register_with(
+            Box::new(TestWidget::new("b")),
+            WidgetEntry {
+                enabled: Some(false),
+                ..Default::default()
+            },
+        );
+        registry.register(Box::new(TestWidget::new("c")));
+        let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(300.0, 40.0));
+        let rects = registry.layout(&ctx);
+        assert_eq!(rects.len(), 1);
+        assert_eq!(rects[0].width, 100.0);
+    }
+
+    #[test]
+    fn per_widget_margins_and_flex_override_the_container() {
+        let mut registry = WidgetRegistry::with_config(vec![], 4);
+        registry.register_with(
+            Box::new(TestWidget::new("a")),
+            WidgetEntry {
+                flex: Some(0.0),
+                margin_leading: Some(12.0),
+                ..Default::default()
+            },
+        );
+        let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(300.0, 40.0));
+        let rects = registry.layout(&ctx);
+        assert_eq!(rects[0].x, 12.0);
+        assert_eq!(rects[0].width, 100.0);
+    }
+
+    #[test]
+    fn spacing_and_alignment_from_the_layout_are_applied() {
+        let mut registry = WidgetRegistry::with_config(vec![], 4);
+        registry.register(Box::new(TestWidget::new("a")));
+        registry.register(Box::new(TestWidget::new("b")));
+        let layout = LayoutConfig {
+            spacing: 10.0,
+            align: LayoutAlign::Top,
+            order: vec!["a".to_string(), "b".to_string()],
+            max_widgets: 4,
+            ..Default::default()
+        };
+        registry.update_layout(&layout);
+        let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(300.0, 100.0));
+        let rects = registry.layout(&ctx);
+        assert_eq!(rects[1].x, 110.0);
+        assert_eq!(rects[0].y, 0.0);
+    }
+
+    #[test]
+    fn pointer_movement_tracks_the_hovered_widget() {
+        let mut registry = WidgetRegistry::with_config(vec![], 4);
+        registry.register(Box::new(TestWidget::new("a")));
+        registry.register(Box::new(TestWidget::new("b")));
+        let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(300.0, 40.0));
+        let rects = registry.layout(&ctx);
+        let consumed = registry.route_input(
+            &WidgetInput::PointerMove(Vec2::new(105.0, 20.0)),
+            &ctx,
+            &rects,
+        );
+        assert!(!consumed);
+        assert_eq!(registry.hovered_id(), Some("b"));
+        registry.route_input(&WidgetInput::PointerLeave, &ctx, &rects);
+        assert_eq!(registry.hovered_id(), None);
+    }
+
+    struct ConsumeWidget;
+
+    impl Widget for ConsumeWidget {
+        fn id(&self) -> &'static str {
+            "consumer"
+        }
+        fn measure(&mut self, _ctx: &WidgetContext) -> Size {
+            Size::new(100.0, 40.0)
+        }
+        fn draw(&mut self, _out: &mut DrawList, _ctx: &WidgetContext, _rect: Rect) {}
+        fn on_input(&mut self, ev: &WidgetInput, _ctx: &WidgetContext, _rect: Rect) -> bool {
+            matches!(ev, WidgetInput::Click(_))
+        }
+        fn request(&self, _ctx: &WidgetContext) -> Option<StateRequest> {
+            None
+        }
+        fn priority(&self) -> u8 {
+            0
+        }
+    }
+
+    #[test]
+    fn clicks_reach_the_widget_under_the_pointer() {
+        let mut registry = WidgetRegistry::with_config(vec![], 4);
+        registry.register(Box::new(ConsumeWidget));
+        let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(300.0, 40.0));
+        let rects = registry.layout(&ctx);
+        assert!(registry.route_input(
+            &WidgetInput::Click(Vec2::new(50.0, 20.0)),
+            &ctx,
+            &rects,
+        ));
+        assert!(!registry.route_input(
+            &WidgetInput::Click(Vec2::new(200.0, 20.0)),
+            &ctx,
+            &rects,
+        ));
     }
 }

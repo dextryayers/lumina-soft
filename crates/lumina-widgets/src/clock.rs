@@ -570,4 +570,40 @@ mod tests {
         clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 32.0));
         assert_ne!(clock.last_date, "");
     }
+
+    #[test]
+    fn a_fixed_offset_shifts_time_and_date() {
+        use std::time::{Duration, UNIX_EPOCH};
+
+        let mut clock = ClockWidget::new();
+        clock.utc_offset_minutes = Some(120);
+        let instant = UNIX_EPOCH + Duration::from_secs(3_600);
+        assert_eq!(clock.time_at(instant), (3, 0, 0));
+        assert_eq!(clock.date_at(instant), (1970, 1, 1, 4));
+
+        clock.utc_offset_minutes = Some(-300);
+        assert_eq!(clock.time_at(instant), (20, 0, 0));
+        assert_eq!(clock.date_at(instant), (1969, 12, 31, 3));
+    }
+
+    #[test]
+    fn from_config_applies_the_clock_section() {
+        let config = ClockConfig {
+            format: ClockFormat::H12,
+            show_seconds: true,
+            show_date: false,
+            show_weekday: true,
+            date_format: "%Y-%m-%d".to_string(),
+            second_timezone: "Europe/Berlin".to_string(),
+            hour_leading_zero: false,
+            ..Default::default()
+        };
+        let clock = ClockWidget::from_config(&config);
+        assert!(!clock.format_24h);
+        assert!(clock.show_seconds);
+        assert!(!clock.show_date);
+        assert!(clock.show_weekday);
+        assert_eq!(clock.second_tz.as_deref(), Some("Europe/Berlin"));
+        assert!(!clock.hour_leading_zero);
+    }
 }

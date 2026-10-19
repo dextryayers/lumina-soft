@@ -52,9 +52,11 @@ pub fn local_utc_offset_minutes() -> i32 {
 
 #[cfg(target_os = "windows")]
 fn platform_offset() -> i32 {
-    use windows::Win32::System::Time::{
-        GetTimeZoneInformation, TIME_ZONE_ID_DAYLIGHT, TIME_ZONE_INFORMATION,
-    };
+    use windows::Win32::System::Time::{GetTimeZoneInformation, TIME_ZONE_INFORMATION};
+
+    /// `TIME_ZONE_ID_DAYLIGHT` from the platform SDK; the `windows` crate
+    /// exposes it in `SystemServices`, which we do not otherwise need.
+    const TIME_ZONE_ID_DAYLIGHT: u32 = 2;
 
     let mut zone = TIME_ZONE_INFORMATION::default();
     // The return value is a TIME_ZONE_ID_* constant, not an error code.
@@ -185,7 +187,7 @@ mod tests {
         let civil = civil_from_unix_with_offset(0, 120);
         assert_eq!((civil.year, civil.month, civil.day), (1970, 1, 1));
         assert_eq!(civil.hour, 2);
-        let civil = civil_from_unix_with_offset(86_400 - 60, 120);
+        let civil = civil_from_unix_with_offset(86_400 - 7_200, 120);
         assert_eq!((civil.year, civil.month, civil.day), (1970, 1, 2));
         assert_eq!(civil.hour, 0);
     }
