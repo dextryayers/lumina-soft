@@ -1,4 +1,4 @@
-﻿//! Widget trait, registry, and the draw list.
+//! Widget trait, registry, and the draw list.
 //!
 //! # The trait
 //!
@@ -23,10 +23,11 @@
 //! frame path performs no allocation. Quads are emitted with their position, size,
 //! UV rectangle, and color, and the renderer batches them into one instanced draw.
 
+use lumina_config::schema::{LayoutAlign, LayoutConfig, WidgetConfig, WidgetEntry};
 use lumina_core::geometry::{Rect, Scalar, Size, Vec2};
 use lumina_core::state::{IslandState, StateRequest};
 
-use crate::layout::FlexLayout;
+use crate::layout::{FlexLayout, VerticalAlign};
 
 /// Context passed to every widget method.
 #[derive(Debug, Clone)]
@@ -46,7 +47,11 @@ pub struct WidgetContext {
     /// Seconds since startup.
     pub elapsed: Scalar,
     /// The widget's configured id from the layout order.
-    pub config_id: String,
+    ///
+    /// This is a static string borrowed from the widget itself rather than a
+    /// fresh allocation, because the context is rebuilt for every widget every
+    /// frame.
+    pub config_id: &'static str,
     /// The widget's configured flex weight from config.
     pub config_flex: Scalar,
     /// The widget's configured margin from config.
@@ -73,7 +78,7 @@ impl WidgetContext {
             enabled: true,
             now: std::time::SystemTime::now(),
             elapsed: 0.0,
-            config_id: String::new(),
+            config_id: "",
             config_flex: 1.0,
             config_margin: 0.0,
             hovered: false,
@@ -88,7 +93,7 @@ impl WidgetContext {
     pub fn with_config(
         state: IslandState,
         available: Size,
-        config_id: impl Into<String>,
+        config_id: &'static str,
         config_flex: Scalar,
         config_margin: Scalar,
     ) -> Self {
@@ -100,7 +105,7 @@ impl WidgetContext {
             enabled: true,
             now: std::time::SystemTime::now(),
             elapsed: 0.0,
-            config_id: config_id.into(),
+            config_id,
             config_flex,
             config_margin,
             hovered: false,
@@ -320,16 +325,22 @@ impl Quad {
 /// Owns all widgets and drives their lifecycle. The orchestrator holds one registry
 /// and calls [`WidgetRegistry::layout`] and [`WidgetRegistry::draw`] each frame.
 ///
-/// The registry supports config-driven widget ordering and `max_widgets` limits.
-/// Widgets are sorted by the `order` array in config, and only the first
-/// `max_widgets` widgets are laid out and drawn.
+/// The registry supports config-driven widget ordering, per-widget enablement,
+/// flex weights, leading margins, spacing, alignment, and a `max_widgets` limit.
+/// Disabled widgets and widgets past the limit are skipped by layout, drawing,
+/// input routing, and state requests alike, so every consumer sees the same
+/// visible set.
 #[derive(Default)]
 pub struct WidgetRegistry {
     widgets: Vec<Box<dyn Widget>>,
+    entries: Vec<WidgetEntry>,
     config_order: Vec<String>,
     max_widgets: usize,
+    spacing: Scalar,
+    align: VerticalAlign,
     visible_count: usize,
     last_state: Option<IslandState>,
+    hovered_id: Option<&'static str>,
 }
 
 impl std::fmt::Debug for WidgetRegistry {
@@ -338,9 +349,40 @@ impl std::fmt::Debug for WidgetRegistry {
             .field("widget_count", &self.widgets.len())
             .field("config_order", &self.config_order)
             .field("max_widgets", &self.max_widgets)
+            .field("spacing", &self.spacing)
+            .field("align", &self.align)
             .field("visible_count", &self.visible_count)
             .field("last_state", &self.last_state)
+            .field("hovered_id", &self.hovered_id)
             .finish()
+    }
+}
+
+/// Build the context a single widget sees.
+///
+/// Per-widget values from the registry override the container context, and the
+/// hover flag is derived from the registry's tracked pointer target rather than
+/// from a global flag that would mark every widget as hovered.
+fn widget_context(
+    ctx: &WidgetContext,
+    id: &'static str,
+    entry: &WidgetEntry,
+    available: Size,
+    hovered: bool,
+) -> WidgetContext {
+    let flex = entry.flex.unwrap_or(ctx.flex);
+    let margin = entry.margin_leading.unwrap_or(ctx.margin_leading);
+    WidgetContext {
+        flex,
+        margin_leading: margin,
+        enabled: entry.enabled.unwrap_or(true),
+        config_id: id,
+        config_flex: flex,
+        config_margin: margin,
+        hovered,
+        min_width: 1.0,
+        max_width: available.width,
+        ..ctx.clone()
     }
 }
 
@@ -348,7 +390,10 @@ impl WidgetRegistry {
     /// Create an empty registry.
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            max_widgets: usize::MAX,
+            ..Self::default()
+        }
     }
 
     /// Create a registry with config-driven ordering.
@@ -356,30 +401,81 @@ impl WidgetRegistry {
     pub fn with_config(order: Vec<String>, max_widgets: usize) -> Self {
         Self {
             widgets: Vec::new(),
+            entries: Vec::new(),
             config_order: order,
             max_widgets: max_widgets.max(1),
+            spacing: 0.0,
+            align: VerticalAlign::Center,
             visible_count: 0,
             last_state: None,
+            hovered_id: None,
         }
+    }
+
+    /// Create a registry from the full widget and layout configuration.
+    #[must_use]
+    pub fn from_layout(layout: &LayoutConfig, widgets: &WidgetConfig) -> Self {
+        let mut registry = Self::with_config(layout.order.clone(), layout.max_widgets as usize);
+        registry.spacing = layout.spacing.max(0.0);
+        registry.align = match layout.align {
+            LayoutAlign::Top => VerticalAlign::Top,
+            LayoutAlign::Center => VerticalAlign::Center,
+            LayoutAlign::Bottom => VerticalAlign::Bottom,
+        };
+        registry.apply_widget_config(widgets);
+        registry
     }
 
     /// Register a widget.
     pub fn register(&mut self, widget: Box<dyn Widget>) {
+        self.register_with(widget, WidgetEntry::default());
+    }
+
+    /// Register a widget with per-widget configuration overrides.
+    pub fn register_with(&mut self, widget: Box<dyn Widget>, entry: WidgetEntry) {
         self.widgets.push(widget);
+        self.entries.push(entry);
         self.sort_widgets();
     }
 
-    /// Sort widgets by the config order.
+    /// Apply per-widget config to every already-registered widget with a matching id.
+    pub fn set_entry(&mut self, id: &str, entry: &WidgetEntry) {
+        for (widget, current) in self.widgets.iter().zip(self.entries.iter_mut()) {
+            if widget.id() == id {
+                *current = entry.clone();
+            }
+        }
+    }
+
+    /// Apply a whole `[widgets]` config table to the registered widgets.
+    pub fn apply_widget_config(&mut self, config: &WidgetConfig) {
+        for (widget, entry) in self.widgets.iter().zip(self.entries.iter_mut()) {
+            if let Some(configured) = config.widgets.get(widget.id()) {
+                *entry = configured.clone();
+            }
+        }
+    }
+
+    /// Sort widgets and their entries by the config order.
     fn sort_widgets(&mut self) {
         if self.config_order.is_empty() {
             return;
         }
-        self.widgets.sort_by_key(|w| {
-            self.config_order
+        let order = &self.config_order;
+        let mut paired: Vec<_> = self
+            .widgets
+            .drain(..)
+            .zip(self.entries.drain(..))
+            .collect();
+        paired.sort_by_key(|(widget, _)| {
+            order
                 .iter()
-                .position(|id| id == w.id())
+                .position(|id| id == widget.id())
                 .unwrap_or(usize::MAX)
         });
+        let (widgets, entries): (Vec<_>, Vec<_>) = paired.into_iter().unzip();
+        self.widgets = widgets;
+        self.entries = entries;
     }
 
     /// Look up a widget by id.
@@ -397,6 +493,12 @@ impl WidgetRegistry {
     #[must_use]
     pub fn widgets(&self) -> &[Box<dyn Widget>] {
         &self.widgets
+    }
+
+    /// The per-widget configuration entries, aligned with [`Self::widgets`].
+    #[must_use]
+    pub fn entries(&self) -> &[WidgetEntry] {
+        &self.entries
     }
 
     /// The number of registered widgets.
@@ -417,6 +519,12 @@ impl WidgetRegistry {
         self.visible_count
     }
 
+    /// The widget id currently under the pointer, if any.
+    #[must_use]
+    pub fn hovered_id(&self) -> Option<&'static str> {
+        self.hovered_id
+    }
+
     /// Update the config-driven ordering.
     pub fn update_config(&mut self, order: Vec<String>, max_widgets: usize) {
         self.config_order = order;
@@ -424,44 +532,101 @@ impl WidgetRegistry {
         self.sort_widgets();
     }
 
+    /// Update spacing, alignment, ordering, and the visibility limit at once.
+    pub fn update_layout(&mut self, layout: &LayoutConfig) {
+        self.spacing = layout.spacing.max(0.0);
+        self.align = match layout.align {
+            LayoutAlign::Top => VerticalAlign::Top,
+            LayoutAlign::Center => VerticalAlign::Center,
+            LayoutAlign::Bottom => VerticalAlign::Bottom,
+        };
+        self.update_config(layout.order.clone(), layout.max_widgets as usize);
+    }
+
+    /// The visible widget indices in draw order.
+    ///
+    /// A widget is visible when it is enabled and falls inside `max_widgets`.
+    /// This is the single definition used by layout, drawing, input routing,
+    /// and requests.
+    fn visible_indices(&self) -> impl Iterator<Item = usize> + '_ {
+        self.entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| entry.enabled.unwrap_or(true))
+            .map(|(index, _)| index)
+            .take(self.max_widgets)
+    }
+
     /// Layout all widgets into a horizontal strip.
     ///
-    /// Returns the rectangles assigned to each widget, in registration order.
-    /// Only the first `max_widgets` widgets are laid out.
+    /// Returns the rectangles assigned to each visible widget, in visible order.
+    /// Disabled widgets take no space and are not counted against `max_widgets`.
     pub fn layout(&mut self, ctx: &WidgetContext) -> Vec<Rect> {
-        let mut layout = FlexLayout::new(ctx.available);
-        let mut rects = Vec::new();
-
-        let visible: Vec<&mut Box<dyn Widget>> =
-            self.widgets.iter_mut().take(self.max_widgets).collect();
-
-        for widget in visible {
-            if !ctx.enabled {
-                continue;
-            }
-            let desired = widget.measure(ctx);
-            layout.add(desired, ctx.flex, ctx.margin_leading);
+        if !ctx.enabled {
+            self.visible_count = 0;
+            return Vec::new();
         }
 
-        let layout_rects = layout.finish();
-        rects.extend_from_slice(&layout_rects);
-        self.visible_count = layout_rects.len();
+        let mut layout = FlexLayout::new(ctx.available);
+        layout.set_spacing(self.spacing);
+        layout.set_align(self.align);
+
+        let visible: Vec<usize> = self.visible_indices().collect();
+        for &index in &visible {
+            let widget_ctx = {
+                let widget = &self.widgets[index];
+                widget_context(
+                    ctx,
+                    widget.id(),
+                    &self.entries[index],
+                    ctx.available,
+                    self.hovered_id == Some(widget.id()),
+                )
+            };
+            let desired = self.widgets[index].measure(&widget_ctx);
+            let flex = widget_ctx.flex;
+            let margin = widget_ctx.margin_leading;
+            layout.add(desired, flex, margin);
+        }
+
+        let rects = layout.finish();
+        self.visible_count = rects.len();
         rects
     }
 
-    /// Draw all widgets into the draw list.
+    /// Draw all visible widgets into the draw list.
+    ///
+    /// `rects` must be the value returned by the most recent [`Self::layout`]
+    /// call for the same state, which keeps drawing and hit-testing to exactly
+    /// the visible set.
     pub fn draw(&mut self, out: &mut DrawList, ctx: &WidgetContext, rects: &[Rect]) {
-        for (i, widget) in self.widgets.iter_mut().enumerate() {
-            if !ctx.enabled || i >= self.max_widgets {
-                continue;
-            }
-            if let Some(rect) = rects.get(i) {
-                widget.draw(out, ctx, *rect);
-            }
+        if !ctx.enabled {
+            return;
+        }
+        let visible: Vec<usize> = self.visible_indices().collect();
+        for (slot, &index) in visible.iter().enumerate() {
+            let Some(rect) = rects.get(slot) else {
+                break;
+            };
+            let widget_ctx = {
+                let widget = &self.widgets[index];
+                widget_context(
+                    ctx,
+                    widget.id(),
+                    &self.entries[index],
+                    ctx.available,
+                    self.hovered_id == Some(widget.id()),
+                )
+            };
+            self.widgets[index].draw(out, &widget_ctx, *rect);
         }
     }
 
     /// Route an input event to the widget under the point.
+    ///
+    /// Pointer movement updates the tracked hover target before dispatch, so a
+    /// widget sees `ctx.hovered == true` for the event that entered it and for
+    /// every frame while the pointer stays there.
     ///
     /// Returns `true` when a widget consumed the event.
     pub fn route_input(
@@ -470,31 +635,72 @@ impl WidgetRegistry {
         ctx: &WidgetContext,
         rects: &[Rect],
     ) -> bool {
-        for (i, widget) in self.widgets.iter_mut().enumerate() {
-            if !ctx.enabled || i >= self.max_widgets {
-                continue;
-            }
-            if let Some(rect) = rects.get(i) {
-                let pos = match ev {
-                    WidgetInput::PointerMove(p)
-                    | WidgetInput::Click(p)
-                    | WidgetInput::RightClick(p) => *p,
-                    _ => Vec2::ZERO,
-                };
-                if rect.contains(pos) && widget.on_input(ev, ctx, *rect) {
-                    return true;
-                }
-            }
+        if !ctx.enabled {
+            return false;
         }
-        false
+
+        let point = match ev {
+            WidgetInput::PointerMove(point)
+            | WidgetInput::Click(point)
+            | WidgetInput::RightClick(point) => Some(*point),
+            _ => None,
+        };
+
+        let visible: Vec<usize> = self.visible_indices().collect();
+        let target = point.and_then(|point| {
+            visible.iter().enumerate().find_map(|(slot, &index)| {
+                rects
+                    .get(slot)
+                    .filter(|rect| rect.contains(point))
+                    .map(|_| (slot, index))
+            })
+        });
+
+        match ev {
+            WidgetInput::PointerLeave => {
+                self.hovered_id = None;
+                return false;
+            }
+            WidgetInput::PointerMove(_) => {
+                self.hovered_id = target.map(|(_, index)| self.widgets[index].id());
+            }
+            _ => {}
+        }
+
+        let Some((slot, index)) = target else {
+            return false;
+        };
+        let rect = rects[slot];
+        let widget_ctx = {
+            let widget = &self.widgets[index];
+            widget_context(
+                ctx,
+                widget.id(),
+                &self.entries[index],
+                ctx.available,
+                self.hovered_id == Some(widget.id()),
+            )
+        };
+        self.widgets[index].on_input(ev, &widget_ctx, rect)
     }
 
-    /// Collect state requests from all widgets.
+    /// Collect state requests from all visible widgets.
     pub fn requests(&self, ctx: &WidgetContext) -> Vec<StateRequest> {
-        self.widgets
-            .iter()
-            .filter(|_w| ctx.enabled)
-            .filter_map(|w| w.request(ctx))
+        if !ctx.enabled {
+            return Vec::new();
+        }
+        self.visible_indices()
+            .filter_map(|index| {
+                let widget = &self.widgets[index];
+                let widget_ctx = widget_context(
+                    ctx,
+                    widget.id(),
+                    &self.entries[index],
+                    ctx.available,
+                    self.hovered_id == Some(widget.id()),
+                );
+                widget.request(&widget_ctx)
+            })
             .collect()
     }
 
@@ -533,15 +739,47 @@ impl WidgetRegistry {
     }
 
     /// Update hover state for all widgets.
+    ///
+    /// The previous implementation compared against the global `ctx.hovered`
+    /// flag, which meant a hovered widget could never interrupt a hover. The
+    /// tracked id is now authoritative: entering a widget emits the hover
+    /// lifecycle event exactly once, leaving emits the matching leave event.
     pub fn update_hover(&mut self, hovered_id: Option<&str>, ctx: &WidgetContext) {
-        for widget in &mut self.widgets {
-            let is_hovered = hovered_id == Some(widget.id());
-            if is_hovered != ctx.hovered {
-                let mut new_ctx = ctx.clone();
-                new_ctx.hovered = is_hovered;
-                if is_hovered {
-                    widget.on_state_enter(IslandState::Hover, &new_ctx);
-                }
+        let new_id = hovered_id.and_then(|target| {
+            self.widgets
+                .iter()
+                .find(|widget| widget.id() == target)
+                .map(|widget| widget.id())
+        });
+        if new_id == self.hovered_id {
+            return;
+        }
+        let old_id = self.hovered_id;
+        self.hovered_id = new_id;
+        if let Some(old_id) = old_id {
+            if let Some(index) = self.widgets.iter().position(|w| w.id() == old_id) {
+                let mut widget_ctx = widget_context(
+                    ctx,
+                    old_id,
+                    &self.entries[index],
+                    ctx.available,
+                    false,
+                );
+                widget_ctx.hovered = false;
+                self.widgets[index].on_state_leave(IslandState::Hover, &widget_ctx);
+            }
+        }
+        if let Some(new_id) = new_id {
+            if let Some(index) = self.widgets.iter().position(|w| w.id() == new_id) {
+                let mut widget_ctx = widget_context(
+                    ctx,
+                    new_id,
+                    &self.entries[index],
+                    ctx.available,
+                    true,
+                );
+                widget_ctx.hovered = true;
+                self.widgets[index].on_state_enter(IslandState::Hover, &widget_ctx);
             }
         }
     }

@@ -1,4 +1,4 @@
-﻿//! The clock widget: time, date, and an optional second timezone.
+//! The clock widget: time, date, and an optional second timezone.
 //!
 //! # Content drawing
 //!
@@ -14,8 +14,10 @@
 
 use std::fmt::Write as _;
 
+use lumina_config::schema::{ClockConfig, ClockFormat};
 use lumina_core::geometry::{Rect, Size, Vec2};
 use lumina_core::state::{IslandState, StateRequest};
+use lumina_platform::time::{civil_from_unix_with_offset, local_utc_offset_minutes, CivilTime};
 
 use crate::widget::{DrawList, Quad, Widget, WidgetContext, WidgetInput};
 
@@ -56,6 +58,8 @@ pub struct ClockWidget {
     pub last_time: String,
     /// The last drawn date string, used to detect changes.
     pub last_date: String,
+    /// A fixed UTC offset in minutes, or `None` to ask the system each frame.
+    pub utc_offset_minutes: Option<i32>,
 }
 
 impl ClockWidget {
@@ -80,6 +84,30 @@ impl ClockWidget {
             date_font_size: 12.0,
             last_time: String::new(),
             last_date: String::new(),
+            utc_offset_minutes: None,
+        }
+    }
+
+    /// Build the clock from configuration.
+    ///
+    /// The configured second timezone is stored but not resolved here: the
+    /// system UTC offset is applied at draw time, so a daylight saving change
+    /// is picked up without recreating the widget.
+    #[must_use]
+    pub fn from_config(config: &ClockConfig) -> Self {
+        Self {
+            show_seconds: config.show_seconds,
+            show_date: config.show_date,
+            date_format: config.date_format.clone(),
+            format_24h: config.format == ClockFormat::H24,
+            show_weekday: config.show_weekday,
+            second_tz: if config.second_timezone.is_empty() {
+                None
+            } else {
+                Some(config.second_timezone.clone())
+            },
+            hour_leading_zero: config.hour_leading_zero,
+            ..Self::new()
         }
     }
 
@@ -152,33 +180,42 @@ impl ClockWidget {
         result
     }
 
-    /// Get the current time components from the system time.
+    /// Convert a time to local civil time using the widget's offset.
     #[must_use]
-    pub fn current_time(&self) -> (u32, u32, u32) {
-        let now = std::time::SystemTime::now()
+    pub fn civil_at(&self, now: std::time::SystemTime) -> CivilTime {
+        let secs = now
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
-        let total_secs = now.as_secs() as u32;
-        let hour = (total_secs / 3600) % 24;
-        let minute = (total_secs / 60) % 60;
-        let second = total_secs % 60;
-        (hour, minute, second)
+            .map_or(0, |duration| duration.as_secs() as i64);
+        let offset = self
+            .utc_offset_minutes
+            .unwrap_or_else(local_utc_offset_minutes);
+        civil_from_unix_with_offset(secs, offset)
     }
 
-    /// Get the current date components from the system time.
+    /// Get the time components at `now`.
+    #[must_use]
+    pub fn time_at(&self, now: std::time::SystemTime) -> (u32, u32, u32) {
+        let civil = self.civil_at(now);
+        (civil.hour, civil.minute, civil.second)
+    }
+
+    /// Get the date components at `now`, with Sunday as weekday zero.
+    #[must_use]
+    pub fn date_at(&self, now: std::time::SystemTime) -> (i32, u32, u32, u32) {
+        let civil = self.civil_at(now);
+        (civil.year, civil.month, civil.day, civil.weekday)
+    }
+
+    /// Get the current time components from the system clock.
+    #[must_use]
+    pub fn current_time(&self) -> (u32, u32, u32) {
+        self.time_at(std::time::SystemTime::now())
+    }
+
+    /// Get the current date components from the system clock.
     #[must_use]
     pub fn current_date(&self) -> (i32, u32, u32, u32) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
-        let total_secs = now.as_secs() as i64;
-        let days = total_secs / 86400;
-        let year = 1970 + (days / 365) as i32;
-        let day_of_year = (days % 365) as u32;
-        let month = (day_of_year / 30) + 1;
-        let day = (day_of_year % 30) + 1;
-        let weekday = ((days + 4) % 7) as u32;
-        (year, month.min(12), day.min(28), weekday)
+        self.date_at(std::time::SystemTime::now())
     }
 
     /// Emit the clock's background quad.
@@ -198,8 +235,8 @@ impl ClockWidget {
     }
 
     /// Emit the time text quad.
-    fn draw_time(&mut self, out: &mut DrawList, rect: Rect) {
-        let (hour, minute, second) = self.current_time();
+    fn draw_time(&mut self, out: &mut DrawList, rect: Rect, now: std::time::SystemTime) {
+        let (hour, minute, second) = self.time_at(now);
         let time_str = self.format_time(hour, minute, second);
         self.last_time = time_str;
 
@@ -215,11 +252,11 @@ impl ClockWidget {
     }
 
     /// Emit the date text quad.
-    fn draw_date(&mut self, out: &mut DrawList, rect: Rect) {
+    fn draw_date(&mut self, out: &mut DrawList, rect: Rect, now: std::time::SystemTime) {
         if !self.show_date {
             return;
         }
-        let (year, month, day, weekday) = self.current_date();
+        let (year, month, day, weekday) = self.date_at(now);
         let date_str = self.format_date(year, month, day, weekday);
         self.last_date = date_str;
 
@@ -235,11 +272,11 @@ impl ClockWidget {
     }
 
     /// Emit the weekday text quad.
-    fn draw_weekday(&self, out: &mut DrawList, rect: Rect) {
+    fn draw_weekday(&self, out: &mut DrawList, rect: Rect, now: std::time::SystemTime) {
         if !self.show_weekday {
             return;
         }
-        let (_, _, _, weekday) = self.current_date();
+        let (_, _, _, weekday) = self.date_at(now);
         let _weekday_str = long_weekday(weekday);
 
         let weekday_height = self.date_font_size;
@@ -288,11 +325,11 @@ impl Widget for ClockWidget {
         Size::new(width, height)
     }
 
-    fn draw(&mut self, out: &mut DrawList, _ctx: &WidgetContext, rect: Rect) {
+    fn draw(&mut self, out: &mut DrawList, ctx: &WidgetContext, rect: Rect) {
         self.draw_background(out, rect);
-        self.draw_time(out, rect);
-        self.draw_date(out, rect);
-        self.draw_weekday(out, rect);
+        self.draw_time(out, rect, ctx.now);
+        self.draw_date(out, rect, ctx.now);
+        self.draw_weekday(out, rect, ctx.now);
         self.draw_divider(out, rect);
     }
 

@@ -1048,6 +1048,27 @@ pub enum LayoutAlign {
 }
 
 /// Default widget order, shared by the config default and the docs.
+/// Every widget identifier Lumina can place in the strip.
+///
+/// This is a superset of [`DEFAULT_WIDGET_ORDER`]: calendar, weather, notify,
+/// and script are opt-in, so they are not in the shipped order but a user may
+/// still list them.
+pub const KNOWN_WIDGET_IDS: [&str; 12] = [
+    "clock",
+    "media",
+    "spectrum",
+    "metrics",
+    "battery",
+    "network",
+    "pomodoro",
+    "shortcuts",
+    "calendar",
+    "weather",
+    "notify",
+    "script",
+];
+
+/// Default widget order, shared by the config default and the docs.
 pub const DEFAULT_WIDGET_ORDER: [&str; 8] = [
     "clock",
     "media",
