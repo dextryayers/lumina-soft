@@ -47,25 +47,44 @@
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
 
+pub mod autostart;
 pub mod capability;
+pub mod hotkey;
 pub mod monitor;
 pub mod overlay;
 pub mod placement;
+pub mod single_instance;
 pub mod time;
+pub mod tray;
 
 #[cfg(all(unix, not(target_os = "macos")))]
 pub mod x11;
 
 #[cfg(target_os = "windows")]
 pub mod win32;
+#[cfg(target_os = "windows")]
+pub mod win32_hotkeys;
 
 pub mod null;
 
+pub use autostart::{AutostartError, WINDOWS_RUN_KEY, WINDOWS_VALUE_NAME};
 pub use capability::{Capabilities, Platform, PlatformKind};
+pub use hotkey::{
+    find_conflicts, Hotkey, HotkeyBinding, HotkeyConflict, HotkeyError, HotkeyEvent,
+    HotkeyParseError, HotkeyRegistry, Key, Modifiers, NullHotkeyRegistry,
+};
 pub use monitor::{Monitor, MonitorSource, ScaleFactor};
 pub use overlay::{OverlayBackend, OverlayError};
 pub use placement::{compute_placement, fit_inside, Placement, WindowGeometry};
-pub use time::{civil_from_days, civil_from_unix_with_offset, local_civil_time, local_utc_offset_minutes, weekday_from_days, CivilTime};
+pub use single_instance::{claim, notify_existing, AlreadyRunning, InstanceGuard};
+pub use time::{
+    civil_from_days, civil_from_unix_with_offset, local_civil_time, local_utc_offset_minutes,
+    weekday_from_days, CivilTime,
+};
+pub use tray::{TrayCommand, TrayIcon, TrayMenu, TrayMenuItem, TrayMenuState, TrayState};
+
+#[cfg(target_os = "windows")]
+pub use win32_hotkeys::Win32Hotkeys;
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

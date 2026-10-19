@@ -429,6 +429,107 @@ pub fn find_conflicts(bindings: &[(String, Option<Hotkey>)]) -> Vec<HotkeyConfli
         .collect()
 }
 
+/// One action bound to one key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HotkeyBinding {
+    /// Stable action name from the configuration.
+    pub action: String,
+    /// The parsed binding.
+    pub hotkey: Hotkey,
+}
+
+/// An action the backend observed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HotkeyEvent {
+    /// Stable action name.
+    pub action: String,
+    /// The key that fired.
+    pub hotkey: Hotkey,
+}
+
+/// Why a backend could not register a binding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HotkeyError {
+    /// This platform or session cannot register global hotkeys.
+    Unsupported,
+    /// The key has no native virtual-key mapping.
+    UnmappedKey(String),
+    /// Another application already owns the combination.
+    AlreadyRegistered(Hotkey),
+    /// The backend thread stopped or returned an error.
+    Backend(String),
+}
+
+impl fmt::Display for HotkeyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unsupported => f.write_str("global hotkeys are not supported here"),
+            Self::UnmappedKey(key) => write!(f, "{key} has no native key code"),
+            Self::AlreadyRegistered(hotkey) => {
+                write!(f, "{hotkey} is already claimed by another application")
+            }
+            Self::Backend(message) => write!(f, "hotkey backend failed: {message}"),
+        }
+    }
+}
+
+impl std::error::Error for HotkeyError {}
+
+/// A platform global-hotkey backend.
+///
+/// Implementations own whatever thread or connection they need. `poll` is
+/// expected to be non-blocking and called from the application event loop.
+pub trait HotkeyRegistry {
+    /// Register a binding.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HotkeyError`] when the platform rejects the combination.
+    fn register(&mut self, binding: HotkeyBinding) -> Result<(), HotkeyError>;
+
+    /// Remove the binding for an action.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HotkeyError::Backend`] when the backend cannot be reached.
+    fn unregister(&mut self, action: &str) -> Result<(), HotkeyError>;
+
+    /// Drain pending activations.
+    fn poll(&mut self) -> Vec<HotkeyEvent>;
+}
+
+/// A backend that records registrations and never fires.
+///
+/// Used in tests, in `--check-config`, and on platforms without a backend.
+#[derive(Debug, Default)]
+pub struct NullHotkeyRegistry {
+    bindings: Vec<HotkeyBinding>,
+}
+
+impl NullHotkeyRegistry {
+    /// The registered bindings, in registration order.
+    #[must_use]
+    pub fn bindings(&self) -> &[HotkeyBinding] {
+        &self.bindings
+    }
+}
+
+impl HotkeyRegistry for NullHotkeyRegistry {
+    fn register(&mut self, binding: HotkeyBinding) -> Result<(), HotkeyError> {
+        self.bindings.push(binding);
+        Ok(())
+    }
+
+    fn unregister(&mut self, action: &str) -> Result<(), HotkeyError> {
+        self.bindings.retain(|binding| binding.action != action);
+        Ok(())
+    }
+
+    fn poll(&mut self) -> Vec<HotkeyEvent> {
+        Vec::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
