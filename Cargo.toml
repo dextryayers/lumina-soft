@@ -8,6 +8,7 @@ members = [
     "crates/lumina-text",
     "crates/lumina-app",
     "crates/lumina-widgets",
+    "crates/lumina-media",
 ]
 
 [workspace.package]
@@ -28,6 +29,8 @@ lumina-config = { path = "crates/lumina-config", version = "0.1.0-alpha.1" }
 lumina-platform = { path = "crates/lumina-platform", version = "0.1.0-alpha.1" }
 lumina-render = { path = "crates/lumina-render", version = "0.1.0-alpha.1" }
 lumina-text = { path = "crates/lumina-text", version = "0.1.0-alpha.1" }
+lumina-widgets = { path = "crates/lumina-widgets", version = "0.1.0-alpha.1" }
+lumina-media = { path = "crates/lumina-media", version = "0.1.0-alpha.1" }
 
 # Serialization and configuration.
 serde = { version = "1.0", features = ["derive"] }

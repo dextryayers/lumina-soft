@@ -30,6 +30,9 @@ pub mod clock;
 pub mod config;
 pub mod input;
 pub mod layout;
+pub mod media;
+pub mod scrub;
+pub mod volume;
 pub mod widget;
 
 pub use alloc_test::{active_allocations, total_allocations, total_deallocations, reset_counters, FrameGuard};
@@ -38,6 +41,9 @@ pub use clock::ClockWidget;
 pub use config::{registry_from_config, update_registry};
 pub use input::InputRouter;
 pub use layout::{layout_row, layout_row_with_options, FlexLayout, VerticalAlign};
+pub use media::MediaWidget;
+pub use scrub::ScrubController;
+pub use volume::VolumeSlider;
 pub use widget::{DrawList, Quad, Widget, WidgetContext, WidgetInput, WidgetRegistry};
 
 /// Crate version string, injected at build time from `Cargo.toml`.

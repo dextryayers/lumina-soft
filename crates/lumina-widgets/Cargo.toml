@@ -17,5 +17,6 @@ workspace = true
 lumina-core = { workspace = true }
 lumina-config = { workspace = true }
 lumina-text = { workspace = true }
+lumina-media = { workspace = true }
 
 [dev-dependencies]

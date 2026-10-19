@@ -15,7 +15,10 @@ workspace = true
 
 [dependencies]
 lumina-core = { workspace = true }
-lumina-widgets = { workspace = true }
+image = "0.25"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "4.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.58", features = [
@@ -25,4 +28,6 @@ windows = { version = "0.58", features = [
     "Win32_System_Com",
     "Win32_UI_Shell",
     "Media_Control",
+    "Foundation",
+    "Foundation_Collections",
 ] }

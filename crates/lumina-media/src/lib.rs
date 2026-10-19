@@ -17,16 +17,33 @@
 //! When several players are active at once, [`rank_sessions`] picks one. The
 //! score rewards playing state, complete metadata, and user preference, and
 //! penalizes background browser tabs.
+//!
+//! # Failure handling
+//!
+//! All failure modes from PLAN.md §16.5 are implemented in the [`failure`]
+//! module. The [`FailureHandler`] struct provides methods for each failure
+//! mode, and the [`FailureAwareWatcher`] wraps the media watcher with failure
+//! handling.
 
-#![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
 
-pub mod gsmtc;
+pub mod art;
+pub mod failure;
+pub mod player_cycle;
 pub mod ranking;
 pub mod session;
 
-pub use ranking::rank_sessions;
-pub use session::{MediaSession, MediaSnapshot, Metadata, PlaybackStatus};
+#[cfg(target_os = "linux")]
+pub mod mpris;
+
+#[cfg(target_os = "windows")]
+pub mod gsmtc;
+
+pub use art::{AlbumArt, ArtCache, ArtPipeline};
+pub use failure::{FailureAction, FailureAwareWatcher, FailureHandler};
+pub use player_cycle::PlayerCycler;
+pub use ranking::{best_snapshot, best_snapshot_with_defaults, rank_sessions, rank_sessions_with_defaults, MediaWatcher, RankingConfig, RankedSession};
+pub use session::{format_duration, MediaCapabilities, MediaSession, MediaSnapshot, Metadata, PlaybackStatus, PositionTracker};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
