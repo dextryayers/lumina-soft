@@ -244,7 +244,7 @@ mod tests {
         let name = unique_name();
         let guard = claim(&name).expect("the first claim succeeds");
         assert_eq!(guard.name(), name);
-        assert_eq!(claim(&name), Err(AlreadyRunning));
+        assert!(matches!(claim(&name), Err(AlreadyRunning)));
         drop(guard);
         let guard = claim(&name).expect("the lock is released");
         drop(guard);
