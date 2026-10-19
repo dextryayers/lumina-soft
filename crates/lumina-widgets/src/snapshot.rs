@@ -454,6 +454,12 @@ impl WeatherCache {
         self.fetched_at = None;
     }
 
+    /// The stored reading regardless of age.
+    #[must_use]
+    pub fn latest(&self) -> Option<&WeatherSnapshot> {
+        self.snapshot.as_ref()
+    }
+
     /// The reading when it is still inside its TTL.
     #[must_use]
     pub fn fresh(&self, now: Instant) -> Option<&WeatherSnapshot> {

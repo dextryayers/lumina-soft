@@ -183,11 +183,16 @@ impl PomodoroTimer {
 
     /// Abandon the current phase and start the next one without counting it.
     ///
-    /// Skipping a focus phase does not increment the completed counter, so a
-    /// user cannot reach a long break by repeatedly skipping.
+    /// Skipping a focus phase does not increment the completed counter and
+    /// always leads to a short break, so a user cannot reach a long break by
+    /// repeatedly skipping.
     pub fn skip(&mut self) -> PomodoroEvent {
         let completed = self.phase;
-        let started = self.next_phase();
+        let started = if completed == PomodoroPhase::Focus {
+            PomodoroPhase::ShortBreak
+        } else {
+            PomodoroPhase::Focus
+        };
         self.phase = started;
         self.remaining = self.phase_duration();
         PomodoroEvent { completed, started }
@@ -553,7 +558,7 @@ mod tests {
     #[test]
     fn phase_labels_and_colors_differ() {
         assert_ne!(PomodoroPhase::Focus.label(), PomodoroPhase::ShortBreak.label());
-        assert!(PomodoroPhase::Focus.is_break() == false);
+        assert!(!PomodoroPhase::Focus.is_break());
         assert!(PomodoroPhase::LongBreak.is_break());
         let mut widget = PomodoroWidget::new();
         let focus_color = widget.phase_color();

@@ -42,6 +42,8 @@ pub struct Config {
     pub hotkeys: HotkeysConfig,
     /// User defined actions.
     pub shortcuts: ShortcutsConfig,
+    /// User defined shell commands shown as widgets.
+    pub script: ScriptConfig,
     /// System tray.
     pub tray: TrayConfig,
     /// Animation tuning and accessibility.
@@ -70,6 +72,7 @@ impl Default for Config {
             layout: LayoutConfig::default(),
             hotkeys: HotkeysConfig::default(),
             shortcuts: ShortcutsConfig::default(),
+            script: ScriptConfig::default(),
             tray: TrayConfig::default(),
             motion: MotionConfig::default(),
             text: TextConfig::default(),
@@ -1178,6 +1181,98 @@ impl ShortcutConfig {
     #[must_use]
     pub fn is_runnable(&self) -> bool {
         !self.id.is_empty() && !self.command.is_empty()
+    }
+}
+
+/// User defined script widgets.
+///
+/// Each entry is a command whose recent output is rendered as a card. Commands
+/// run directly, without a shell, on a bounded interval with a hard timeout.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ScriptConfig {
+    /// Master switch. Individual entries can still be disabled by the service
+    /// layer when this is false.
+    pub enabled: bool,
+    /// The configured scripts.
+    pub entries: Vec<ScriptEntry>,
+}
+
+impl Default for ScriptConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            entries: Vec::new(),
+        }
+    }
+}
+
+/// One script entry.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ScriptEntry {
+    /// Unique identifier used by IPC and logs.
+    pub id: String,
+    /// Label shown above the output.
+    pub label: String,
+    /// Program to run. Not a shell command line unless `args` is empty, in which
+    /// case it is split with quote awareness.
+    pub command: String,
+    /// Arguments passed to the program, preferred over quoting inside `command`.
+    pub args: Vec<String>,
+    /// Working directory, empty for the user's home directory.
+    pub cwd: String,
+    /// Refresh interval in milliseconds.
+    pub interval_ms: u32,
+    /// Hard timeout in milliseconds. The process is killed on expiry.
+    pub timeout_ms: u32,
+    /// How long the result stays visible after the process exits.
+    pub display_ms: u32,
+    /// Maximum output lines retained.
+    pub max_lines: u32,
+    /// How to show the entry in the island.
+    pub display: ScriptDisplay,
+    /// Bundled icon name or a path to a user SVG.
+    pub icon: String,
+    /// Whether the entry is shown by the shortcuts and script widget.
+    pub show_in_island: bool,
+}
+
+/// How a script result is presented.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ScriptDisplay {
+    /// Label and output lines.
+    #[default]
+    Text,
+    /// Icon with the first output line as a caption.
+    Icon,
+}
+
+impl Default for ScriptEntry {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            label: String::new(),
+            command: String::new(),
+            args: Vec::new(),
+            cwd: String::new(),
+            interval_ms: 60_000,
+            timeout_ms: 5_000,
+            display_ms: 8_000,
+            max_lines: 3,
+            display: ScriptDisplay::Text,
+            icon: String::new(),
+            show_in_island: true,
+        }
+    }
+}
+
+impl ScriptEntry {
+    /// An entry is runnable only with an id and a command.
+    #[must_use]
+    pub fn is_runnable(&self) -> bool {
+        !self.id.is_empty() && !self.command.trim().is_empty()
     }
 }
 

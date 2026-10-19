@@ -35,9 +35,9 @@ pub use schema::{
     BatteryConfig, ClockConfig, ClockFormat, Config, FftSize, FontWeight, GeneralConfig,
     GpuBackend, HotkeysConfig, LayoutAlign, LayoutConfig, LogLevel, MediaConfig, MetricsConfig,
     MonitorSelector, MotionConfig, NetworkConfig, NetworkUnit, PomodoroConfig, Position,
-    ReactiveConfig, RgbConfig, RgbMode, ShortcutConfig, ShortcutsConfig, SpectrumConfig,
-    TextConfig, TrayConfig, VisualizerStyle, WeatherConfig, WeatherProvider, WeatherUnits,
-    WidgetConfig, WidgetEntry, WidgetRgb,
+    ReactiveConfig, RgbConfig, RgbMode, ScriptConfig, ScriptDisplay, ScriptEntry, ShortcutConfig,
+    ShortcutsConfig, SpectrumConfig, TextConfig, TrayConfig, VisualizerStyle, WeatherConfig,
+    WeatherProvider, WeatherUnits, WidgetConfig, WidgetEntry, WidgetRgb,
 };
 pub use validate::{validate, Issue, Severity, ValidationReport};
 
