@@ -37,7 +37,7 @@ pub use schema::{
     MonitorSelector, MotionConfig, NetworkConfig, NetworkUnit, PomodoroConfig, Position,
     ReactiveConfig, RgbConfig, RgbMode, ScriptConfig, ScriptDisplay, ScriptEntry, ShortcutConfig,
     ShortcutsConfig, SpectrumConfig, TextConfig, TrayConfig, VisualizerStyle, WeatherConfig,
-    WeatherProvider, WeatherUnits, WidgetConfig, WidgetEntry, WidgetRgb,
+    WeatherProvider, WeatherUnits, WidgetConfig, WidgetEntry, WidgetRgb, KNOWN_WIDGET_IDS,
 };
 pub use validate::{validate, Issue, Severity, ValidationReport};
 

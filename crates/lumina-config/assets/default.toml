@@ -278,6 +278,19 @@ order = ["clock", "media", "spectrum", "metrics", "battery", "network", "pomodor
 # How many widgets may be visible at the same time.
 max_widgets = 3
 
+[widgets]
+# Per-widget overrides. Every key is optional; omit a widget to keep its
+# compiled-in behaviour. Widget names match the [layout] order.
+#
+# [widgets.media]
+# enabled = true
+# flex = 2.0          # share of surplus width, 0.0 to 8.0
+# margin_leading = 8.0
+# [widgets.media.rgb]
+# override_palette = true
+# primary = "#ff2d55"
+# glow_intensity = 1.0
+
 [hotkeys]
 # Format is modifier+key, case insensitive, order does not matter.
 # Modifiers: ctrl, alt, shift, super, meta

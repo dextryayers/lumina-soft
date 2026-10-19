@@ -1588,6 +1588,7 @@ dependencies = [
 name = "lumina-platform"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "libc",
  "lumina-config",
  "lumina-core",
  "raw-window-handle",
@@ -1623,6 +1624,7 @@ dependencies = [
  "lumina-config",
  "lumina-core",
  "lumina-media",
+ "lumina-platform",
  "lumina-text",
  "serde_json",
  "ureq",

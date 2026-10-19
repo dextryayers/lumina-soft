@@ -215,6 +215,7 @@ mod tests {
             "[pomodoro]",
             "[weather]",
             "[layout]",
+            "[widgets]",
             "[hotkeys]",
             "[script]",
             "[tray]",

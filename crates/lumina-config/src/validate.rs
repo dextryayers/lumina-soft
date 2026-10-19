@@ -780,7 +780,7 @@ fn validate_layout(config: &mut Config, report: &mut ValidationReport) {
     let mut seen = Vec::new();
     let mut deduped = Vec::new();
     for widget in layout.order.drain(..) {
-        if !crate::schema::DEFAULT_WIDGET_ORDER.contains(&widget.as_str()) {
+        if !KNOWN_WIDGET_IDS.contains(&widget.as_str()) {
             report.unknown("layout.order", format!("{widget:?} is not a known widget"));
             continue;
         }
@@ -809,6 +809,68 @@ fn validate_layout(config: &mut Config, report: &mut ValidationReport) {
         );
         layout.max_widgets = layout.order.len() as u32;
     }
+}
+
+fn validate_widgets(config: &mut Config, report: &mut ValidationReport) {
+    let mut entries = std::mem::take(&mut config.widgets.widgets);
+    let unknown: Vec<String> = entries
+        .keys()
+        .filter(|id| !KNOWN_WIDGET_IDS.contains(&id.as_str()))
+        .cloned()
+        .collect();
+    for id in unknown {
+        report.unknown(
+            format!("widgets.{id}"),
+            format!("{id:?} is not a known widget"),
+        );
+        entries.remove(&id);
+    }
+
+    for (id, entry) in &mut entries {
+        if let Some(flex) = entry.flex {
+            entry.flex = Some(clamp_float(
+                flex,
+                0.0,
+                8.0,
+                &format!("widgets.{id}.flex"),
+                1.0,
+                report,
+            ));
+        }
+        if let Some(margin) = entry.margin_leading {
+            entry.margin_leading = Some(clamp_float(
+                margin,
+                0.0,
+                64.0,
+                &format!("widgets.{id}.margin_leading"),
+                0.0,
+                report,
+            ));
+        }
+        if let Some(rgb) = entry.rgb.as_mut() {
+            if let Some(glow) = rgb.glow_intensity {
+                rgb.glow_intensity = Some(clamp_float(
+                    glow,
+                    0.0,
+                    3.0,
+                    &format!("widgets.{id}.rgb.glow_intensity"),
+                    1.0,
+                    report,
+                ));
+            }
+            if let Some(primary) = rgb.primary.clone() {
+                if parse_hex(&primary).is_none() {
+                    report.warn(
+                        format!("widgets.{id}.rgb.primary"),
+                        format!("{primary:?} is not a valid hex color"),
+                        "dropping the override so the palette applies",
+                    );
+                    rgb.primary = None;
+                }
+            }
+        }
+    }
+    config.widgets.widgets = entries;
 }
 
 /// Every binding that can claim a global hotkey, in declaration order.

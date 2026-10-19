@@ -1,4 +1,4 @@
-﻿//! Widget framework for Lumina.
+//! Widget framework for Lumina.
 //!
 //! # What this crate provides
 //!
@@ -49,7 +49,7 @@ pub use alloc_test::{active_allocations, total_allocations, total_deallocations,
 pub use battery::BatteryWidget;
 pub use calendar::CalendarWidget;
 pub use clock::ClockWidget;
-pub use config::{registry_from_config, update_registry};
+pub use config::{build_registry, registry_from_config, update_registry};
 pub use input::InputRouter;
 pub use layout::{layout_row, layout_row_with_options, FlexLayout, VerticalAlign};
 pub use media::MediaWidget;
