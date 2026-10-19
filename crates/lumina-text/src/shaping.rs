@@ -336,7 +336,8 @@ mod tests {
 
     #[test]
     fn grapheme_clusters_handle_empty_input() {
-        assert!(grapheme_clusters("").is_empty());
+        let clusters = grapheme_clusters("");
+        assert_eq!(clusters, Vec::<String>::new());
     }
 
     #[test]

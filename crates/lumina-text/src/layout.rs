@@ -104,9 +104,9 @@ impl Layout {
 
         for glyph in &shaped.glyphs {
             let entry = atlas.glyphs.get(glyph.glyph_index);
-            let (uv_min, uv_max) = entry.map(|e| e.uv()).unwrap_or((Vec2::ZERO, Vec2::ZERO));
-            let glyph_width = entry.map(|e| e.em_width() * scale).unwrap_or(scale * 0.5);
-            let glyph_height = entry.map(|e| e.em_height() * scale).unwrap_or(scale);
+            let (uv_min, uv_max) = entry.map_or((Vec2::ZERO, Vec2::ZERO), super::atlas::GlyphEntry::uv);
+            let glyph_width = entry.map_or(scale * 0.5, |e| e.em_width() * scale);
+            let glyph_height = entry.map_or(scale, |e| e.em_height() * scale);
 
             // Stop adding glyphs once we run out of room (ellipsis case).
             if truncated && x + glyph_width > available_width - scale * 0.5 {
@@ -246,7 +246,7 @@ mod tests {
     fn an_empty_text_produces_an_empty_layout() {
         let shaped = ShapedText { glyphs: Vec::new(), width: 0.0, height: 0.0, is_rtl: false };
         let layout = Layout::new(&shaped, &empty_atlas(), 14.0, 100.0, TextAlignment::Left, Overflow::Clip);
-        assert!(layout.glyphs.is_empty());
+        assert_eq!(layout.glyphs.len(), 0);
         assert_eq!(layout.width, 0.0);
         assert!(!layout.truncated);
         assert!(!layout.needs_marquee);

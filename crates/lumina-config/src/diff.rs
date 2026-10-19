@@ -261,7 +261,7 @@ impl ConfigDiff {
 
     /// True when any change matches `predicate`.
     pub fn any(&self, predicate: impl Fn(&ConfigChange) -> bool) -> bool {
-        self.changes.iter().any(|c| predicate(c))
+        self.changes.iter().any(predicate)
     }
 
     /// Only the changes for a section, so a handler can match on one variant.

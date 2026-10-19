@@ -25,7 +25,6 @@ use lumina_core::geometry::{Geometry, Scalar, Vec2};
 use lumina_core::state::IslandState;
 use lumina_core::time::FramePacer;
 
-use crate::pipeline::IslandPipeline;
 use crate::uniforms::IslandUniforms;
 
 /// Counters for one frame batch, read by the diagnostics command.
@@ -95,6 +94,7 @@ impl FrameIntent {
 /// Owns the pacer, the stats, and the last submitted intent. The actual frame
 /// submission is done by the caller through [`RenderLoop::submit`], because
 /// presenting requires a surface that is owned elsewhere.
+#[derive(Debug)]
 pub struct RenderLoop {
     pacer: FramePacer,
     stats: FrameStats,
@@ -223,11 +223,13 @@ impl IslandFrame {
             self.geometry,
             palette,
             appearance,
-            position,
-            resolution,
-            dpr,
-            time_seconds,
-            self.content_opacity,
+            crate::uniforms::FrameParams {
+                position,
+                resolution,
+                dpr,
+                time_seconds,
+                content_opacity: self.content_opacity,
+            },
         )
     }
 }
@@ -365,6 +367,6 @@ mod tests {
         // shader sources are validated in the shader module's own tests. This
         // exists so the module is never empty and the link to the pipeline is
         // explicit.
-        assert!(!crate::pipeline::FALLBACK_WGSL.is_empty());
+        assert_ne!(crate::pipeline::FALLBACK_WGSL, "");
     }
 }

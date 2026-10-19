@@ -11,7 +11,7 @@
 use naga;
 
 /// MSDF fragment shader source.
-pub const MSDF_WGSL: &str = r#"struct MsdfUniforms {
+pub const MSDF_WGSL: &str = r"struct MsdfUniforms {
     screen_px_range: f32,
     smoothing: f32,
     color: vec4<f32>,
@@ -52,7 +52,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let premul = vec4<f32>(u.color.rgb * alpha, alpha);
     return premul;
 }
-"#;
+";
 
 /// Validate the MSDF WGSL through `naga`.
 pub fn validate_msdf_wgsl(source: &str) -> Option<String> {
@@ -72,8 +72,10 @@ pub fn validate_msdf_wgsl(source: &str) -> Option<String> {
 ///
 /// This is the CPU reference for the shader's math, used to test the median
 /// reconstruction against a ground truth.
-pub fn coverage_from_msdf(r: f32, g: f32, b: f32, screen_px_range: f32) -> f32 {
-    let sd = r.max(g.min(r.max(g))).min(g.max(r).min(b));
+pub fn coverage_from_msdf(red: f32, green: f32, blue: f32, screen_px_range: f32) -> f32 {
+    let sd = red
+        .max(green.min(red.max(green)))
+        .min(green.max(red).min(blue));
     let d = (sd - 0.5) * 2.0;
     let pixel_range = screen_px_range.max(1e-6);
     let t = ((d + pixel_range) / (2.0 * pixel_range)).clamp(0.0, 1.0);

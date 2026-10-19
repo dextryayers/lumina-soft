@@ -20,7 +20,7 @@
 
 use lumina_core::geometry::{Rect, Size, Vec2};
 use lumina_core::state::{IslandState, StateRequest};
-use lumina_media::session::{format_duration, MediaSession, MediaSnapshot, PlaybackStatus};
+use lumina_media::session::MediaSnapshot;
 
 use crate::widget::{DrawList, Quad, Widget, WidgetContext, WidgetInput};
 
@@ -322,57 +322,47 @@ impl MediaWidget {
     #[must_use]
     pub fn display_title(&self) -> String {
         self.snapshot
-            .as_ref()
-            .map(|s| s.title_or_placeholder().to_string())
-            .unwrap_or_else(|| "No media".to_string())
+            .as_ref().map_or_else(|| "No media".to_string(), |s| s.title_or_placeholder().to_string())
     }
 
     /// Get the display artist.
     #[must_use]
     pub fn display_artist(&self) -> String {
         self.snapshot
-            .as_ref()
-            .map(|s| s.artist_or_placeholder().to_string())
-            .unwrap_or_else(|| "Unknown artist".to_string())
+            .as_ref().map_or_else(|| "Unknown artist".to_string(), |s| s.artist_or_placeholder().to_string())
     }
 
     /// Get the display position.
     #[must_use]
     pub fn display_position(&self) -> String {
         self.snapshot
-            .as_ref()
-            .map(|s| s.format_position())
-            .unwrap_or_else(|| "00:00".to_string())
+            .as_ref().map_or_else(|| "00:00".to_string(), lumina_media::MediaSnapshot::format_position)
     }
 
     /// Get the display length.
     #[must_use]
     pub fn display_length(&self) -> String {
         self.snapshot
-            .as_ref()
-            .map(|s| s.format_length())
-            .unwrap_or_else(|| "--:--".to_string())
+            .as_ref().map_or_else(|| "--:--".to_string(), lumina_media::MediaSnapshot::format_length)
     }
 
     /// Get the progress as a float.
     #[must_use]
     pub fn progress(&self) -> f32 {
-        self.snapshot.as_ref().map(|s| s.progress()).unwrap_or(0.0)
+        self.snapshot.as_ref().map_or(0.0, lumina_media::MediaSnapshot::progress)
     }
 
     /// Whether the player is playing.
     #[must_use]
     pub fn is_playing(&self) -> bool {
-        self.snapshot.as_ref().map(|s| s.is_playing()).unwrap_or(false)
+        self.snapshot.as_ref().is_some_and(lumina_media::MediaSnapshot::is_playing)
     }
 
     /// Get the player identity.
     #[must_use]
     pub fn player_identity(&self) -> String {
         self.snapshot
-            .as_ref()
-            .map(|s| s.identity.clone())
-            .unwrap_or_else(|| "Unknown".to_string())
+            .as_ref().map_or_else(|| "Unknown".to_string(), |s| s.identity.clone())
     }
 }
 
@@ -445,7 +435,7 @@ impl Widget for MediaWidget {
     }
 
     fn request(&self, _ctx: &WidgetContext) -> Option<StateRequest> {
-        if self.snapshot.as_ref().map(|s| s.is_playing()).unwrap_or(false) {
+        if self.snapshot.as_ref().is_some_and(lumina_media::MediaSnapshot::is_playing) {
             Some(StateRequest::timed(IslandState::Media, lumina_core::state::TransitionSource::Widget))
         } else {
             None
@@ -460,7 +450,7 @@ impl Widget for MediaWidget {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lumina_media::session::{Metadata, MediaCapabilities};
+    use lumina_media::session::{format_duration, Metadata, MediaCapabilities, PlaybackStatus};
 
     fn test_snapshot() -> MediaSnapshot {
         MediaSnapshot {
@@ -505,7 +495,7 @@ mod tests {
         let mut out = DrawList::new();
         let ctx = WidgetContext::new(IslandState::Media, Size::new(300.0, 60.0));
         widget.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 200.0, 60.0));
-        assert!(out.len() > 0);
+        assert!(!out.is_empty());
     }
 
     #[test]

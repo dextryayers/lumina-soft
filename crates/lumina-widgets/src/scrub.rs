@@ -170,7 +170,7 @@ impl ScrubController {
     }
 
     /// Emit the scrub preview and tooltip quads.
-    fn draw(&self, out: &mut DrawList) {
+    pub fn draw(&self, out: &mut DrawList) {
         if !self.can_seek {
             return;
         }
@@ -331,7 +331,7 @@ mod tests {
         scrub.handle_pointer_move(Vec2::new(50.0, 51.0));
         let mut out = DrawList::new();
         scrub.draw(&mut out);
-        assert!(out.len() > 0);
+        assert!(!out.is_empty());
     }
 
     #[test]

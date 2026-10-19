@@ -202,9 +202,9 @@ pub fn format_duration(duration: Duration) -> String {
     let minutes = (total_secs % 3600) / 60;
     let seconds = total_secs % 60;
     if hours > 0 {
-        format!("{}:{:02}:{:02}", hours, minutes, seconds)
+        format!("{hours}:{minutes:02}:{seconds:02}")
     } else {
-        format!("{:02}:{:02}", minutes, seconds)
+        format!("{minutes:02}:{seconds:02}")
     }
 }
 
@@ -255,7 +255,7 @@ impl PositionTracker {
         self.position = position;
         self.playing = playing;
         self.track_length = track_length;
-        self.track_id = track_id.map(|s| s.to_string());
+        self.track_id = track_id.map(std::string::ToString::to_string);
         self.last_update = Some(std::time::Instant::now());
     }
 
@@ -271,8 +271,7 @@ impl PositionTracker {
         }
         let elapsed = self
             .last_update
-            .map(|t| t.elapsed())
-            .unwrap_or(Duration::ZERO);
+            .map_or(Duration::ZERO, |t| t.elapsed());
         let estimated = self.position + elapsed;
         if let Some(length) = self.track_length {
             estimated.min(length)
@@ -457,9 +456,11 @@ mod tests {
 
     #[test]
     fn a_complete_metadata_is_not_empty() {
-        let mut metadata = Metadata::default();
-        metadata.title = Some("Song".to_string());
-        metadata.artist = Some("Artist".to_string());
+        let metadata = Metadata {
+            title: Some("Song".to_string()),
+            artist: Some("Artist".to_string()),
+            ..Metadata::default()
+        };
         assert!(metadata.is_complete());
         assert!(!metadata.is_empty());
     }

@@ -24,7 +24,7 @@
 //! weights let the user express that without hardcoding sizes, and they make the
 //! layout survive a widget being added or removed without a redesign.
 
-use lumina_core::geometry::{Rect, Scalar, Size, Vec2};
+use lumina_core::geometry::{Rect, Scalar, Size};
 
 /// Vertical alignment of widgets within the strip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -131,11 +131,13 @@ impl FlexLayout {
             let shrinkable: Scalar = self
                 .items
                 .iter()
-                .map(|i| (i.desired.width - i.min_width).max(0.0))
+                .map(|i| (i.desired.width - i.min_width).max(0.0) * i.flex)
                 .sum();
             for item in &self.items {
                 let shrink = if shrinkable > 0.0 {
-                    overflow * ((item.desired.width - item.min_width).max(0.0) / shrinkable)
+                    overflow
+                        * (((item.desired.width - item.min_width).max(0.0) * item.flex)
+                            / shrinkable)
                 } else {
                     0.0
                 };
@@ -187,8 +189,8 @@ impl FlexLayout {
 #[must_use]
 pub fn layout_row(available: Size, sizes: &[Size], flexes: &[Scalar], margins: &[Scalar]) -> Vec<Rect> {
     let mut layout = FlexLayout::new(available);
-    for i in 0..sizes.len() {
-        layout.add(sizes[i], flexes.get(i).copied().unwrap_or(1.0), margins.get(i).copied().unwrap_or(0.0));
+    for (i, size) in sizes.iter().enumerate() {
+        layout.add(*size, flexes.get(i).copied().unwrap_or(1.0), margins.get(i).copied().unwrap_or(0.0));
     }
     layout.finish()
 }
@@ -206,8 +208,8 @@ pub fn layout_row_with_options(
     let mut layout = FlexLayout::new(available);
     layout.set_align(align);
     layout.set_spacing(spacing);
-    for i in 0..sizes.len() {
-        layout.add(sizes[i], flexes.get(i).copied().unwrap_or(1.0), margins.get(i).copied().unwrap_or(0.0));
+    for (i, size) in sizes.iter().enumerate() {
+        layout.add(*size, flexes.get(i).copied().unwrap_or(1.0), margins.get(i).copied().unwrap_or(0.0));
     }
     layout.finish()
 }
@@ -218,7 +220,7 @@ mod tests {
 
     #[test]
     fn an_empty_layout_produces_no_rectangles() {
-        assert!(FlexLayout::new(Size::new(100.0, 40.0)).finish().is_empty());
+        assert_eq!(FlexLayout::new(Size::new(100.0, 40.0)).finish(), [] as [lumina_core::Rect; 0]);
     }
 
     #[test]
@@ -283,7 +285,7 @@ mod tests {
 
     #[test]
     fn layout_row_handles_empty_input() {
-        assert!(layout_row(Size::new(100.0, 40.0), &[], &[], &[]).is_empty());
+        assert_eq!(layout_row(Size::new(100.0, 40.0), &[], &[], &[]), [] as [lumina_core::Rect; 0]);
     }
 
     #[test]

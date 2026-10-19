@@ -20,12 +20,12 @@
 //! first frame. A pipeline that compiles lazily costs a 200 ms hitch on the
 //! first expand, which is exactly when the user is watching.
 
-use std::sync::Arc;
 
 use crate::shaders::{self, ISLAND_WGSL};
 use crate::uniforms::IslandUniforms;
 
 /// A compiled render pipeline plus the bind group it needs.
+#[derive(Debug)]
 pub struct IslandPipeline {
     /// The wgpu pipeline.
     pub pipeline: wgpu::RenderPipeline,
@@ -52,7 +52,6 @@ impl IslandPipeline {
     /// # Panics
     ///
     /// Never.
-    #[must_use]
     pub async fn build(device: &wgpu::Device, format: wgpu::TextureFormat) -> Result<Self, String> {
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("lumina-island-uniforms"),
@@ -271,10 +270,7 @@ mod tests {
     #[test]
     fn a_validated_shader_reports_which_variant_it_is() {
         assert!(ValidatedShader::fallback().is_fallback, "the fallback must identify itself");
-        match ValidatedShader::primary() {
-            Some(primary) => assert!(!primary.is_fallback),
-            None => {}
-        }
+        if let Some(primary) = ValidatedShader::primary() { assert!(!primary.is_fallback) }
     }
 
     #[test]

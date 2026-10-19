@@ -14,7 +14,7 @@
 //! when multiple players are active. The sticky selection is implemented by
 //! tracking the last selected session and giving it a bonus score.
 
-use crate::session::{MediaCapabilities, MediaSession, MediaSnapshot, PlaybackStatus};
+use crate::session::{MediaSession, MediaSnapshot};
 
 /// A session paired with its ranking score.
 pub struct RankedSession {
@@ -22,6 +22,15 @@ pub struct RankedSession {
     pub session: Box<dyn MediaSession>,
     /// The computed score. Higher wins.
     pub score: i32,
+}
+
+impl std::fmt::Debug for RankedSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RankedSession")
+            .field("identity", &self.session.identity())
+            .field("score", &self.score)
+            .finish()
+    }
 }
 
 /// The ranking configuration.
@@ -65,12 +74,14 @@ impl RankingConfig {
     }
 
     /// Set the last selected session for sticky selection.
+    #[must_use]
     pub fn with_last_selected(mut self, last_selected: Option<String>) -> Self {
         self.last_selected = last_selected;
         self
     }
 
     /// Enable or disable sticky selection.
+    #[must_use]
     pub fn with_sticky(mut self, sticky: bool) -> Self {
         self.sticky = sticky;
         self
@@ -254,7 +265,7 @@ impl Default for MediaWatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::Metadata;
+    use crate::session::{MediaCapabilities, Metadata, PlaybackStatus};
     use std::time::Duration;
 
     struct FakeSession {

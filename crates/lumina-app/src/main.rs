@@ -83,12 +83,10 @@ fn config_path() -> PathBuf {
     let base = if cfg!(windows) {
         std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_default()
     } else {
-        std::env::var_os("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
+        std::env::var_os("XDG_CONFIG_HOME").map_or_else(|| {
                 let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
                 home.join(".config")
-            })
+            }, PathBuf::from)
     };
     base.join("lumina").join("config.toml")
 }

@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use crate::session::{MediaSession, MediaSnapshot, PlaybackStatus};
+use crate::session::{MediaSession, MediaSnapshot};
 
 /// The failure handler.
 ///
@@ -63,7 +63,7 @@ impl FailureHandler {
     /// The command returns `PlayerGone`, the snapshot clears, and the state
     /// machine transitions to Collapsed.
     pub fn handle_session_disappeared(&self, identity: &str) -> FailureAction {
-        self.log_error(format!("session disappeared: {identity}"));
+        self.log_error(&format!("session disappeared: {identity}"));
         FailureAction::ClearAndCollapse
     }
 
@@ -86,7 +86,7 @@ impl FailureHandler {
     ///
     /// The media widget is hidden, a warn is logged with the D-Bus error text.
     pub fn handle_dbus_unavailable(&self, error: &str) -> FailureAction {
-        self.log_error(format!("D-Bus unavailable: {error}"));
+        self.log_error(&format!("D-Bus unavailable: {error}"));
         FailureAction::HideWidget
     }
 
@@ -95,7 +95,7 @@ impl FailureHandler {
     /// The media widget is hidden, a warn is logged, the rest of the app is
     /// unaffected.
     pub fn handle_winrt_failure(&self, error: &str) -> FailureAction {
-        self.log_error(format!("WinRT activation failed: {error}"));
+        self.log_error(&format!("WinRT activation failed: {error}"));
         FailureAction::HideWidget
     }
 
@@ -122,8 +122,8 @@ impl FailureHandler {
     }
 
     /// Log an error.
-    fn log_error(&self, message: String) {
-        *self.last_error.lock().unwrap() = Some(message.clone());
+    fn log_error(&self, message: &str) {
+        *self.last_error.lock().unwrap() = Some(message.to_string());
         *self.last_error_time.lock().unwrap() = Some(Instant::now());
         eprintln!("[lumina-media] {message}");
     }
@@ -210,7 +210,7 @@ impl FailureAwareWatcher {
     ///
     /// If no sessions are available, the "no sessions found" failure is
     /// handled and `None` is returned.
-    pub fn poll(&mut self, sessions: Vec<Box<dyn MediaSession>>) -> Option<MediaSnapshot> {
+    pub fn poll(&mut self, sessions: &[Box<dyn MediaSession>]) -> Option<MediaSnapshot> {
         if sessions.is_empty() {
             self.handler.handle_no_sessions();
             self.last_snapshot = None;
@@ -250,7 +250,7 @@ impl FailureAwareWatcher {
             self.last_snapshot = None;
             self.handler.handle_session_disappeared(identity)
         } else {
-            self.handler.log_error(error.to_string());
+            self.handler.log_error(error);
             FailureAction::None
         }
     }
@@ -276,6 +276,7 @@ impl Default for FailureAwareWatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::session::PlaybackStatus;
 
     #[test]
     fn a_new_failure_handler_has_no_errors() {
@@ -347,7 +348,9 @@ mod tests {
         {
             let mut cache = handler.art_cache.lock().unwrap();
             if let Some((timestamp, _)) = cache.get_mut("track1") {
-                *timestamp = Instant::now() - Duration::from_secs(120);
+                *timestamp = Instant::now()
+                    .checked_sub(Duration::from_secs(120))
+                    .expect("120 seconds ago is representable");
             }
         }
         let cached = handler.check_art_cache("track1");
@@ -366,7 +369,7 @@ mod tests {
     #[test]
     fn failure_aware_watcher_poll_returns_none_when_no_sessions() {
         let mut watcher = FailureAwareWatcher::new();
-        let snapshot = watcher.poll(vec![]);
+        let snapshot = watcher.poll(&[]);
         assert!(snapshot.is_none());
     }
 
@@ -427,7 +430,7 @@ mod tests {
         }
 
         let mut watcher = FailureAwareWatcher::new();
-        let snapshot = watcher.poll(vec![Box::new(FakeSession)]);
+        let snapshot = watcher.poll(&[Box::new(FakeSession)]);
         assert!(snapshot.is_some());
     }
 

@@ -25,7 +25,6 @@
 
 use lumina_core::geometry::{Rect, Scalar, Size, Vec2};
 use lumina_core::state::{IslandState, StateRequest};
-use lumina_core::time::Clock;
 
 use crate::layout::FlexLayout;
 
@@ -333,6 +332,18 @@ pub struct WidgetRegistry {
     last_state: Option<IslandState>,
 }
 
+impl std::fmt::Debug for WidgetRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WidgetRegistry")
+            .field("widget_count", &self.widgets.len())
+            .field("config_order", &self.config_order)
+            .field("max_widgets", &self.max_widgets)
+            .field("visible_count", &self.visible_count)
+            .field("last_state", &self.last_state)
+            .finish()
+    }
+}
+
 impl WidgetRegistry {
     /// Create an empty registry.
     #[must_use]
@@ -482,7 +493,7 @@ impl WidgetRegistry {
     pub fn requests(&self, ctx: &WidgetContext) -> Vec<StateRequest> {
         self.widgets
             .iter()
-            .filter(|w| ctx.enabled)
+            .filter(|_w| ctx.enabled)
             .filter_map(|w| w.request(ctx))
             .collect()
     }
@@ -628,23 +639,23 @@ mod tests {
         let mut registry = WidgetRegistry::new();
         registry.register(Box::new(TestWidget::new("test")));
         let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(100.0, 40.0));
-        assert!(registry.requests(&ctx).is_empty());
+        assert_eq!(registry.requests(&ctx), [] as [lumina_core::state::StateRequest; 0]);
     }
 
     #[test]
     fn the_registry_routes_input_to_the_widget_under_the_point() {
-        let mut registry = WidgetRegistry::new();
+        let mut registry = WidgetRegistry::with_config(vec![], 10);
         registry.register(Box::new(TestWidget::new("test")));
         let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(100.0, 40.0));
         let rects = registry.layout(&ctx);
-        assert!(!rects.is_empty());
+        assert_ne!(rects, [] as [lumina_core::Rect; 0]);
         let consumed = registry.route_input(&WidgetInput::Click(Vec2::new(50.0, 20.0)), &ctx, &rects);
         assert!(!consumed, "the test widget does not consume input");
     }
 
     #[test]
     fn the_registry_layout_assigns_rectangles() {
-        let mut registry = WidgetRegistry::new();
+        let mut registry = WidgetRegistry::with_config(vec![], 10);
         registry.register(Box::new(TestWidget::new("test")));
         let ctx = WidgetContext::new(IslandState::Collapsed, Size::new(200.0, 40.0));
         let rects = registry.layout(&ctx);

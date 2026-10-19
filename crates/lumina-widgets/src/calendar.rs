@@ -113,7 +113,7 @@ impl CalendarWidget {
         }
         let k = (year % 100) as u32;
         let j = (year / 100) as u32;
-        let h = (1 + 13 * (month as u32 + 1) / 5 + k + k / 4 + j / 4 + 5 * j) % 7;
+        let h = (1 + 13 * (month + 1) / 5 + k + k / 4 + j / 4 + 5 * j) % 7;
         (h + 6) % 7
     }
 
@@ -128,7 +128,7 @@ impl CalendarWidget {
     pub fn weeks_in_month(year: i32, month: u32) -> u32 {
         let days = Self::days_in_month(year, month);
         let first = Self::first_weekday_of_month(year, month);
-        (days + first + 6) / 7
+        (days + first).div_ceil(7)
     }
 
     /// Get the current date components.
@@ -204,7 +204,7 @@ impl CalendarWidget {
         ));
 
         let month_name = long_month(self.display_month);
-        let header_text = format!("{} {}", month_name, self.display_year);
+        let _header_text = format!("{} {}", month_name, self.display_year);
         let text_y = rect.y + 2.0;
         out.push(Quad::new(
             Vec2::new(rect.x + 4.0, text_y),
@@ -451,7 +451,7 @@ mod tests {
         let mut out = DrawList::new();
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 200.0));
         cal.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 180.0, 140.0));
-        assert!(out.len() > 0);
+        assert!(!out.is_empty());
     }
 
     #[test]
@@ -522,6 +522,6 @@ mod tests {
         let mut out = DrawList::new();
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 200.0));
         cal.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 180.0, 140.0));
-        assert!(!cal.last_drawn_month.is_empty());
+        assert_ne!(cal.last_drawn_month, "");
     }
 }

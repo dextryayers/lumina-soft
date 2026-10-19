@@ -198,7 +198,7 @@ impl VolumeSlider {
     }
 
     /// Emit the volume slider quads.
-    fn draw(&self, out: &mut DrawList) {
+    pub fn draw(&self, out: &mut DrawList) {
         // Slider track
         out.push(
             Quad::new(
@@ -340,7 +340,7 @@ mod tests {
         slider.set_mute_rect(Rect::new(110.0, 0.0, 20.0, 20.0));
         let mut out = DrawList::new();
         slider.draw(&mut out);
-        assert!(out.len() > 0);
+        assert!(!out.is_empty());
     }
 
     #[test]

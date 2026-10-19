@@ -7,7 +7,7 @@
 //! The struct is 128 bytes, comfortably inside the 64 KB uniform buffer limit,
 //! and is uploaded with a single `write_buffer` per frame.
 
-use lumina_core::color::{Palette, Srgb};
+use lumina_core::color::Palette;
 use lumina_core::geometry::{Geometry, Scalar, Vec2};
 use lumina_core::state::IslandState;
 
@@ -66,11 +66,31 @@ pub struct IslandUniforms {
     pub gradient_strength: Scalar,
 }
 
-impl IslandUniforms {
-    /// Build the uniforms for one frame.
+/// The screen-space parameters for one frame's uniforms.
+///
+/// Groups the values that change every frame but are not part of the island
+/// geometry: where the island is, how large the output surface is, how far
+/// along the frame is, and how visible the content is.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+pub struct FrameParams {
+    /// The island origin, in device pixels.
+    pub position: Vec2,
+    /// The output resolution, in device pixels.
+    pub resolution: Vec2,
+    /// The device pixel ratio. Zero or negative falls back to `1.0`.
+    pub dpr: Scalar,
+    /// Seconds since startup, for the animated gradient.
+    pub time_seconds: Scalar,
+    /// Content opacity, clamped to `0.0..=1.0`.
+    pub content_opacity: Scalar,
+}
 
+impl IslandUniforms {
     /// Total size in bytes, which is what `wgpu` needs for the buffer.
     pub const SIZE: u64 = std::mem::size_of::<Self>() as u64;
+
+    /// Build the uniforms for one frame.
     ///
     /// `geometry` is the spring's current interpolated shape, `palette` is the
     /// resolved RGB palette, and `appearance` carries the border and glow
@@ -81,14 +101,10 @@ impl IslandUniforms {
         geometry: Geometry,
         palette: &Palette,
         appearance: &lumina_config::AppearanceConfig,
-        position: Vec2,
-        resolution: Vec2,
-        dpr: Scalar,
-        time_seconds: Scalar,
-        content_opacity: Scalar,
+        params: FrameParams,
     ) -> Self {
         let size = geometry.size();
-        let dpr = if dpr.is_finite() && dpr > 0.0 { dpr } else { 1.0 };
+        let dpr = if params.dpr.is_finite() && params.dpr > 0.0 { params.dpr } else { 1.0 };
         let scale = dpr;
 
         let effective_radius = geometry.effective_radius();
@@ -110,15 +126,15 @@ impl IslandUniforms {
             glow_falloff: appearance.glow_falloff.max(0.5) * scale,
             glow_spread: appearance.glow_spread.max(0.0) * scale,
             noise_strength: appearance.noise_strength.max(0.0),
-            origin_px: position,
+            origin_px: params.position,
             inv_extent: Vec2::new(
                 if size.width > 0.0 { 1.0 / (size.width * 0.5 * scale) } else { 0.0 },
                 if size.height > 0.0 { 1.0 / (size.height * 0.5 * scale) } else { 0.0 },
             ),
-            resolution,
+            resolution: params.resolution,
             dpr,
-            time_seconds,
-            content_opacity: content_opacity.clamp(0.0, 1.0),
+            time_seconds: params.time_seconds,
+            content_opacity: params.content_opacity.clamp(0.0, 1.0),
             gradient_strength: appearance.fill_gradient.clamp(0.0, 1.0),
         }
     }
@@ -145,11 +161,6 @@ impl IslandUniforms {
             attributes: &[],
         }
     }
-}
-
-/// Convert an `Srgb` to a premultiplied `[f32; 4]`.
-fn premultiplied(color: Srgb) -> [f32; 4] {
-    color.to_premultiplied()
 }
 
 /// The geometry and content opacity for one island state.
@@ -205,11 +216,13 @@ mod tests {
             Geometry::default(),
             &palette,
             &appearance,
-            Vec2::new(960.0, 540.0),
-            Vec2::new(1920.0, 1080.0),
-            1.0,
-            0.0,
-            1.0,
+            FrameParams {
+                position: Vec2::new(960.0, 540.0),
+                resolution: Vec2::new(1920.0, 1080.0),
+                dpr: 1.0,
+                time_seconds: 0.0,
+                content_opacity: 1.0,
+            },
         );
 
         // The default island is 124 px wide, so half is 62 px.
@@ -225,11 +238,13 @@ mod tests {
             Geometry::new(0.0, 0.0, 0.0, 0.0),
             &palette,
             &appearance,
-            Vec2::ZERO,
-            Vec2::new(1920.0, 1080.0),
-            1.0,
-            0.0,
-            1.0,
+            FrameParams {
+                position: Vec2::ZERO,
+                resolution: Vec2::new(1920.0, 1080.0),
+                dpr: 1.0,
+                time_seconds: 0.0,
+                content_opacity: 1.0,
+            },
         );
         assert!(uniforms.inv_extent.x.is_finite());
         assert!(uniforms.inv_extent.y.is_finite());
@@ -244,11 +259,13 @@ mod tests {
             Geometry::default(),
             &palette,
             &appearance,
-            Vec2::ZERO,
-            Vec2::new(1920.0, 1080.0),
-            0.0,
-            0.0,
-            1.0,
+            FrameParams {
+                position: Vec2::ZERO,
+                resolution: Vec2::new(1920.0, 1080.0),
+                dpr: 0.0,
+                time_seconds: 0.0,
+                content_opacity: 1.0,
+            },
         );
         assert_eq!(uniforms.dpr, 1.0);
     }
@@ -261,11 +278,13 @@ mod tests {
             Geometry::default(),
             &palette,
             &appearance,
-            Vec2::new(960.0, 540.0),
-            Vec2::new(1920.0, 1080.0),
-            1.0,
-            0.0,
-            1.0,
+            FrameParams {
+                position: Vec2::new(960.0, 540.0),
+                resolution: Vec2::new(1920.0, 1080.0),
+                dpr: 1.0,
+                time_seconds: 0.0,
+                content_opacity: 1.0,
+            },
         );
 
         let values = [
@@ -306,11 +325,13 @@ mod tests {
             geometry,
             &palette,
             &appearance,
-            Vec2::ZERO,
-            Vec2::new(1920.0, 1080.0),
-            1.0,
-            0.0,
-            1.0,
+            FrameParams {
+                position: Vec2::ZERO,
+                resolution: Vec2::new(1920.0, 1080.0),
+                dpr: 1.0,
+                time_seconds: 0.0,
+                content_opacity: 1.0,
+            },
         );
         assert_eq!(uniforms.half_top, 210.0);
         assert_eq!(uniforms.half_bottom, 200.0);

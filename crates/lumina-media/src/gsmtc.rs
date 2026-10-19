@@ -30,7 +30,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::session::{
-    MediaCapabilities, MediaSession, MediaSnapshot, Metadata, PlaybackStatus, PositionTracker,
+    MediaCapabilities, MediaSession, Metadata, PlaybackStatus, PositionTracker,
 };
 
 /// A GSMTC media session.
@@ -54,6 +54,14 @@ pub struct GsmtcSession {
     manager: Option<Arc<Mutex<windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager>>>,
     /// The current session, if connected.
     session: Option<Arc<Mutex<windows::Media::Control::GlobalSystemMediaTransportControlsSession>>>,
+}
+
+impl std::fmt::Debug for GsmtcSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GsmtcSession")
+            .field("source_app_id", &self.source_app_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl GsmtcSession {
@@ -128,25 +136,27 @@ impl GsmtcSession {
             .get()
             .map_err(|e| format!("failed to get media properties: {e:?}"))?;
 
-        let mut metadata = Metadata::default();
-        metadata.title = Some(
-            media_properties
-                .Title()
-                .map_err(|e| format!("{e:?}"))?
-                .to_string(),
-        );
-        metadata.artist = Some(
-            media_properties
-                .Artist()
-                .map_err(|e| format!("{e:?}"))?
-                .to_string(),
-        );
-        metadata.album = Some(
-            media_properties
-                .AlbumTitle()
-                .map_err(|e| format!("{e:?}"))?
-                .to_string(),
-        );
+        let metadata = Metadata {
+            title: Some(
+                media_properties
+                    .Title()
+                    .map_err(|e| format!("{e:?}"))?
+                    .to_string(),
+            ),
+            artist: Some(
+                media_properties
+                    .Artist()
+                    .map_err(|e| format!("{e:?}"))?
+                    .to_string(),
+            ),
+            album: Some(
+                media_properties
+                    .AlbumTitle()
+                    .map_err(|e| format!("{e:?}"))?
+                    .to_string(),
+            ),
+            ..Metadata::default()
+        };
         *self.metadata.lock().unwrap() = metadata;
 
         // Read timeline properties
@@ -164,7 +174,7 @@ impl GsmtcSession {
 
         let mut tracker = self.position_tracker.lock().unwrap();
         tracker.update(
-            Duration::from_micros(position.max(0)),
+            Duration::from_micros(position),
             *self.status.lock().unwrap() == PlaybackStatus::Playing,
             if end_time > 0 {
                 Some(Duration::from_micros(end_time))
@@ -180,24 +190,19 @@ impl GsmtcSession {
             .map_err(|e| format!("{e:?}"))?;
         let can_play = controls
             .IsPlayEnabled()
-            .map_err(|e| format!("{e:?}"))?
-            .into();
+            .map_err(|e| format!("{e:?}"))?;
         let can_pause = controls
             .IsPauseEnabled()
-            .map_err(|e| format!("{e:?}"))?
-            .into();
+            .map_err(|e| format!("{e:?}"))?;
         let can_go_next = controls
             .IsNextEnabled()
-            .map_err(|e| format!("{e:?}"))?
-            .into();
+            .map_err(|e| format!("{e:?}"))?;
         let can_go_previous = controls
             .IsPreviousEnabled()
-            .map_err(|e| format!("{e:?}"))?
-            .into();
+            .map_err(|e| format!("{e:?}"))?;
         let can_stop = controls
             .IsStopEnabled()
-            .map_err(|e| format!("{e:?}"))?
-            .into();
+            .map_err(|e| format!("{e:?}"))?;
 
         *self.capabilities.lock().unwrap() = MediaCapabilities {
             can_play,
@@ -277,7 +282,7 @@ impl MediaSession for GsmtcSession {
 
     fn metadata(&self) -> &Metadata {
         let guard = self.metadata.lock().unwrap();
-        let metadata: *const Metadata = &*guard;
+        let metadata: *const Metadata = &raw const *guard;
         unsafe { &*metadata }
     }
 
@@ -347,9 +352,8 @@ pub fn discover_sessions() -> Vec<String> {
         Err(_) => return Vec::new(),
     };
 
-    let sessions = match manager.GetSessions() {
-        Ok(s) => s,
-        Err(_) => return Vec::new(),
+    let Ok(sessions) = manager.GetSessions() else {
+        return Vec::new();
     };
 
     sessions

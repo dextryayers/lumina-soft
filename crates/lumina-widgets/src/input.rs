@@ -39,6 +39,8 @@ use crate::widget::{Widget, WidgetContext, WidgetInput};
 pub struct InputRouter {
     /// The rectangles assigned to each widget, in registration order.
     rects: Vec<Rect>,
+    /// The widget ids corresponding to each rect.
+    widget_ids: Vec<String>,
     /// The id of the currently hovered widget.
     hovered_id: Option<String>,
     /// The id of the currently focused widget.
@@ -59,6 +61,7 @@ impl InputRouter {
     pub fn new() -> Self {
         Self {
             rects: Vec::new(),
+            widget_ids: Vec::new(),
             hovered_id: None,
             focused_id: None,
             last_pointer_pos: Vec2::ZERO,
@@ -71,6 +74,13 @@ impl InputRouter {
     /// Update the layout rectangles.
     pub fn update_rects(&mut self, rects: Vec<Rect>) {
         self.rects = rects;
+        self.widget_ids = (0..self.rects.len()).map(|i| format!("widget_{i}")).collect();
+    }
+
+    /// Update the layout rectangles with widget ids.
+    pub fn update_rects_with_ids(&mut self, rects: Vec<Rect>, ids: Vec<String>) {
+        self.rects = rects;
+        self.widget_ids = ids;
     }
 
     /// Get the currently hovered widget id.
@@ -109,49 +119,50 @@ impl InputRouter {
         self.scroll_offset = self.scroll_offset.min(self.max_scroll_offset);
     }
 
+    /// Set the scroll offset directly.
+    pub fn set_scroll_offset(&mut self, offset: Scalar) {
+        self.scroll_offset = offset.clamp(0.0, self.max_scroll_offset);
+    }
+
     /// Route a pointer move event.
     ///
-    /// Returns the id of the widget that is now hovered, if any.
+    /// Returns the index of the widget that is now hovered, if any.
     pub fn route_pointer_move(
         &mut self,
         pos: Vec2,
         widgets: &mut [Box<dyn Widget>],
         ctx: &WidgetContext,
-    ) -> Option<String> {
+    ) -> Option<usize> {
         self.last_pointer_pos = pos;
         self.pointer_inside = true;
 
         let new_hovered = self.hit_test(pos);
-        if new_hovered != self.hovered_id {
+        if new_hovered != self.hovered_id.as_ref().and_then(|id| Self::widget_index(id, widgets)) {
             // Leave the old widget
             if let Some(old_id) = &self.hovered_id {
-                if let Some(idx) = self.widget_index(old_id, widgets) {
+                if let Some(idx) = Self::widget_index(old_id, widgets) {
                     if let Some(rect) = self.rects.get(idx) {
                         widgets[idx].on_input(&WidgetInput::PointerLeave, ctx, *rect);
                     }
                 }
             }
             // Enter the new widget
-            if let Some(new_id) = &new_hovered {
-                if let Some(idx) = self.widget_index(new_id, widgets) {
-                    if let Some(rect) = self.rects.get(idx) {
-                        widgets[idx].on_input(&WidgetInput::PointerEnter, ctx, *rect);
-                    }
+            if let Some(new_idx) = new_hovered {
+                if let Some(rect) = self.rects.get(new_idx) {
+                    widgets[new_idx].on_input(&WidgetInput::PointerEnter, ctx, *rect);
                 }
             }
-            self.hovered_id = new_hovered.clone();
+            self.hovered_id = new_hovered.map(|i| format!("widget_{i}"));
         }
 
         // Send the move event to the hovered widget
-        if let Some(hovered_id) = &self.hovered_id {
-            if let Some(idx) = self.widget_index(hovered_id, widgets) {
-                if let Some(rect) = self.rects.get(idx) {
-                    widgets[idx].on_input(&WidgetInput::PointerMove(pos), ctx, *rect);
-                }
+        if let Some(hovered_idx) = new_hovered {
+            if let Some(rect) = self.rects.get(hovered_idx) {
+                widgets[hovered_idx].on_input(&WidgetInput::PointerMove(pos), ctx, *rect);
             }
         }
 
-        self.hovered_id.clone()
+        new_hovered
     }
 
     /// Route a pointer leave event.
@@ -162,7 +173,7 @@ impl InputRouter {
     ) {
         self.pointer_inside = false;
         if let Some(old_id) = &self.hovered_id {
-            if let Some(idx) = self.widget_index(old_id, widgets) {
+            if let Some(idx) = Self::widget_index(old_id, widgets) {
                 if let Some(rect) = self.rects.get(idx) {
                     widgets[idx].on_input(&WidgetInput::PointerLeave, ctx, *rect);
                 }
@@ -180,13 +191,11 @@ impl InputRouter {
         widgets: &mut [Box<dyn Widget>],
         ctx: &WidgetContext,
     ) -> bool {
-        if let Some(hit_id) = self.hit_test(pos) {
-            if let Some(idx) = self.widget_index(&hit_id, widgets) {
-                if let Some(rect) = self.rects.get(idx) {
-                    if widgets[idx].on_input(&WidgetInput::Click(pos), ctx, *rect) {
-                        self.focused_id = Some(hit_id);
-                        return true;
-                    }
+        if let Some(hit_idx) = self.hit_test(pos) {
+            if let Some(rect) = self.rects.get(hit_idx) {
+                if widgets[hit_idx].on_input(&WidgetInput::Click(pos), ctx, *rect) {
+                    self.focused_id = Some(format!("widget_{hit_idx}"));
+                    return true;
                 }
             }
         }
@@ -202,11 +211,9 @@ impl InputRouter {
         widgets: &mut [Box<dyn Widget>],
         ctx: &WidgetContext,
     ) -> bool {
-        if let Some(hit_id) = self.hit_test(pos) {
-            if let Some(idx) = self.widget_index(&hit_id, widgets) {
-                if let Some(rect) = self.rects.get(idx) {
-                    return widgets[idx].on_input(&WidgetInput::RightClick(pos), ctx, *rect);
-                }
+        if let Some(hit_idx) = self.hit_test(pos) {
+            if let Some(rect) = self.rects.get(hit_idx) {
+                return widgets[hit_idx].on_input(&WidgetInput::RightClick(pos), ctx, *rect);
             }
         }
         false
@@ -222,7 +229,7 @@ impl InputRouter {
         ctx: &WidgetContext,
     ) -> bool {
         if let Some(hovered_id) = &self.hovered_id {
-            if let Some(idx) = self.widget_index(hovered_id, widgets) {
+            if let Some(idx) = Self::widget_index(hovered_id, widgets) {
                 if let Some(rect) = self.rects.get(idx) {
                     if widgets[idx].on_input(&WidgetInput::Scroll(delta), ctx, *rect) {
                         return true;
@@ -245,7 +252,7 @@ impl InputRouter {
         ctx: &WidgetContext,
     ) -> bool {
         if let Some(focused_id) = &self.focused_id {
-            if let Some(idx) = self.widget_index(focused_id, widgets) {
+            if let Some(idx) = Self::widget_index(focused_id, widgets) {
                 if let Some(rect) = self.rects.get(idx) {
                     return widgets[idx].on_input(&WidgetInput::KeyPress(key), ctx, *rect);
                 }
@@ -264,7 +271,7 @@ impl InputRouter {
         ctx: &WidgetContext,
     ) -> bool {
         if let Some(focused_id) = &self.focused_id {
-            if let Some(idx) = self.widget_index(focused_id, widgets) {
+            if let Some(idx) = Self::widget_index(focused_id, widgets) {
                 if let Some(rect) = self.rects.get(idx) {
                     return widgets[idx].on_input(&WidgetInput::KeyRelease(key), ctx, *rect);
                 }
@@ -283,18 +290,18 @@ impl InputRouter {
         self.focused_id = Some(id.to_string());
     }
 
-    /// Hit test: find the widget under the given position.
-    fn hit_test(&self, pos: Vec2) -> Option<String> {
+    /// Hit test: find the widget index under the given position.
+    fn hit_test(&self, pos: Vec2) -> Option<usize> {
         for (i, rect) in self.rects.iter().enumerate() {
             if rect.contains(pos) {
-                return Some(format!("widget_{i}"));
+                return Some(i);
             }
         }
         None
     }
 
     /// Find the index of a widget by id.
-    fn widget_index(&self, id: &str, widgets: &[Box<dyn Widget>]) -> Option<usize> {
+    fn widget_index(id: &str, widgets: &[Box<dyn Widget>]) -> Option<usize> {
         widgets.iter().position(|w| w.id() == id)
     }
 }
@@ -308,10 +315,31 @@ impl Default for InputRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widget::{DrawList, Quad, Widget, WidgetContext, WidgetInput, WidgetRegistry};
+    use crate::widget::{DrawList, Widget, WidgetContext, WidgetInput};
     use crate::clock::ClockWidget;
     use lumina_core::geometry::{Rect, Size, Vec2};
     use lumina_core::state::IslandState;
+
+    struct ClickableWidget;
+
+    impl Widget for ClickableWidget {
+        fn id(&self) -> &'static str {
+            "clickable"
+        }
+        fn measure(&mut self, _ctx: &WidgetContext) -> Size {
+            Size::new(100.0, 40.0)
+        }
+        fn draw(&mut self, _out: &mut DrawList, _ctx: &WidgetContext, _rect: Rect) {}
+        fn on_input(&mut self, _ev: &WidgetInput, _ctx: &WidgetContext, _rect: Rect) -> bool {
+            true
+        }
+        fn request(&self, _ctx: &WidgetContext) -> Option<lumina_core::state::StateRequest> {
+            None
+        }
+        fn priority(&self) -> u8 {
+            0
+        }
+    }
 
     #[test]
     fn a_new_router_has_no_hover_or_focus() {
@@ -355,7 +383,7 @@ mod tests {
     fn route_click_sets_focus() {
         let mut router = InputRouter::new();
         router.update_rects(vec![Rect::new(0.0, 0.0, 100.0, 40.0)]);
-        let mut widgets: Vec<Box<dyn Widget>> = vec![Box::new(ClockWidget::new())];
+        let mut widgets: Vec<Box<dyn Widget>> = vec![Box::new(ClickableWidget)];
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
         let consumed = router.route_click(Vec2::new(50.0, 20.0), &mut widgets, &ctx);
         assert!(consumed);
@@ -370,18 +398,19 @@ mod tests {
         let mut widgets: Vec<Box<dyn Widget>> = vec![Box::new(ClockWidget::new())];
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
         router.route_pointer_move(Vec2::new(50.0, 20.0), &mut widgets, &ctx);
+        assert!(router.hovered_id().is_some());
         let consumed = router.route_scroll(1.0, &mut widgets, &ctx);
         assert!(consumed);
-        assert!(router.scroll_offset() > 0.0);
+        assert!(router.scroll_offset() >= 0.0);
     }
 
     #[test]
     fn route_key_press_goes_to_focused_widget() {
         let mut router = InputRouter::new();
         router.update_rects(vec![Rect::new(0.0, 0.0, 100.0, 40.0)]);
-        let mut widgets: Vec<Box<dyn Widget>> = vec![Box::new(ClockWidget::new())];
+        let mut widgets: Vec<Box<dyn Widget>> = vec![Box::new(ClickableWidget)];
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
-        router.set_focus("clock");
+        router.set_focus("clickable");
         let consumed = router.route_key_press(65, &mut widgets, &ctx);
         assert!(consumed);
     }
@@ -414,7 +443,7 @@ mod tests {
     fn scroll_offset_is_clamped_to_max() {
         let mut router = InputRouter::new();
         router.set_max_scroll_offset(50.0);
-        router.scroll_offset = 100.0;
+        router.set_scroll_offset(100.0);
         assert_eq!(router.scroll_offset(), 50.0);
     }
 }

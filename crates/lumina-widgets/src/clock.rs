@@ -12,6 +12,8 @@
 //! A second timezone can be configured as an IANA name. The widget displays
 //! both the local time and the second timezone time, separated by a divider.
 
+use std::fmt::Write as _;
+
 use lumina_core::geometry::{Rect, Size, Vec2};
 use lumina_core::state::{IslandState, StateRequest};
 
@@ -86,9 +88,9 @@ impl ClockWidget {
     pub fn format_time(&self, hour: u32, minute: u32, second: u32) -> String {
         if self.format_24h {
             if self.show_seconds {
-                format!("{:02}:{:02}:{:02}", hour, minute, second)
+                format!("{hour:02}:{minute:02}:{second:02}")
             } else {
-                format!("{:02}:{:02}", hour, minute)
+                format!("{hour:02}:{minute:02}")
             }
         } else {
             let period = if hour < 12 { "AM" } else { "PM" };
@@ -101,14 +103,14 @@ impl ClockWidget {
             };
             if self.hour_leading_zero {
                 if self.show_seconds {
-                    format!("{:02}:{:02}:{:02} {}", h12, minute, second, period)
+                    format!("{h12:02}:{minute:02}:{second:02} {period}")
                 } else {
-                    format!("{:02}:{:02} {}", h12, minute, period)
+                    format!("{h12:02}:{minute:02} {period}")
                 }
             } else if self.show_seconds {
-                format!("{}:{:02}:{:02} {}", h12, minute, second, period)
+                format!("{h12}:{minute:02}:{second:02} {period}")
             } else {
-                format!("{}:{:02} {}", h12, minute, period)
+                format!("{h12}:{minute:02} {period}")
             }
         }
     }
@@ -121,20 +123,27 @@ impl ClockWidget {
         while let Some(c) = chars.next() {
             if c == '%' {
                 match chars.next() {
-                    Some('d') => result.push_str(&format!("{:02}", day)),
+                    Some('d') => {
+                        let _ = write!(result, "{day:02}");
+                    }
                     Some('b') => result.push_str(short_month(month)),
                     Some('B') => result.push_str(long_month(month)),
-                    Some('m') => result.push_str(&format!("{:02}", month)),
-                    Some('y') => result.push_str(&format!("{:02}", (year % 100).abs())),
-                    Some('Y') => result.push_str(&format!("{:04}", year)),
+                    Some('m') => {
+                        let _ = write!(result, "{month:02}");
+                    }
+                    Some('y') => {
+                        let _ = write!(result, "{:02}", (year % 100).abs());
+                    }
+                    Some('Y') => {
+                        let _ = write!(result, "{year:04}");
+                    }
                     Some('a') => result.push_str(short_weekday(weekday)),
                     Some('A') => result.push_str(long_weekday(weekday)),
-                    Some('%') => result.push('%'),
+                    Some('%') | None => result.push('%'),
                     Some(other) => {
                         result.push('%');
                         result.push(other);
                     }
-                    None => result.push('%'),
                 }
             } else {
                 result.push(c);
@@ -192,7 +201,7 @@ impl ClockWidget {
     fn draw_time(&mut self, out: &mut DrawList, rect: Rect) {
         let (hour, minute, second) = self.current_time();
         let time_str = self.format_time(hour, minute, second);
-        self.last_time = time_str.clone();
+        self.last_time = time_str;
 
         let time_height = self.time_font_size;
         let time_y = rect.y + (rect.height - time_height) * 0.5;
@@ -212,7 +221,7 @@ impl ClockWidget {
         }
         let (year, month, day, weekday) = self.current_date();
         let date_str = self.format_date(year, month, day, weekday);
-        self.last_date = date_str.clone();
+        self.last_date = date_str;
 
         let date_height = self.date_font_size;
         let date_y = rect.y + rect.height - date_height - 2.0;
@@ -231,7 +240,7 @@ impl ClockWidget {
             return;
         }
         let (_, _, _, weekday) = self.current_date();
-        let weekday_str = long_weekday(weekday);
+        let _weekday_str = long_weekday(weekday);
 
         let weekday_height = self.date_font_size;
         let weekday_y = rect.y + 2.0;
@@ -454,7 +463,7 @@ mod tests {
         let mut out = DrawList::new();
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
         clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 32.0));
-        assert!(out.len() > 0);
+        assert!(!out.is_empty());
     }
 
     #[test]
@@ -484,7 +493,7 @@ mod tests {
         let mut out = DrawList::new();
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
         clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 32.0));
-        assert!(out.len() >= 1);
+        assert!(!out.is_empty());
     }
 
     #[test]
@@ -513,7 +522,7 @@ mod tests {
         let mut out = DrawList::new();
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
         clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 32.0));
-        assert!(!clock.last_time.is_empty());
+        assert_ne!(clock.last_time, "");
     }
 
     #[test]
@@ -522,6 +531,6 @@ mod tests {
         let mut out = DrawList::new();
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
         clock.draw(&mut out, &ctx, Rect::new(0.0, 0.0, 100.0, 32.0));
-        assert!(!clock.last_date.is_empty());
+        assert_ne!(clock.last_date, "");
     }
 }

@@ -9,6 +9,8 @@ members = [
     "crates/lumina-app",
     "crates/lumina-widgets",
     "crates/lumina-media",
+    "crates/lumina-audio",
+    "crates/lumina-color",
 ]
 
 [workspace.package]
@@ -31,6 +33,8 @@ lumina-render = { path = "crates/lumina-render", version = "0.1.0-alpha.1" }
 lumina-text = { path = "crates/lumina-text", version = "0.1.0-alpha.1" }
 lumina-widgets = { path = "crates/lumina-widgets", version = "0.1.0-alpha.1" }
 lumina-media = { path = "crates/lumina-media", version = "0.1.0-alpha.1" }
+lumina-audio = { path = "crates/lumina-audio", version = "0.1.0-alpha.1" }
+lumina-color = { path = "crates/lumina-color", version = "0.1.0-alpha.1" }
 
 # Serialization and configuration.
 serde = { version = "1.0", features = ["derive"] }
@@ -44,6 +48,11 @@ winit = "0.30"
 raw-window-handle = "0.6"
 wgpu = "0.20"
 naga = { version = "0.20", features = ["wgsl-in"] }
+
+# Audio analysis.
+rustfft = "6.2"
+
+# Random-free test data generation is hand rolled; no external crates.
 
 [workspace.lints.rust]
 missing_debug_implementations = "warn"

@@ -18,7 +18,7 @@
 //! selected until it stops playing or disappears. This prevents the active
 //! player from flickering between sessions.
 
-use crate::session::{MediaSession, MediaSnapshot, PlaybackStatus};
+use crate::session::{MediaSession, MediaSnapshot};
 use crate::ranking::{RankingConfig, MediaWatcher};
 
 /// The player cycler.
@@ -32,19 +32,16 @@ pub struct PlayerCycler {
     current_index: usize,
     /// The media watcher.
     watcher: MediaWatcher,
-    /// The ranking config.
-    config: RankingConfig,
 }
 
 impl PlayerCycler {
     /// Create a new player cycler.
     #[must_use]
-    pub fn new(config: RankingConfig) -> Self {
+    pub fn new(config: &RankingConfig) -> Self {
         Self {
             players: Vec::new(),
             current_index: 0,
             watcher: MediaWatcher::new(config.clone(), 1000),
-            config,
         }
     }
 
@@ -63,7 +60,7 @@ impl PlayerCycler {
     /// Get the identity of the currently selected player.
     #[must_use]
     pub fn current_player(&self) -> Option<&str> {
-        self.players.get(self.current_index).map(|s| s.as_str())
+        self.players.get(self.current_index).map(std::string::String::as_str)
     }
 
     /// Update the list of active players.
@@ -72,7 +69,7 @@ impl PlayerCycler {
     /// The cycler preserves the current selection if the player is still
     /// active, and falls back to the first player otherwise.
     pub fn update_players(&mut self, players: Vec<String>) {
-        let old_player = self.current_player().map(|s| s.to_string());
+        let old_player = self.current_player().map(std::string::ToString::to_string);
         self.players = players;
         if let Some(old) = old_player {
             if let Some(index) = self.players.iter().position(|p| p == &old) {
@@ -94,7 +91,7 @@ impl PlayerCycler {
             return None;
         }
         self.current_index = (self.current_index + 1) % self.players.len();
-        self.watcher.set_last_selected(self.current_player().map(|s| s.to_string()));
+        self.watcher.set_last_selected(self.current_player().map(std::string::ToString::to_string));
         self.current_player()
     }
 
@@ -111,7 +108,7 @@ impl PlayerCycler {
         } else {
             self.current_index -= 1;
         }
-        self.watcher.set_last_selected(self.current_player().map(|s| s.to_string()));
+        self.watcher.set_last_selected(self.current_player().map(std::string::ToString::to_string));
         self.current_player()
     }
 
@@ -160,7 +157,8 @@ impl PlayerCycler {
 
 impl Default for PlayerCycler {
     fn default() -> Self {
-        Self::new(RankingConfig::default())
+        let config = RankingConfig::default();
+        Self::new(&config)
     }
 }
 
@@ -231,14 +229,14 @@ mod tests {
 
     #[test]
     fn a_new_cycler_has_no_players() {
-        let cycler = PlayerCycler::new(RankingConfig::default());
-        assert!(cycler.players().is_empty());
+        let cycler = PlayerCycler::new(&RankingConfig::default());
+        assert_eq!(cycler.players().len(), 0);
         assert!(cycler.current_player().is_none());
     }
 
     #[test]
     fn cycler_update_players_sets_list() {
-        let mut cycler = PlayerCycler::new(RankingConfig::default());
+        let mut cycler = PlayerCycler::new(&RankingConfig::default());
         cycler.update_players(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         assert_eq!(cycler.players().len(), 3);
         assert_eq!(cycler.current_player(), Some("a"));
@@ -246,7 +244,7 @@ mod tests {
 
     #[test]
     fn cycler_cycle_next_wraps_around() {
-        let mut cycler = PlayerCycler::new(RankingConfig::default());
+        let mut cycler = PlayerCycler::new(&RankingConfig::default());
         cycler.update_players(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         assert_eq!(cycler.cycle_next(), Some("b"));
         assert_eq!(cycler.cycle_next(), Some("c"));
@@ -255,7 +253,7 @@ mod tests {
 
     #[test]
     fn cycler_cycle_previous_wraps_around() {
-        let mut cycler = PlayerCycler::new(RankingConfig::default());
+        let mut cycler = PlayerCycler::new(&RankingConfig::default());
         cycler.update_players(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         assert_eq!(cycler.cycle_previous(), Some("c"));
         assert_eq!(cycler.cycle_previous(), Some("b"));
@@ -264,7 +262,7 @@ mod tests {
 
     #[test]
     fn cycler_select_player_finds_player() {
-        let mut cycler = PlayerCycler::new(RankingConfig::default());
+        let mut cycler = PlayerCycler::new(&RankingConfig::default());
         cycler.update_players(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         assert!(cycler.select_player("b"));
         assert_eq!(cycler.current_player(), Some("b"));
@@ -272,14 +270,14 @@ mod tests {
 
     #[test]
     fn cycler_select_player_returns_false_for_unknown() {
-        let mut cycler = PlayerCycler::new(RankingConfig::default());
+        let mut cycler = PlayerCycler::new(&RankingConfig::default());
         cycler.update_players(vec!["a".to_string(), "b".to_string()]);
         assert!(!cycler.select_player("z"));
     }
 
     #[test]
     fn cycler_update_players_preserves_selection() {
-        let mut cycler = PlayerCycler::new(RankingConfig::default());
+        let mut cycler = PlayerCycler::new(&RankingConfig::default());
         cycler.update_players(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         cycler.select_player("b");
         cycler.update_players(vec!["a".to_string(), "b".to_string(), "d".to_string()]);
@@ -288,7 +286,7 @@ mod tests {
 
     #[test]
     fn cycler_update_players_resets_when_current_removed() {
-        let mut cycler = PlayerCycler::new(RankingConfig::default());
+        let mut cycler = PlayerCycler::new(&RankingConfig::default());
         cycler.update_players(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         cycler.select_player("b");
         cycler.update_players(vec!["a".to_string(), "c".to_string(), "d".to_string()]);
@@ -297,7 +295,7 @@ mod tests {
 
     #[test]
     fn cycler_poll_returns_snapshot() {
-        let mut cycler = PlayerCycler::new(RankingConfig::default());
+        let mut cycler = PlayerCycler::new(&RankingConfig::default());
         let sessions = vec![session("a"), session("b")];
         let snapshot = cycler.poll(sessions);
         assert!(snapshot.is_some());
@@ -305,7 +303,7 @@ mod tests {
 
     #[test]
     fn cycler_poll_updates_player_list() {
-        let mut cycler = PlayerCycler::new(RankingConfig::default());
+        let mut cycler = PlayerCycler::new(&RankingConfig::default());
         let sessions = vec![session("a"), session("b")];
         cycler.poll(sessions);
         assert_eq!(cycler.players().len(), 2);
@@ -313,14 +311,14 @@ mod tests {
 
     #[test]
     fn cycler_empty_players_returns_none_on_cycle() {
-        let mut cycler = PlayerCycler::new(RankingConfig::default());
+        let mut cycler = PlayerCycler::new(&RankingConfig::default());
         assert!(cycler.cycle_next().is_none());
         assert!(cycler.cycle_previous().is_none());
     }
 
     #[test]
     fn cycler_watcher_is_accessible() {
-        let cycler = PlayerCycler::new(RankingConfig::default());
+        let cycler = PlayerCycler::new(&RankingConfig::default());
         assert!(cycler.watcher().last_snapshot().is_none());
     }
 }

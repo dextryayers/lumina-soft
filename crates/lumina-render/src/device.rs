@@ -107,6 +107,7 @@ impl GpuInfo {
 }
 
 /// A ready-to-use GPU device, surface, and the config the caller asked for.
+#[derive(Debug)]
 pub struct GpuDevice {
     /// The wgpu device.
     pub device: Arc<wgpu::Device>,
@@ -148,7 +149,7 @@ impl GpuDevice {
             let adapter = instance
                 .request_adapter(&request)
                 .await
-                .ok_or_else(|| GpuError::NoAdapter(backend))?;
+                .ok_or(GpuError::NoAdapter(backend))?;
 
             let info = adapter.get_info();
             let resolved = backend_from_wgpu(info.backend);
@@ -195,13 +196,7 @@ fn software_is_only(_adapter: &wgpu::Adapter) -> bool {
 /// can force the working one.
 fn backend_preference(preferred: Option<GpuBackend>) -> Vec<GpuBackend> {
     match preferred {
-        None => vec![
-            GpuBackend::Vulkan,
-            GpuBackend::Dx12,
-            GpuBackend::Metal,
-            GpuBackend::Gl,
-        ],
-        Some(GpuBackend::Auto) => vec![
+        None | Some(GpuBackend::Auto) => vec![
             GpuBackend::Vulkan,
             GpuBackend::Dx12,
             GpuBackend::Metal,
@@ -217,7 +212,6 @@ fn backend_from_wgpu(backend: wgpu::Backend) -> ResolvedBackend {
         wgpu::Backend::Vulkan => ResolvedBackend::Vulkan,
         wgpu::Backend::Dx12 => ResolvedBackend::Dx12,
         wgpu::Backend::Metal => ResolvedBackend::Metal,
-        wgpu::Backend::Gl => ResolvedBackend::Gl,
         _ => ResolvedBackend::Gl,
     }
 }
@@ -234,7 +228,7 @@ mod tests {
             ResolvedBackend::Metal,
             ResolvedBackend::Gl,
         ] {
-            assert!(!backend.id().is_empty());
+            assert_ne!(backend.id(), "");
         }
     }
 

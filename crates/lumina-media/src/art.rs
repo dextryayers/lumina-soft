@@ -40,6 +40,7 @@ pub struct AlbumArt {
 ///
 /// Caches decoded and downscaled images per track id, so the same art is not
 /// decoded twice. The cache is bounded to prevent unbounded memory growth.
+#[derive(Debug)]
 pub struct ArtCache {
     /// The cached images, keyed by track id.
     cache: Mutex<HashMap<String, AlbumArt>>,
@@ -113,6 +114,7 @@ impl Default for ArtCache {
 /// The album art pipeline.
 ///
 /// Extracts, decodes, downscales, and caches album art.
+#[derive(Debug)]
 pub struct ArtPipeline {
     /// The cache.
     cache: ArtCache,
@@ -148,10 +150,10 @@ impl ArtPipeline {
         }
 
         // Extract the art data
-        let data = self.extract(art_url)?;
+        let data = Self::extract(art_url)?;
 
         // Decode the image
-        let img = self.decode(&data)?;
+        let img = Self::decode(&data)?;
 
         // Downscale
         let (width, height, pixels) = self.downscale(&img);
@@ -173,16 +175,14 @@ impl ArtPipeline {
     }
 
     /// Extract the art data from the URL.
-    fn extract(&self, art_url: &str) -> Option<Vec<u8>> {
-        if art_url.starts_with("file://") {
-            let path = &art_url[7..];
+    fn extract(art_url: &str) -> Option<Vec<u8>> {
+        if let Some(path) = art_url.strip_prefix("file://") {
             std::fs::read(path).ok()
-        } else if art_url.starts_with("data:") {
+        } else if let Some(data) = art_url.strip_prefix("data:") {
             // Decode base64 data URL
-            let data = &art_url[5..];
             if let Some(comma) = data.find(',') {
                 let encoded = &data[comma + 1..];
-                decode_base64(encoded)
+                Some(decode_base64(encoded))
             } else {
                 None
             }
@@ -195,7 +195,7 @@ impl ArtPipeline {
     }
 
     /// Decode the image data into an RGBA buffer.
-    fn decode(&self, data: &[u8]) -> Option<image::DynamicImage> {
+    fn decode(data: &[u8]) -> Option<image::DynamicImage> {
         image::load_from_memory(data).ok()
     }
 
@@ -273,7 +273,7 @@ fn extract_dominant_color(pixels: &[u8], _width: u32, _height: u32) -> [f32; 4] 
 }
 
 /// Decode a base64 string.
-fn decode_base64(input: &str) -> Option<Vec<u8>> {
+fn decode_base64(input: &str) -> Vec<u8> {
     let mut output = Vec::new();
     let mut buffer = 0u32;
     let mut bits = 0;
@@ -295,7 +295,7 @@ fn decode_base64(input: &str) -> Option<Vec<u8>> {
         }
     }
 
-    Some(output)
+    output
 }
 
 #[cfg(test)]
@@ -380,8 +380,6 @@ mod tests {
     fn decode_base64_decodes_correctly() {
         let encoded = "SGVsbG8gV29ybGQ=";
         let decoded = decode_base64(encoded);
-        assert!(decoded.is_some());
-        let decoded = decoded.unwrap();
         assert_eq!(String::from_utf8(decoded).unwrap(), "Hello World");
     }
 
