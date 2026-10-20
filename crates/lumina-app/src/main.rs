@@ -20,6 +20,7 @@
 //! | 1 | The config has problems (`--check-config`) |
 //! | 2 | Bad arguments |
 
+use std::fmt::Write as _;
 use std::hint::black_box;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -79,22 +80,25 @@ fn print_diagnostics() {
     let config_path = config_path();
     println!("  config_path  {}", config_path.display());
 
-    match load_config(&config_path) {
-        Ok((config, report)) => {
-            println!("  config       loaded");
-            println!("  valid        {}", report.is_clean());
-            if !report.is_clean() {
-                println!("  problems     {}", report.len());
+    if config_path.exists() {
+        match load_config(&config_path) {
+            Ok((config, report)) => {
+                println!("  config       loaded");
+                println!("  valid        {}", report.is_clean());
+                if !report.is_clean() {
+                    println!("  problems     {}", report.len());
+                }
+                println!("  rgb_mode     {:?}", config.rgb.mode);
+                println!("  reduced      {}", config.motion.reduced);
+                println!("  contrast     {}", config.accessibility.enforce_contrast);
+                println!("  screen_reader {:?}", config.accessibility.screen_reader);
             }
-            println!("  theme        {}", config.theme.active);
-            println!("  rgb_mode     {:?}", config.rgb.mode);
-            println!("  reduced      {}", config.motion.reduced);
-            println!("  contrast     {}", config.accessibility.enforce_contrast);
-            println!("  screen_reader {:?}", config.accessibility.screen_reader);
+            Err(e) => {
+                println!("  config       FAILED: {e}");
+            }
         }
-        Err(e) => {
-            println!("  config       FAILED: {e}");
-        }
+    } else {
+        println!("  config       absent (compiled defaults apply)");
     }
 
     println!("  os_reduced   {}", lumina_platform::os_reduced_motion());
@@ -458,6 +462,29 @@ fn run_benchmark(output: Option<&Path>) -> ExitCode {
         black_box(shaped);
     });
 
+    let mut layout_cache = TextLayoutCache::new(64);
+    layout_cache.layout(
+        "Now playing: Lumen by Northbound",
+        &shaper,
+        &atlas,
+        14.0,
+        320.0,
+        TextAlignment::Left,
+        Overflow::Ellipsis,
+    );
+    let layout_ns = measure(120_000, || {
+        let layout = layout_cache.layout(
+            "Now playing: Lumen by Northbound",
+            &shaper,
+            &atlas,
+            14.0,
+            320.0,
+            TextAlignment::Left,
+            Overflow::Ellipsis,
+        );
+        black_box(layout);
+    });
+
     let shader_ns = measure(200, || {
         let result = lumina_render::shaders::validate_wgsl(lumina_render::shaders::ISLAND_WGSL);
         black_box(result);
@@ -475,6 +502,10 @@ fn run_benchmark(output: Option<&Path>) -> ExitCode {
         BenchResult {
             name: "text.shape",
             ns_per_op: text_ns,
+        },
+        BenchResult {
+            name: "text.layout.cached",
+            ns_per_op: layout_ns,
         },
         BenchResult {
             name: "shader.validate",
@@ -510,18 +541,20 @@ fn profile_name() -> &'static str {
 
 fn benchmark_json(results: &[BenchResult], platform: Platform) -> String {
     let mut json = String::from("{\n");
-    json.push_str(&format!(
-        "  \"version\": \"{}\",\n  \"platform\": \"{}\",\n  \"profile\": \"{}\",\n  \"results\": [\n",
+    let _ = writeln!(
+        json,
+        "  \"version\": \"{}\",\n  \"platform\": \"{}\",\n  \"profile\": \"{}\",\n  \"results\": [",
         env!("CARGO_PKG_VERSION"),
         platform.id(),
         profile_name()
-    ));
+    );
     for (index, result) in results.iter().enumerate() {
         let comma = if index + 1 == results.len() { "" } else { "," };
-        json.push_str(&format!(
-            "    {{\"name\": \"{}\", \"ns_per_op\": {:.3}}}{comma}\n",
+        let _ = writeln!(
+            json,
+            "    {{\"name\": \"{}\", \"ns_per_op\": {:.3}}}{comma}",
             result.name, result.ns_per_op
-        ));
+        );
     }
     json.push_str("  ]\n}\n");
     json

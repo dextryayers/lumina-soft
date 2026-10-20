@@ -144,6 +144,91 @@ impl AnnouncementGate {
     }
 }
 
+/// Deliver one mirrored announcement through the platform notification channel.
+///
+/// Windows uses a toast through the WinRT notification API from a short
+/// PowerShell invocation; Linux uses `notify-send`. The process is spawned and
+/// detached so a slow notification daemon cannot stall the UI. Callers should
+/// rate-limit with [`AnnouncementGate`] first.
+///
+/// Returns an error when the platform has no supported channel or the helper
+/// cannot be started. A notification daemon that rejects the toast after startup
+/// is not observable here.
+pub fn deliver_announcement(title: &str, body: &str) -> std::io::Result<()> {
+    let (program, args) = notification_command(title, body).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "no notification channel is available on this platform",
+        )
+    })?;
+    std::process::Command::new(program)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|_| ())
+}
+
+/// Build the notification helper command for the current platform.
+///
+/// Exposed for tests and for wording the diagnostics message. The title and
+/// body are always separate argv entries; they are never interpolated into a
+/// shell command.
+#[must_use]
+pub fn notification_command(title: &str, body: &str) -> Option<(String, Vec<String>)> {
+    notification_impl(title, body)
+}
+
+#[cfg(target_os = "windows")]
+#[allow(clippy::unnecessary_wraps)]
+fn notification_impl(title: &str, body: &str) -> Option<(String, Vec<String>)> {
+    const SCRIPT: &str = r#"
+$ErrorActionPreference = 'Stop'
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] > $null
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml('<toast><visual><binding template="ToastText02"><text id="1"></text><text id="2"></text></binding></visual></toast>')
+$texts = $xml.GetElementsByTagName('text')
+$texts.Item(0).AppendChild($xml.CreateTextNode($args[0])) > $null
+$texts.Item(1).AppendChild($xml.CreateTextNode($args[1])) > $null
+$toast = New-Object Windows.UI.Notifications.ToastNotification $xml
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Lumina').Show($toast)
+"#;
+    Some((
+        "powershell.exe".to_string(),
+        vec![
+            "-NoProfile".to_string(),
+            "-NonInteractive".to_string(),
+            "-WindowStyle".to_string(),
+            "Hidden".to_string(),
+            "-Command".to_string(),
+            SCRIPT.to_string(),
+            title.to_string(),
+            body.to_string(),
+        ],
+    ))
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+#[allow(clippy::unnecessary_wraps)]
+fn notification_impl(title: &str, body: &str) -> Option<(String, Vec<String>)> {
+    Some((
+        "notify-send".to_string(),
+        vec![
+            "--app-name=Lumina".to_string(),
+            "--urgency=low".to_string(),
+            title.to_string(),
+            body.to_string(),
+        ],
+    ))
+}
+
+#[cfg(not(any(target_os = "windows", all(unix, not(target_os = "macos")))))]
+fn notification_impl(_title: &str, _body: &str) -> Option<(String, Vec<String>)> {
+    None
+}
+
 fn boolean_env(name: &str) -> Option<bool> {
     parse_boolean(&std::env::var(name).ok()?)
 }
@@ -316,6 +401,24 @@ mod tests {
             gate.min_interval,
             Duration::from_millis(u64::from(config.announce_min_interval_ms))
         );
+    }
+
+    #[test]
+    fn notification_arguments_keep_text_out_of_the_script() {
+        let (program, args) = notification_command("Lumina", "Now playing: A; rm -rf /")
+            .expect("this platform has a notification channel");
+        assert_ne!(program, "");
+        assert!(args.iter().any(|arg| arg == "Now playing: A; rm -rf /"));
+        #[cfg(target_os = "windows")]
+        {
+            let script = args
+                .iter()
+                .position(|arg| arg == "-Command")
+                .expect("the command flag is present");
+            assert!(!args[script + 1].contains("Now playing"));
+        }
+        #[cfg(all(unix, not(target_os = "macos")))]
+        assert_eq!(program, "notify-send");
     }
 
     #[test]

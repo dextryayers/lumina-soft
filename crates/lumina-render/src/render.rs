@@ -211,6 +211,24 @@ impl FrameStats {
     pub fn p99_ms(&self) -> Scalar {
         self.histogram.p99()
     }
+
+    /// One-line summary for the debug overlay and `--diagnostics`.
+    ///
+    /// Built on demand rather than every frame; the overlay can cache it and
+    /// refresh at 1 Hz.
+    #[must_use]
+    pub fn diagnostic_line(&self) -> String {
+        format!(
+            "frames {} drawn / {} skipped ({:.1}% duty), p50 {:.2} ms, p95 {:.2} ms, p99 {:.2} ms, worst {:.2} ms",
+            self.rendered,
+            self.skipped,
+            self.duty_cycle() * 100.0,
+            self.p50_ms(),
+            self.p95_ms(),
+            self.p99_ms(),
+            self.worst_frame_ms
+        )
+    }
 }
 
 /// A frame batch is worth drawing when this is true.
@@ -533,6 +551,23 @@ mod tests {
         assert_eq!(loop_.stats().p50_ms(), 8.0);
         assert_eq!(loop_.stats().p95_ms(), 33.0);
         assert_eq!(loop_.stats().p99_ms(), 33.0);
+    }
+
+    #[test]
+    fn the_diagnostic_line_reports_percentiles_and_duty() {
+        let mut loop_ = RenderLoop::new(60, true);
+        loop_.should_render(dirty_intent());
+        for _ in 0..9 {
+            loop_.should_render(idle_intent());
+        }
+        for millis in [4, 8, 16, 33] {
+            loop_.record_frame_time(std::time::Duration::from_millis(millis));
+        }
+        let line = loop_.stats().diagnostic_line();
+        assert!(line.contains("1 drawn"), "{line}");
+        assert!(line.contains("9 skipped"), "{line}");
+        assert!(line.contains("p95 33.00 ms"), "{line}");
+        assert!(line.contains("worst 33.00 ms"), "{line}");
     }
 
     #[test]

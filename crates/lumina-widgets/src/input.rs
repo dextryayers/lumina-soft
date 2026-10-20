@@ -330,6 +330,37 @@ impl InputRouter {
         self.focused_id.as_deref()
     }
 
+    /// Activate the focused widget, as Enter or Space would.
+    ///
+    /// The router synthesizes a primary click at the widget's centre, so
+    /// pointer-only widgets become keyboard-operable without every widget
+    /// reimplementing activation. Returns `true` when the widget consumed it.
+    pub fn activate_focused(
+        &mut self,
+        widgets: &mut [Box<dyn Widget>],
+        ctx: &WidgetContext,
+    ) -> bool {
+        let Some(index) = self
+            .focused_id
+            .as_ref()
+            .and_then(|id| Self::widget_index(id, widgets))
+        else {
+            return false;
+        };
+        let Some(rect) = self.rects.get(index) else {
+            return false;
+        };
+        widgets[index].on_input(&WidgetInput::Click(rect.center()), ctx, *rect)
+    }
+
+    /// Drop focus in response to Escape.
+    ///
+    /// Returns `true` when something was focused, so the caller can distinguish
+    /// "Escape collapsed the island" from "Escape did nothing".
+    pub fn dismiss_focus(&mut self) -> bool {
+        self.focused_id.take().is_some()
+    }
+
     /// Clear focus when the focused widget is no longer registered.
     ///
     /// Layout rebuilds can remove a widget while it holds focus. Calling this
@@ -471,6 +502,19 @@ mod tests {
         );
         assert_eq!(router.focus_next(&[]), None);
         assert!(router.focused_id().is_none());
+    }
+
+    #[test]
+    fn enter_can_activate_the_focused_widget_without_a_pointer() {
+        let mut router = InputRouter::new();
+        router.update_rects(vec![Rect::new(0.0, 0.0, 100.0, 40.0)]);
+        let mut widgets: Vec<Box<dyn Widget>> = vec![Box::new(ClickableWidget)];
+        let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
+        router.set_focus("clickable");
+        assert!(router.activate_focused(&mut widgets, &ctx));
+        assert!(router.dismiss_focus());
+        assert!(router.focused_id().is_none());
+        assert!(!router.dismiss_focus());
     }
 
     #[test]

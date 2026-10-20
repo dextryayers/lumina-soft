@@ -2176,7 +2176,7 @@ Every combination of OS and session is mandatory. Every other dimension is sampl
 
 | Profile | Use | Settings |
 |---|---|---|
-| `release` | Distribution | `opt-level = "z"`, `lto = "fat"`, `codegen-units = 1`, `panic = "abort"` in the app binary, `strip = true` |
+| `release` | Distribution | `opt-level = "z"`, `lto = "fat"`, `codegen-units = 1`, `panic = "unwind"` so worker panics can be contained, `strip = true` |
 | `release-visual` | Development with visuals | `opt-level = 3`, debug assertions on, full symbols |
 | `dev` | Iteration | `opt-level = 1`, fast rebuilds |
 

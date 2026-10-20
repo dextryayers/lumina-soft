@@ -97,7 +97,9 @@ doc_markdown = "allow"
 opt-level = "z"
 lto = "fat"
 codegen-units = 1
-panic = "abort"
+# Worker panics are contained with `catch_unwind`; abort would defeat that
+# policy and take the island down when audio or media capture fails.
+panic = "unwind"
 strip = true
 
 [profile.release-visual]

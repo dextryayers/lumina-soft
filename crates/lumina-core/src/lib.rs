@@ -12,6 +12,7 @@
 //! * [`color`] : sRGB, linear, OkLab, and WCAG contrast utilities.
 //! * [`state`] : island states, normalized input events, and the state machine.
 //! * [`time`] : monotonic clocks, frame pacing, and fixed step integration.
+//! * [`worker`] : panic containment for background workers.
 
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
@@ -22,10 +23,12 @@ pub mod sdf;
 pub mod spring;
 pub mod state;
 pub mod time;
+pub mod worker;
 
 pub use geometry::{Geometry, Insets, Rect, Scalar, Size, Vec2};
 pub use spring::Spring;
 pub use state::{IslandState, StateMachine, TransitionSource};
+pub use worker::{run_guarded, spawn_guarded, WorkerPanic};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
