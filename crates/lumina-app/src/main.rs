@@ -7,6 +7,8 @@
 //! | `--version` | Print version, commit, and target triple |
 //! | `--check-config` | Load, validate, and report on the configuration file |
 //! | `--diagnostics` | Print the full environment dump for bug reports |
+//! | `--self-test` | Exercise the headless subsystem checks |
+//! | `--benchmark [--output PATH] [--baseline PATH]` | Record CPU benchmarks and optionally compare them |
 //! | `--autostart [install\|remove\|status]` | Manage the per-user autostart entry |
 //! | `--activate` | Ask a running instance to show itself |
 //! | `--hidden` | Start with the island hidden (used by autostart) |
@@ -17,7 +19,7 @@
 //! | Code | Meaning |
 //! |---|---|
 //! | 0 | Success, or the config is valid |
-//! | 1 | The config has problems (`--check-config`) |
+//! | 1 | The config has problems, a self-test failed, or a benchmark regressed |
 //! | 2 | Bad arguments |
 
 use std::fmt::Write as _;
@@ -889,5 +891,61 @@ fn main() -> ExitCode {
         let _ = single_instance::notify_existing("lumina", "show");
         println!("Lumina is already running; asked it to show itself.");
         ExitCode::SUCCESS
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_string()).collect()
+    }
+
+    #[test]
+    fn benchmark_paths_accept_both_spellings() {
+        assert_eq!(
+            output_argument(&args(&["--output", "a.json"])),
+            Ok(Some(PathBuf::from("a.json")))
+        );
+        assert_eq!(
+            output_argument(&args(&["--output=b.json"])),
+            Ok(Some(PathBuf::from("b.json")))
+        );
+        assert_eq!(
+            baseline_argument(&args(&["--baseline", "base.json"])),
+            Ok(Some(PathBuf::from("base.json")))
+        );
+        assert_eq!(
+            baseline_argument(&args(&["--baseline=base.json"])),
+            Ok(Some(PathBuf::from("base.json")))
+        );
+        assert_eq!(output_argument(&args(&[])), Ok(None));
+    }
+
+    #[test]
+    fn benchmark_paths_reject_missing_values() {
+        assert!(output_argument(&args(&["--output"])).is_err());
+        assert!(output_argument(&args(&["--output", "--baseline"])).is_err());
+        assert!(baseline_argument(&args(&["--baseline="])).is_err());
+    }
+
+    #[test]
+    fn benchmark_json_is_valid_and_names_every_result() {
+        let results = [
+            BenchResult {
+                name: "color.static.update",
+                ns_per_op: 12.5,
+            },
+            BenchResult {
+                name: "text.shape",
+                ns_per_op: 34.0,
+            },
+        ];
+        let json = benchmark_json(&results, Platform::Windows);
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(parsed["platform"], "windows");
+        assert_eq!(parsed["results"].as_array().expect("results").len(), 2);
+        assert_eq!(parsed["results"][1]["name"], "text.shape");
     }
 }
