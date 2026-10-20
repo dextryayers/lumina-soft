@@ -47,6 +47,8 @@ use lumina_text::atlas::Atlas;
 use lumina_text::layout::{Overflow, TextAlignment, TextLayoutCache};
 use lumina_text::shaping::Shaper;
 
+mod runtime;
+
 /// Print version information.
 fn print_version() {
     println!("Lumina {}", env!("CARGO_PKG_VERSION"));
@@ -1270,18 +1272,29 @@ fn main() -> ExitCode {
         eprintln!("error: unknown argument '{unknown}'");
         eprintln!("Try 'lumina --help' for more information.");
         ExitCode::from(2)
-    } else if let Ok(_guard) = single_instance::claim("lumina") {
-        // The island itself arrives in Phase 6. Until then, print the
-        // environment so a user can confirm the binary runs and see what
-        // the platform supports.
-        print_diagnostics(&config_path());
-        println!();
-        println!("Lumina is not yet able to create its window. See PLAN.md Phase 6.");
-        ExitCode::SUCCESS
     } else {
-        let _ = single_instance::notify_existing("lumina", "show");
-        println!("Lumina is already running; asked it to show itself.");
-        ExitCode::SUCCESS
+        let config_path = match selected_config(&args) {
+            Ok(path) => path,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::from(2);
+            }
+        };
+        match runtime::run(runtime::RuntimeOptions {
+            config_path,
+            hidden,
+        }) {
+            Ok(runtime::RunOutcome::Exited) => ExitCode::SUCCESS,
+            Ok(runtime::RunOutcome::AlreadyRunning) => {
+                let _ = single_instance::notify_existing("lumina", "show");
+                println!("Lumina is already running; asked it to show itself.");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("error: {error}");
+                ExitCode::FAILURE
+            }
+        }
     }
 }
 

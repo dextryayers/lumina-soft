@@ -22,7 +22,7 @@ use std::ffi::c_void;
 
 use lumina_core::geometry::Rect;
 use raw_window_handle::RawWindowHandle;
-use windows::Win32::Foundation::{BOOL, HWND, RECT};
+use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Dwm::{
     DwmExtendFrameIntoClientArea, DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
     DWMWCP_ROUND,
@@ -283,7 +283,7 @@ unsafe extern "system" fn enum_monitor_callback(
     _dc: windows::Win32::Graphics::Gdi::HDC,
     _clip: *mut RECT,
     _data: windows::Win32::Foundation::LPARAM,
-) -> BOOL {
+) -> windows::core::BOOL {
     let mut dpi_x = 96u32;
     let mut dpi_y = 96u32;
     let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &raw mut dpi_x, &raw mut dpi_y) };
@@ -316,7 +316,7 @@ unsafe extern "system" fn enum_monitor_callback(
         });
     });
 
-    BOOL(1) // TRUE, keep enumerating
+    windows::core::BOOL(1) // TRUE, keep enumerating
 }
 
 /// Extract the `HWND` from a raw window handle.
@@ -421,7 +421,7 @@ impl OverlayBackend for Win32Backend {
         let result = unsafe {
             SetWindowPos(
                 hwnd,
-                HWND_TOPMOST,
+                Some(HWND_TOPMOST),
                 b.x.round() as i32,
                 b.y.round() as i32,
                 geometry.size.0.max(1),
@@ -448,7 +448,7 @@ impl OverlayBackend for Win32Backend {
         let result = unsafe {
             SetWindowPos(
                 hwnd,
-                HWND_TOPMOST,
+                Some(HWND_TOPMOST),
                 0,
                 0,
                 0,

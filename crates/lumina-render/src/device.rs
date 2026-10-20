@@ -144,12 +144,13 @@ impl GpuDevice {
                 power_preference: wgpu::PowerPreference::LowPower,
                 force_fallback_adapter: false,
                 compatible_surface: None,
+                apply_limit_buckets: false,
             };
 
             let adapter = instance
                 .request_adapter(&request)
                 .await
-                .ok_or(GpuError::NoAdapter(backend))?;
+                .map_err(|_| GpuError::NoAdapter(backend))?;
 
             let info = adapter.get_info();
             let resolved = backend_from_wgpu(info.backend);

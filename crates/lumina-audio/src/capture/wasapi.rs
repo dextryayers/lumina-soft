@@ -27,7 +27,7 @@
 use super::{spawn_worker, stop_flagged, CaptureError, CaptureFormat, CaptureRequest, ReadySignal};
 use crate::ring::RingWriter;
 use std::sync::Arc;
-use windows::core::{Interface, PROPVARIANT, PWSTR};
+use windows::core::{Interface, PWSTR};
 use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
 use windows::Win32::Media::Audio::{
     eCapture, eConsole, eRender, IAudioCaptureClient, IAudioClient, IMMDevice, IMMDeviceCollection,
@@ -36,7 +36,9 @@ use windows::Win32::Media::Audio::{
 };
 use windows::Win32::Media::KernelStreaming::WAVE_FORMAT_EXTENSIBLE;
 use windows::Win32::Media::Multimedia::{KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, WAVE_FORMAT_IEEE_FLOAT};
-use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVariantToStringAlloc};
+use windows::Win32::System::Com::StructuredStorage::{
+    PropVariantClear, PropVariantToStringAlloc, PROPVARIANT,
+};
 use windows::Win32::System::Com::{CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ};
 use windows::Win32::System::Threading::Sleep;
 

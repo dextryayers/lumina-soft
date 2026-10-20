@@ -72,7 +72,7 @@ pub(super) fn connect(address: &IpcAddress) -> io::Result<Box<dyn Connection>> {
                 None,
                 OPEN_EXISTING,
                 FILE_ATTRIBUTE_NORMAL,
-                HANDLE::default(),
+                None,
             )
         } {
             Ok(handle) => {
@@ -144,7 +144,7 @@ fn user_sid() -> io::Result<String> {
         let text = sid_string
             .to_string()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "SID is not UTF-16"))?;
-        let _ = LocalFree(HLOCAL(sid_string.0.cast()));
+        let _ = LocalFree(Some(HLOCAL(sid_string.0.cast())));
         Ok(text)
     }
 }
@@ -180,7 +180,7 @@ impl SecurityDescriptor {
 
 impl Drop for SecurityDescriptor {
     fn drop(&mut self) {
-        let _ = unsafe { LocalFree(HLOCAL(self.0 .0)) };
+        let _ = unsafe { LocalFree(Some(HLOCAL(self.0 .0))) };
     }
 }
 

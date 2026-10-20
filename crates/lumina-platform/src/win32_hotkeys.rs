@@ -17,7 +17,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+use windows::Win32::Foundation::{LPARAM, WPARAM};
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS,
@@ -136,7 +136,7 @@ fn run_loop(commands: Receiver<Command>, events: Sender<HotkeyEvent>, id_tx: Sen
         // Without this, a very fast drop can post WM_QUIT before the queue
         // exists, lose it, and then block forever in join.
         let mut message = MSG::default();
-        let _ = PeekMessageW(&raw mut message, HWND::default(), 0, 0, PM_NOREMOVE);
+        let _ = PeekMessageW(&raw mut message, None, 0, 0, PM_NOREMOVE);
         let _ = id_tx.send(GetCurrentThreadId());
     }
 
@@ -145,7 +145,7 @@ fn run_loop(commands: Receiver<Command>, events: Sender<HotkeyEvent>, id_tx: Sen
 
     loop {
         let mut message = MSG::default();
-        let result = unsafe { GetMessageW(&raw mut message, HWND::default(), 0, 0) };
+        let result = unsafe { GetMessageW(&raw mut message, None, 0, 0) };
         if result.0 <= 0 {
             break;
         }
@@ -173,7 +173,7 @@ fn run_loop(commands: Receiver<Command>, events: Sender<HotkeyEvent>, id_tx: Sen
                     {
                         let (id, _) = registered.remove(index);
                         unsafe {
-                            let _ = UnregisterHotKey(HWND::default(), id);
+                            let _ = UnregisterHotKey(None, id);
                         }
                     }
                     let _ = reply.send(Ok(()));
@@ -181,7 +181,7 @@ fn run_loop(commands: Receiver<Command>, events: Sender<HotkeyEvent>, id_tx: Sen
                 Ok(Command::Stop) => {
                     for (id, _) in registered.drain(..) {
                         unsafe {
-                            let _ = UnregisterHotKey(HWND::default(), id);
+                            let _ = UnregisterHotKey(None, id);
                         }
                     }
                     return;
@@ -193,7 +193,7 @@ fn run_loop(commands: Receiver<Command>, events: Sender<HotkeyEvent>, id_tx: Sen
 
     for (id, _) in registered.drain(..) {
         unsafe {
-            let _ = UnregisterHotKey(HWND::default(), id);
+            let _ = UnregisterHotKey(None, id);
         }
     }
 }
@@ -215,7 +215,7 @@ fn register_one(
     let id = *next_id;
     *next_id += 1;
     let flags = HOT_KEY_MODIFIERS(binding.hotkey.modifiers.windows_flags());
-    match unsafe { RegisterHotKey(HWND::default(), id, flags, vk) } {
+    match unsafe { RegisterHotKey(None, id, flags, vk) } {
         Ok(()) => {
             registered.push((id, binding));
             Ok(())

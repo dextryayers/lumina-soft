@@ -153,11 +153,11 @@ struct FragmentOutput {
 @fragment
 fn fs_main(input: VertexOutput) -> FragmentOutput {
     // Shape space: origin at the island center, +y up.
-    let frag_coord = input.shape_coord;
+    let frag_px = input.shape_coord * u.resolution;
     let pixel = 1.0 / max(u.dpr, 0.001);
     let p = vec2<f32>(
-        (frag_coord.x - u.origin_px.x) * u.inv_extent.x * 0.5,
-        (u.origin_px.y - frag_coord.y) * u.inv_extent.y * 0.5,
+        (frag_px.x - u.origin_px.x) / max(u.dpr, 0.001),
+        (u.origin_px.y - frag_px.y) / max(u.dpr, 0.001),
     );
 
     let shape = sd_rounded_trapezoid(p, u.half_bottom, u.half_top, u.half_h, u.radius);
@@ -197,7 +197,7 @@ fn fs_main(input: VertexOutput) -> FragmentOutput {
     }
 
     // Dither noise, which removes gradient banding on an 8 bit display.
-    let noise = (hash(floor(input.shape_coord / max(u.dpr, 1.0))) - 0.5) * u.noise_strength;
+    let noise = (hash(floor(frag_px / max(u.dpr, 1.0))) - 0.5) * u.noise_strength;
 
     var color = fill;
     color = mix(color, vec4<f32>(u.glow_rgb, 1.0), clamp(glow_amount, 0.0, 1.0) * coverage(shape, glow_start));

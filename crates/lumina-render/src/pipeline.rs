@@ -89,12 +89,12 @@ impl IslandPipeline {
         // Try the primary shader first. `naga` validation has already run at
         // startup, so a failure here is a driver-specific validation error, which
         // is exactly the case the fallback exists for.
-        device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
         let primary_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("lumina-island-shader"),
             source: wgpu::ShaderSource::Wgsl(ISLAND_WGSL.into()),
         });
-        let primary_error = device.pop_error_scope().await;
+        let primary_error = error_scope.pop().await;
 
         let (module, is_fallback) = match primary_error {
             Some(_) => {
@@ -109,8 +109,8 @@ impl IslandPipeline {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("lumina-island-pipeline-layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -122,13 +122,13 @@ impl IslandPipeline {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &module,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &module,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
@@ -142,7 +142,8 @@ impl IslandPipeline {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
+            cache: None,
         });
 
         Ok(Self {
