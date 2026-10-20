@@ -65,7 +65,7 @@ pub struct IslandUniforms {
     /// Gradient strength between the fill and accent color.
     pub gradient_strength: Scalar,
     /// Trailing padding to the uniform struct's 16 byte alignment.
-    pub _padding: [f32; 2],
+    pub padding: [f32; 2],
 }
 
 /// The screen-space parameters for one frame's uniforms.
@@ -150,7 +150,7 @@ impl IslandUniforms {
             time_seconds: params.time_seconds,
             content_opacity: params.content_opacity.clamp(0.0, 1.0),
             gradient_strength: appearance.fill_gradient.clamp(0.0, 1.0),
-            _padding: [0.0; 2],
+            padding: [0.0; 2],
         }
     }
 

@@ -27,8 +27,8 @@ use pollster::block_on;
 use serde_json::{json, Value};
 use wgpu::{
     Backends, CompositeAlphaMode, CurrentSurfaceTexture, DeviceDescriptor, Instance,
-    InstanceDescriptor, PresentMode, RequestAdapterOptions, Surface, SurfaceConfiguration,
-    SurfaceColorSpace, TextureFormat, TextureUsages,
+    InstanceDescriptor, PresentMode, RequestAdapterOptions, Surface, SurfaceColorSpace,
+    SurfaceConfiguration, TextureFormat, TextureUsages,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -41,6 +41,7 @@ const RUNTIME_NAME: &str = "lumina";
 const IPC_TIMEOUT: Duration = Duration::from_secs(2);
 const ACTIVATION_POLL: Duration = Duration::from_millis(250);
 const QUIT_GRACE: Duration = Duration::from_millis(120);
+const IPC_RESTART_GRACE: Duration = Duration::from_millis(150);
 const MIN_SURFACE: u32 = 16;
 
 /// Options accepted by the desktop runtime.
@@ -177,10 +178,7 @@ fn maximal_logical_size(config: &Config) -> (Scalar, Scalar) {
     )
 }
 
-fn backend_candidates(
-    backend: GpuBackend,
-    composition: bool,
-) -> Vec<(&'static str, Backends)> {
+fn backend_candidates(backend: GpuBackend, composition: bool) -> Vec<(&'static str, Backends)> {
     match backend {
         GpuBackend::Auto => auto_backend_candidates(composition),
         GpuBackend::Vulkan => vec![("Vulkan", Backends::VULKAN)],
@@ -501,6 +499,11 @@ fn create_island_window(
     {
         use winit::platform::windows::WindowExtWindows;
         window.set_skip_taskbar(true);
+        if let Some(hwnd) = window_hwnd(&window) {
+            if let Err(error) = lumina_platform::win32::prepare_island_window(hwnd) {
+                eprintln!("lumina: could not mark the window as an overlay: {error}");
+            }
+        }
     }
 
     Ok(window)
@@ -750,6 +753,7 @@ struct RuntimeApp {
     last_frame: Instant,
     last_activity: Instant,
     pending_exit: Option<Instant>,
+    pending_ipc_restart: Option<Instant>,
     visible: bool,
     window_revealed: bool,
     dirty: bool,
@@ -798,6 +802,7 @@ impl RuntimeApp {
             last_frame: Instant::now(),
             last_activity: Instant::now(),
             pending_exit: None,
+            pending_ipc_restart: None,
             visible,
             window_revealed: false,
             dirty: visible,
@@ -843,12 +848,12 @@ impl RuntimeApp {
         self.gpu = Some(gpu);
         self.placement = Some(placement);
         self.monitor_name = monitor_name;
-        self.update_click_through();
         self.start_ipc();
 
         if self.visible {
-            window.request_redraw();
+            self.reveal_window();
         }
+        self.update_click_through();
         Ok(())
     }
 
@@ -885,6 +890,23 @@ impl RuntimeApp {
             }
             Err(error) => eprintln!("lumina: could not start IPC: {error}"),
         }
+    }
+
+    fn ipc_restart_needed(&self) -> bool {
+        let desired = if self.config.advanced.ipc_enabled {
+            ipc_address(&self.config).ok()
+        } else {
+            None
+        };
+        desired != self.ipc.as_ref().map(|handle| handle.address().clone())
+    }
+
+    fn restart_ipc(&mut self) {
+        if let Some(handle) = self.ipc.take() {
+            eprintln!("lumina: IPC address changed, restarting listener");
+            handle.shutdown();
+        }
+        self.start_ipc();
     }
 
     fn draw(&mut self, event_loop: &ActiveEventLoop) {
@@ -970,9 +992,8 @@ impl RuntimeApp {
         self.last_activity = Instant::now();
         self.visible = true;
         self.dirty = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.reveal_window();
+        self.update_click_through();
     }
 
     fn collapse(&mut self) {
@@ -1012,17 +1033,28 @@ impl RuntimeApp {
     }
 
     fn show(&mut self) {
-        let was_hidden = !self.visible;
         self.visible = true;
         self.last_activity = Instant::now();
         self.dirty = true;
-        if was_hidden {
-            self.window_revealed = false;
-        }
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.reveal_window();
         self.update_click_through();
+    }
+
+    fn reveal_window(&mut self) {
+        let Some(window) = &self.window else {
+            return;
+        };
+        if !self.window_revealed {
+            window.set_visible(true);
+            #[cfg(target_os = "windows")]
+            if let Some(hwnd) = window_hwnd(window) {
+                if let Err(error) = lumina_platform::win32::prepare_island_window(hwnd) {
+                    eprintln!("lumina: could not mark the window as an overlay: {error}");
+                }
+            }
+            self.window_revealed = true;
+        }
+        window.request_redraw();
     }
 
     fn activate(&mut self) {
@@ -1236,6 +1268,9 @@ impl RuntimeApp {
         self.placement = Some(placement);
         self.monitor_name = monitor_name;
         self.update_click_through();
+        if self.ipc_restart_needed() {
+            self.pending_ipc_restart = Some(Instant::now() + IPC_RESTART_GRACE);
+        }
         self.dirty = true;
         Ok(())
     }
@@ -1271,6 +1306,34 @@ impl RuntimeApp {
         }
     }
 
+    fn idle_timeout(&mut self) {
+        if !self.visible || self.pointer_inside || self.state.current() == IslandState::Collapsed {
+            return;
+        }
+
+        let timeout = self.config.general.idle_timeout_ms;
+        if timeout == 0 || self.last_activity.elapsed() < Duration::from_millis(u64::from(timeout))
+        {
+            return;
+        }
+
+        if self.state.clear_pins() == 0 {
+            return;
+        }
+
+        self.last_activity = Instant::now();
+        if self.state.resolve(self.now_ms()) {
+            let _ = self
+                .events
+                .emit(&Event::state_changed(self.state.current().id()));
+        }
+        self.update_click_through();
+        self.dirty = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
     fn auto_hide(&mut self) {
         if !self.config.general.auto_hide
             || !self.visible
@@ -1295,12 +1358,23 @@ impl RuntimeApp {
             return;
         }
 
+        if self
+            .pending_ipc_restart
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            self.pending_ipc_restart = None;
+            if self.ipc_restart_needed() {
+                self.restart_ipc();
+            }
+        }
+
         if let Some(message) = self.guard.as_ref().and_then(InstanceGuard::take_activation) {
             if message.trim() == "show" {
                 self.activate();
             }
         }
 
+        self.idle_timeout();
         self.auto_hide();
 
         let needs_frame = self.visible && (self.dirty || self.animating);

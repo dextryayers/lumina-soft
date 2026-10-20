@@ -493,6 +493,18 @@ impl StateMachine {
         self.requests.clear();
     }
 
+    /// Drop every pinned request, returning how many were removed.
+    ///
+    /// Ordinary widget requests survive. This is what `idle_timeout_ms` uses:
+    /// an explicit pin should not keep the island expanded forever, but an
+    /// automatic request such as "media is playing" may continue to own the
+    /// state until the widget stops asking for it.
+    pub fn clear_pins(&mut self) -> usize {
+        let before = self.requests.len();
+        self.requests.retain(|request| !request.pinned);
+        before - self.requests.len()
+    }
+
     /// Record pointer presence, used for hover arbitration.
     pub fn set_pointer_inside(&mut self, inside: bool) {
         self.pointer_inside = inside;
@@ -825,6 +837,31 @@ mod tests {
 
         sm.resolve(NOW + 1_000_000_000);
         assert_eq!(sm.current(), IslandState::Shortcuts);
+        assert_eq!(sm.requests().len(), 1);
+    }
+
+    #[test]
+    fn clearing_pins_keeps_ordinary_requests() {
+        let mut sm = StateMachine::new();
+        sm.request(StateRequest::persistent(
+            IslandState::Shortcuts,
+            TransitionSource::Tray,
+        ));
+        sm.request(StateRequest::until(IslandState::Media, NOW + 30_000));
+        sm.resolve(NOW);
+        assert_eq!(sm.current(), IslandState::Shortcuts);
+
+        assert_eq!(sm.clear_pins(), 1);
+        assert_eq!(sm.requests().len(), 1);
+        sm.resolve(NOW);
+        assert_eq!(sm.current(), IslandState::Media);
+    }
+
+    #[test]
+    fn clearing_pins_reports_zero_when_none_are_pinned() {
+        let mut sm = StateMachine::new();
+        sm.request(StateRequest::until(IslandState::Media, NOW + 30_000));
+        assert_eq!(sm.clear_pins(), 0);
         assert_eq!(sm.requests().len(), 1);
     }
 

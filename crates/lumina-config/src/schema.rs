@@ -270,7 +270,7 @@ pub struct GeneralConfig {
     pub auto_hide_delay_ms: u32,
     /// Keep the island clickable even while collapsed.
     pub always_clickable: bool,
-    /// Collapse after this long with nothing happening, in milliseconds.
+    /// Release pinned states after this long with nothing happening, in milliseconds.
     pub idle_timeout_ms: u32,
     /// Let clicks pass through to whatever is underneath while collapsed.
     pub click_through_when_collapsed: bool,

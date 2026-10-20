@@ -66,7 +66,7 @@ A theme or profile only contains the keys it changes. See
 | `auto_hide` | `false` | Fade the island out when nothing is happening. |
 | `auto_hide_delay_ms` | `3000` | How long to wait before fading out, in milliseconds. |
 | `always_clickable` | `false` | Keep the island clickable even while it is collapsed. |
-| `idle_timeout_ms` | `5000` | Collapse after this long with nothing happening. 0 never collapses on its own. |
+| `idle_timeout_ms` | `5000` | Release pinned states after this long with nothing happening. 0 never releases automatically. |
 | `click_through_when_collapsed` | `true` | Let mouse clicks reach the window underneath while the island is collapsed. |
 | `start_hidden` | `false` | Start with the island hidden, for example when autostarting at login. |
 | `reserve_space` | `false` | Reserve screen space so maximised windows stop at the island instead of<br>sliding underneath it. Off by default because shrinking every window is a<br>surprise. Wayland honours this through the layer-shell exclusive zone. |

@@ -36,8 +36,8 @@ use windows::Win32::UI::HiDpi::{
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE,
     HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE,
-    SW_SHOWNOACTIVATE, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW,
-    WS_EX_TRANSPARENT,
+    SW_SHOWNOACTIVATE, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP,
+    WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
 
 use crate::capability::{Capabilities, Platform};
@@ -353,6 +353,26 @@ fn refresh_window_frame(hwnd: HWND) {
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER | SWP_FRAMECHANGED,
         );
     }
+}
+
+/// Mark a winit-created window as a non-activating tool overlay.
+///
+/// Winit creates a plain top-level window, which owns a taskbar button and an
+/// Alt-Tab entry even when `set_skip_taskbar` is used. `WS_EX_TOOLWINDOW`
+/// removes it from both, and `WS_EX_NOACTIVATE` prevents `ShowWindow` from
+/// stealing focus when the island appears. The window is already created with
+/// `WS_EX_NOREDIRECTIONBITMAP`; adding that style after creation does not work
+/// on Windows, so it is deliberately not touched here.
+pub fn prepare_island_window(hwnd: isize) -> Result<(), OverlayError> {
+    let hwnd = hwnd_from_isize(hwnd);
+    let current = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
+    let desired = (current | WS_EX_TOOLWINDOW.0 as isize | WS_EX_NOACTIVATE.0 as isize)
+        & !(WS_EX_APPWINDOW.0 as isize);
+    if desired != current {
+        write_extended_style(hwnd, desired)?;
+        refresh_window_frame(hwnd);
+    }
+    Ok(())
 }
 
 /// Toggle click-through for a window that presents through DirectComposition.

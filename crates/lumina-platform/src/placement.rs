@@ -207,7 +207,7 @@ fn clamp_into(value: &mut i32, min: i32, max: i32, allow_free: bool) -> bool {
     }
     if max < min {
         // The window is wider than the range. Centre it rather than jitter.
-        let centre = (min + max) / 2;
+        let centre = min.midpoint(max);
         if *value != centre {
             *value = centre;
             return true;

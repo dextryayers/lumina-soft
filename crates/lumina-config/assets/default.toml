@@ -27,7 +27,7 @@ auto_hide = false
 auto_hide_delay_ms = 3000
 # Keep the island clickable even while it is collapsed.
 always_clickable = false
-# Collapse after this long with nothing happening. 0 never collapses on its own.
+# Release pinned states after this long with nothing happening. 0 never releases automatically.
 idle_timeout_ms = 5000
 # Let mouse clicks reach the window underneath while the island is collapsed.
 click_through_when_collapsed = true

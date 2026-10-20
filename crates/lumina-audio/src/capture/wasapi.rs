@@ -611,7 +611,7 @@ mod tests {
     fn propvariant_take_never_leaks_the_value() {
         // An empty variant clone/clear round trip is a compile of the
         // ownership helpers without hardware.
-        let value = PROPVARIANT::new();
+        let value = PROPVARIANT::default();
         assert!(value.is_empty());
         let taken = propvariant_take(&value);
         assert!(taken.is_empty());

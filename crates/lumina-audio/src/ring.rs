@@ -420,7 +420,7 @@ mod tests {
                         // a healthy one frees a block well before this.
                         break;
                     }
-                    if rng.next() % 4 == 0 {
+                    if rng.next().is_multiple_of(4) {
                         thread::sleep(std::time::Duration::from_micros(20));
                     }
                     if writer.free_space() < BLOCK {

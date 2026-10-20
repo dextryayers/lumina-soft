@@ -86,7 +86,7 @@ impl GsmtcSession {
 
         let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
             .map_err(|e| format!("failed to request session manager: {e:?}"))?
-            .get()
+            .join()
             .map_err(|e| format!("failed to get session manager: {e:?}"))?;
 
         let sessions = manager
@@ -135,7 +135,7 @@ impl GsmtcSession {
         let media_properties = session
             .TryGetMediaPropertiesAsync()
             .map_err(|e| format!("failed to get media properties: {e:?}"))?
-            .get()
+            .join()
             .map_err(|e| format!("failed to get media properties: {e:?}"))?;
 
         let metadata = Metadata {
@@ -221,35 +221,35 @@ impl GsmtcSession {
                 session
                     .TryPlayAsync()
                     .map_err(|e| format!("{e:?}"))?
-                    .get()
+                    .join()
                     .map_err(|e| format!("{e:?}"))?;
             }
             "Pause" => {
                 session
                     .TryPauseAsync()
                     .map_err(|e| format!("{e:?}"))?
-                    .get()
+                    .join()
                     .map_err(|e| format!("{e:?}"))?;
             }
             "Stop" => {
                 session
                     .TryStopAsync()
                     .map_err(|e| format!("{e:?}"))?
-                    .get()
+                    .join()
                     .map_err(|e| format!("{e:?}"))?;
             }
             "Next" => {
                 session
                     .TrySkipNextAsync()
                     .map_err(|e| format!("{e:?}"))?
-                    .get()
+                    .join()
                     .map_err(|e| format!("{e:?}"))?;
             }
             "Previous" => {
                 session
                     .TrySkipPreviousAsync()
                     .map_err(|e| format!("{e:?}"))?
-                    .get()
+                    .join()
                     .map_err(|e| format!("{e:?}"))?;
             }
             _ => return Err(format!("unknown command: {command}")),
@@ -315,7 +315,7 @@ impl MediaSession for GsmtcSession {
         session
             .TryChangePlaybackPositionAsync(position.as_micros() as i64)
             .map_err(|e| format!("{e:?}"))?
-            .get()
+            .join()
             .map_err(|e| format!("{e:?}"))?;
         Ok(())
     }
@@ -329,7 +329,7 @@ pub fn discover_sessions() -> Vec<String> {
     use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
 
     let manager = match GlobalSystemMediaTransportControlsSessionManager::RequestAsync() {
-        Ok(request) => match request.get() {
+        Ok(request) => match request.join() {
             Ok(m) => m,
             Err(_) => return Vec::new(),
         },

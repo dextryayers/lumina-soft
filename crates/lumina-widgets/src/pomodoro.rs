@@ -202,7 +202,9 @@ impl PomodoroTimer {
     fn next_phase(&self) -> PomodoroPhase {
         match self.phase {
             PomodoroPhase::Focus => {
-                if self.completed_focus > 0 && self.completed_focus % self.rounds_before_long == 0 {
+                if self.completed_focus > 0
+                    && self.completed_focus.is_multiple_of(self.rounds_before_long)
+                {
                     PomodoroPhase::LongBreak
                 } else {
                     PomodoroPhase::ShortBreak

@@ -95,7 +95,7 @@ Events have no request id. They are pushed to every connected client.
 | `set_profile` | `name` | `"ok"` | `UnknownProfile` for an unknown name |
 | `get_config` | `section` optional | object | Reads the effective config |
 | `set_config` | `path`, `value`, `persist` | `"ok"` | `persist: false` keeps the change session-only |
-| `reload_config` | none | `"ok"` | Same as the reload hotkey |
+| `reload_config` | none | `"ok"` | Same as the reload hotkey; restarts the listener if `advanced.ipc_name` or `advanced.ipc_enabled` changed |
 | `media` | `action`, `player`, `position_ms`, `volume` | `"ok"` | See media actions below |
 | `player_list` | none | array | Identities and statuses |
 | `shortcut` | `id` | `"ok"` | Runs a configured shortcut action |

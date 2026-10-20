@@ -37,7 +37,6 @@ use windows::Win32::Storage::FileSystem::{
     CreateFileW, ReadFile, WriteFile, FILE_ATTRIBUTE_NORMAL, FILE_FLAG_OVERLAPPED, OPEN_EXISTING,
     PIPE_ACCESS_DUPLEX,
 };
-use windows::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
 use windows::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS,
     PIPE_TYPE_BYTE, PIPE_WAIT,
@@ -45,6 +44,7 @@ use windows::Win32::System::Pipes::{
 use windows::Win32::System::Threading::{
     CreateEventW, GetCurrentProcess, OpenProcessToken, WaitForSingleObject,
 };
+use windows::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
 
 use super::{Connection, IpcAddress, Listener};
 
@@ -221,7 +221,7 @@ fn run_overlapped(
         Err(error) => return Err(error),
     }
     let mut transferred = 0u32;
-    unsafe { GetOverlappedResult(handle, &overlapped, &mut transferred, true) }?;
+    unsafe { GetOverlappedResult(handle, &raw const overlapped, &raw mut transferred, true) }?;
     Ok(transferred)
 }
 
@@ -250,8 +250,13 @@ impl Drop for PendingConnect {
         let handle = HANDLE(pipe.as_raw_handle());
         let mut transferred = 0u32;
         unsafe {
-            let _ = CancelIoEx(handle, Some(&*self.overlapped));
-            let _ = GetOverlappedResult(handle, &*self.overlapped, &mut transferred, true);
+            let _ = CancelIoEx(handle, Some(&raw const *self.overlapped));
+            let _ = GetOverlappedResult(
+                handle,
+                &raw const *self.overlapped,
+                &raw mut transferred,
+                true,
+            );
         }
     }
 }
@@ -299,7 +304,7 @@ impl PipeListener {
             ..Default::default()
         });
         let handle = HANDLE(pipe.as_raw_handle());
-        match unsafe { ConnectNamedPipe(handle, Some(&mut *overlapped)) } {
+        match unsafe { ConnectNamedPipe(handle, Some(&raw mut *overlapped)) } {
             Ok(()) => Ok(Connect::Connected(pipe)),
             Err(error) if error.code() == HRESULT::from_win32(ERROR_PIPE_CONNECTED.0) => {
                 Ok(Connect::Connected(pipe))
@@ -328,13 +333,16 @@ impl Listener for PipeListener {
 
         match unsafe { WaitForSingleObject(HANDLE(pending.event.as_raw_handle()), 0) } {
             WAIT_OBJECT_0 => {
-                let pipe = pending.pipe.as_ref().expect("pending pipe handles are owned");
+                let pipe = pending
+                    .pipe
+                    .as_ref()
+                    .expect("pending pipe handles are owned");
                 let mut transferred = 0u32;
                 unsafe {
                     GetOverlappedResult(
                         HANDLE(pipe.as_raw_handle()),
-                        &*pending.overlapped,
-                        &mut transferred,
+                        &raw const *pending.overlapped,
+                        &raw mut transferred,
                         false,
                     )
                 }
@@ -533,11 +541,9 @@ mod tests {
         let mut pong = [0u8; 5];
         reader.read_exact(&mut pong).unwrap();
         assert_eq!(&pong, b"pong\n");
-        assert!(
-            result_receiver
-                .recv_timeout(Duration::from_secs(3))
-                .expect("the server did not write the reply")
-        );
+        assert!(result_receiver
+            .recv_timeout(Duration::from_secs(3))
+            .expect("the server did not write the reply"));
         thread.join().unwrap();
     }
 }

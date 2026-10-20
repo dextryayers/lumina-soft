@@ -301,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    fn the_wgpu_backend_mapping_covers_every_variant() {
+    fn the_wgpu_backend_mapping_has_a_fallback() {
         assert_eq!(
             backend_from_wgpu(wgpu::Backend::Vulkan),
             ResolvedBackend::Vulkan
@@ -315,8 +315,9 @@ mod tests {
             ResolvedBackend::Metal
         );
         assert_eq!(backend_from_wgpu(wgpu::Backend::Gl), ResolvedBackend::Gl);
-        // An unknown backend falls back to GL rather than panicking, because a
-        // new wgpu backend should degrade rather than take the app down.
-        assert_eq!(backend_from_wgpu(wgpu::Backend::Empty), ResolvedBackend::Gl);
+        // A backend without a dedicated mapping falls back to GL rather than
+        // panicking, because a new wgpu backend should degrade rather than take
+        // the app down.
+        assert_eq!(backend_from_wgpu(wgpu::Backend::Noop), ResolvedBackend::Gl);
     }
 }
