@@ -62,7 +62,8 @@ and audio threads, and IPC lifecycle is not wired.
 
 Requirements:
 
-- Rust 1.85 or newer, pinned by `rust-toolchain.toml`
+- Rust 1.85 or newer; `rust-toolchain.toml` selects the stable channel and CI
+  checks the 1.85 MSRV
 - Windows 10 1809 or newer, or a modern Linux distribution
 - Linux: `pkg-config`, PulseAudio development headers, and a Vulkan or OpenGL
   driver. X11 and Wayland client libraries are needed for the platform
@@ -90,10 +91,10 @@ cargo build --release --locked -p lumina-app -p lumina-ipc
 ./target/release/lumina --diagnostics
 ```
 
-Packaging definitions live in [`packaging/`](packaging/README.md). The release
-workflow builds MSI, NSIS, portable ZIP, deb, rpm, apk, and AppImage variants
-after the release checklist passes. No artifact is published until the runtime
-gate is complete.
+Packaging definitions live in [`packaging/`](packaging/README.md). The scripts
+produce MSI, NSIS, portable ZIP, deb, rpm, apk, and AppImage variants after the
+release checklist passes. No artifact is published until the runtime gate is
+complete.
 
 ## Command line
 

@@ -571,6 +571,31 @@ mod tests {
     }
 
     #[test]
+    fn committed_completions_match_the_generator() {
+        for (shell, committed) in [
+            (
+                "bash",
+                include_str!("../../../../packaging/linux/completions/lumina-send.bash"),
+            ),
+            (
+                "zsh",
+                include_str!("../../../../packaging/linux/completions/_lumina-send"),
+            ),
+            (
+                "fish",
+                include_str!("../../../../packaging/linux/completions/lumina-send.fish"),
+            ),
+        ] {
+            assert_eq!(
+                committed,
+                completions(shell).unwrap(),
+                "committed {shell} completion has drifted; regenerate it with \
+                 `lumina-send --completions {shell}`"
+            );
+        }
+    }
+
+    #[test]
     fn help_mentions_every_command() {
         let help = help_text();
         for command in COMMANDS {

@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Lumina
+GenericName=Dynamic Island
+Comment=Local-first dynamic island for notifications, media, and system status
+Exec=lumina
+Icon=lumina
+Terminal=false
+Categories=Utility;
+Keywords=island;widget;media;notification;spectrum;
+StartupNotify=false
+StartupWMClass=Lumina
+X-GNOME-UsesNotifications=true
+X-AppStream-Ignore=false

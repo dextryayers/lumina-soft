@@ -94,7 +94,7 @@ fn print_diagnostics(config_path: &Path) {
     println!("  config_path  {}", config_path.display());
 
     if config_path.exists() {
-        match load_config(&config_path) {
+        match load_config(config_path) {
             Ok((config, report)) => {
                 println!("  config       loaded");
                 println!("  valid        {}", report.is_clean());
@@ -812,7 +812,7 @@ fn load_config(path: &std::path::Path) -> Result<(Config, ValidationReport), Str
 fn run_check_config(path: &Path) -> ExitCode {
     println!("Checking {}", path.display());
 
-    match load_config(&path) {
+    match load_config(path) {
         Ok((config, report)) => {
             println!("{}", report.render());
             if report.is_clean() {
@@ -1235,6 +1235,11 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         };
+    }
+
+    if let Err(error) = config_argument(&args) {
+        eprintln!("error: {error}");
+        return ExitCode::from(2);
     }
 
     let hidden = args.iter().any(|a| a == "--hidden");

@@ -28,6 +28,16 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features
 
+  release-metadata:
+    name: Documentation and release metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo xtask docs --check
+      - run: cargo xtask release-check
+
   test:
     name: Test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -55,9 +65,61 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mesa-vulkan-drivers vulkan-tools libvulkan1
       - name: Validate shader modules offline
-        run: cargo test -p lumina-render --features headless
+        run: cargo test -p lumina-render
       - name: Environment self test
         run: cargo run -p lumina-app -- --self-test
+
+  clients:
+    name: Python and Node clients
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Python client tests
+        env:
+          PYTHONPATH: clients/python
+        run: python -m unittest discover -s clients/python/tests -v
+      - name: Node client tests
+        run: node --test clients/node/test/client.test.js
+
+  packaging-metadata:
+    name: Packaging metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate POSIX shell syntax
+        run: |
+          bash -n packaging/linux/build.sh
+          bash -n packaging/linux/AppRun
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "packaging/windows/build.ps1").Path,
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List
+            exit 1
+          }
+      - name: Validate XML, desktop entry, and AppStream metadata
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y appstream desktop-file-utils libxml2-utils
+          xmllint --noout \
+            packaging/linux/lumina.appdata.xml \
+            packaging/linux/lumina.svg \
+            packaging/windows/lumina.wxs
+          desktop-file-validate packaging/linux/lumina.desktop
+          appstreamcli validate --no-net packaging/linux/lumina.appdata.xml
 
   supply-chain:
     name: Supply chain

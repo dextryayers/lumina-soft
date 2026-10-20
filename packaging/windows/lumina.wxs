@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="Lumina"
+      Manufacturer="Lumina Contributors"
+      Version="$(var.Version)"
+      Language="1033"
+      UpgradeCode="7A0D6B2C-3F4E-4A6B-8C9D-0E1F2A3B4C5D"
+      Scope="perUser">
+    <MajorUpgrade
+        DowngradeErrorMessage="A newer version of Lumina is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="MainFeature" Title="Lumina" Level="1">
+      <ComponentGroupRef Id="ApplicationComponents" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="INSTALLFOLDER" Name="Lumina" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="Lumina" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="LuminaExecutable" Guid="1B2C3D4E-5F60-4A7B-8C9D-0E1F2A3B4C5D">
+        <File Id="LuminaExe" Source="$(var.StageDir)\lumina.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="LuminaSendExecutable" Guid="2C3D4E5F-6071-4B8C-9D0E-1F2A3B4C5D6E">
+        <File Id="LuminaSendExe" Source="$(var.StageDir)\lumina-send.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="LuminaDocuments" Guid="3D4E5F60-7182-4C9D-AE1F-2A3B4C5D6E7F">
+        <File Id="LuminaReadme" Source="$(var.StageDir)\README.md" />
+        <File Id="LuminaLicense" Source="$(var.StageDir)\LICENSE" />
+        <File Id="LuminaChangelog" Source="$(var.StageDir)\CHANGELOG.md" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ApplicationComponents">
+      <ComponentRef Id="LuminaExecutable" />
+      <ComponentRef Id="LuminaSendExecutable" />
+      <ComponentRef Id="LuminaDocuments" />
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="StartMenuShortcut" Guid="4E5F6071-8293-4DAE-BF2A-3B4C5D6E7F80">
+        <Shortcut
+            Id="LuminaStartMenuShortcut"
+            Name="Lumina"
+            Description="Local-first dynamic island"
+            Target="[INSTALLFOLDER]lumina.exe"
+            WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="RemoveApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue
+            Root="HKCU"
+            Key="Software\Lumina"
+            Name="StartMenuShortcut"
+            Type="integer"
+            Value="1"
+            KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

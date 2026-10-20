@@ -1,6 +1,7 @@
 # Build output
 /target
 **/target
+/dist
 *.pdb
 
 # IDE

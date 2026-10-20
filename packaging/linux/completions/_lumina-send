@@ -1,1 +1,40 @@
-#compdef lumina-send_lumina_send() {    local -a commands    commands=(        'status:Full state dump'        'show:Bring the island into a visible state'        'hide:Hide the island'        'collapse:Return to collapsed immediately'        'notify:Fire the notification widget'        'set_rgb:Override the RGB engine'        'cycle_rgb:Advance to the next RGB engine'        'set_profile:Switch profiles'        'get_config:Read the effective configuration'        'set_config:Change a configuration value'        'reload_config:Re-read the configuration'        'media:Control media playback'        'player_list:List known media players'        'shortcut:Run a configured shortcut'        'execute:Run a program'        'spectrum:Read current spectrum bands'        'geometry:Edit the island shape live'        'debug_overlay:Toggle the debug overlay'        'quit:Graceful shutdown'    )    _arguments -s \        '(-h --help)'{-h,--help}'[show help]' \        '(-q --quiet)'{-q,--quiet}'[do not print the result]' \        '--compact[compact JSON]' \        '--pretty[pretty JSON]' \        '--socket[Unix socket path]:path:_files' \        '--pipe[Windows pipe name]:name:' \        '--payload[JSON payload]:json:' \        '--completions[print completions]:shell:(bash zsh fish)' \        '1:command:->command' \        '*::argument:->argument'    case $state in        command) _describe 'command' commands ;;    esac}_lumina_send "$@"
+#compdef lumina-send
+_lumina_send() {
+    local -a commands
+    commands=(
+        'status:Full state dump'
+        'show:Bring the island into a visible state'
+        'hide:Hide the island'
+        'collapse:Return to collapsed immediately'
+        'notify:Fire the notification widget'
+        'set_rgb:Override the RGB engine'
+        'cycle_rgb:Advance to the next RGB engine'
+        'set_profile:Switch profiles'
+        'get_config:Read the effective configuration'
+        'set_config:Change a configuration value'
+        'reload_config:Re-read the configuration'
+        'media:Control media playback'
+        'player_list:List known media players'
+        'shortcut:Run a configured shortcut'
+        'execute:Run a program'
+        'spectrum:Read current spectrum bands'
+        'geometry:Edit the island shape live'
+        'debug_overlay:Toggle the debug overlay'
+        'quit:Graceful shutdown'
+    )
+    _arguments -s \
+        '(-h --help)'{-h,--help}'[show help]' \
+        '(-q --quiet)'{-q,--quiet}'[do not print the result]' \
+        '--compact[compact JSON]' \
+        '--pretty[pretty JSON]' \
+        '--socket[Unix socket path]:path:_files' \
+        '--pipe[Windows pipe name]:name:' \
+        '--payload[JSON payload]:json:' \
+        '--completions[print completions]:shell:(bash zsh fish)' \
+        '1:command:->command' \
+        '*::argument:->argument'
+    case $state in
+        command) _describe 'command' commands ;;
+    esac
+}
+_lumina_send "$@"

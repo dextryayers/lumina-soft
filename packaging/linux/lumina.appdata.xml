@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.lumina_sh.Lumina</id>
+  <name>Lumina</name>
+  <summary>Local-first dynamic island for notifications, media, and system status</summary>
+  <developer id="io.github.lumina_sh">
+    <name>Lumina Contributors</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      Lumina is a compact desktop overlay that expands when something deserves
+      attention and collapses when it does not. It shows media, notifications,
+      system metrics, and configurable widgets without taking over the desktop.
+    </p>
+    <p>
+      It is local-first: no account, no telemetry, no auto-update, and no
+      listening network socket. The optional weather widget is the only component
+      that makes a network request.
+    </p>
+  </description>
+  <launchable type="desktop-id">lumina.desktop</launchable>
+  <provides>
+    <binary>lumina</binary>
+    <binary>lumina-send</binary>
+  </provides>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>dynamic island</keyword>
+    <keyword>widget</keyword>
+    <keyword>media</keyword>
+    <keyword>notifications</keyword>
+    <keyword>spectrum</keyword>
+  </keywords>
+  <url type="homepage">https://github.com/lumina-sh/lumina</url>
+  <url type="bugtracker">https://github.com/lumina-sh/lumina/issues</url>
+  <releases>
+    <release version="0.1.0-alpha.1" date="2026-10-20" type="development">
+      <description>
+        <p>Alpha engine and headless tooling. The runtime window is not yet wired.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>
