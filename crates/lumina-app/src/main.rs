@@ -5,7 +5,13 @@
 //! | Flag | Purpose |
 //! |---|---|
 //! | `--version` | Print version, commit, and target triple |
-//! | `--check-config` | Load, validate, and report on the configuration file |
+//! | `--check-config [--config PATH]` | Load, validate, and report on the configuration file |
+//! | `--config PATH` | Select a configuration file for diagnostic and theme commands |
+//! | `--init-config [PATH] [--force]` | Write the annotated default configuration |
+//! | `--print-config` | Print the annotated default configuration |
+//! | `--list-themes [--config PATH]` | List built-in and user themes |
+//! | `--export-theme NAME [--output PATH]` | Export a theme as TOML |
+//! | `--check-theme PATH [--config PATH]` | Apply and validate a theme file |
 //! | `--diagnostics` | Print the full environment dump for bug reports |
 //! | `--self-test` | Exercise the headless subsystem checks |
 //! | `--benchmark [--output PATH] [--baseline PATH]` | Record CPU benchmarks and optionally compare them |
@@ -30,8 +36,10 @@ use std::time::Instant;
 
 use lumina_audio::AudioAggregates;
 use lumina_color::ColorEngine;
+use lumina_config::defaults::default_toml;
+use lumina_config::theme::{themes_directory, Theme, ThemeStore};
 use lumina_config::validate::{validate, ValidationReport};
-use lumina_config::{Config, RgbMode};
+use lumina_config::{diff_config, Config, RgbMode};
 use lumina_platform::capability::{Capabilities, Platform};
 use lumina_platform::{autostart, single_instance};
 use lumina_render::render::{FrameIntent, RenderLoop};
@@ -55,7 +63,7 @@ fn print_version() {
 /// Designed to be pasted verbatim into a bug report. Every field a maintainer
 /// needs to reproduce a problem is here: OS, display server, GPU, config path,
 /// and the validation state.
-fn print_diagnostics() {
+fn print_diagnostics(config_path: &Path) {
     let caps = Capabilities::for_platform(Platform::detect());
 
     println!("Lumina {}", env!("CARGO_PKG_VERSION"));
@@ -83,7 +91,6 @@ fn print_diagnostics() {
         None => println!("  memory       unavailable"),
     }
 
-    let config_path = config_path();
     println!("  config_path  {}", config_path.display());
 
     if config_path.exists() {
@@ -717,6 +724,58 @@ fn path_argument(args: &[String], flag: &str) -> Result<Option<PathBuf>, String>
     Ok(None)
 }
 
+fn optional_path_argument(args: &[String], flag: &str) -> Result<Option<PathBuf>, String> {
+    let prefix = format!("{flag}=");
+    if let Some(value) = args.iter().find_map(|arg| arg.strip_prefix(&prefix)) {
+        if value.is_empty() {
+            return Err(format!("{flag} needs a file path"));
+        }
+        return Ok(Some(PathBuf::from(value)));
+    }
+    if let Some(index) = args.iter().position(|arg| arg == flag) {
+        if let Some(value) = args.get(index + 1) {
+            if !value.starts_with('-') {
+                return Ok(Some(PathBuf::from(value)));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn value_argument(args: &[String], flag: &str) -> Result<Option<String>, String> {
+    let prefix = format!("{flag}=");
+    if let Some(value) = args.iter().find_map(|arg| arg.strip_prefix(&prefix)) {
+        if value.is_empty() {
+            return Err(format!("{flag} needs a value"));
+        }
+        return Ok(Some(value.to_string()));
+    }
+    if let Some(index) = args.iter().position(|arg| arg == flag) {
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        if value.starts_with('-') {
+            return Err(format!("{flag} needs a value"));
+        }
+        return Ok(Some(value.clone()));
+    }
+    Ok(None)
+}
+
+fn config_argument(args: &[String]) -> Result<Option<PathBuf>, String> {
+    path_argument(args, "--config")
+}
+
+fn selected_config(args: &[String]) -> Result<PathBuf, String> {
+    Ok(config_argument(args)?.unwrap_or_else(config_path))
+}
+
+fn config_directory(config_file: &Path) -> PathBuf {
+    config_file
+        .parent()
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+}
+
 /// Resolve the configuration file path.
 fn config_path() -> PathBuf {
     if let Ok(path) = std::env::var("LUMINA_CONFIG") {
@@ -750,8 +809,7 @@ fn load_config(path: &std::path::Path) -> Result<(Config, ValidationReport), Str
 }
 
 /// Run `--check-config`.
-fn run_check_config() -> ExitCode {
-    let path = config_path();
+fn run_check_config(path: &Path) -> ExitCode {
     println!("Checking {}", path.display());
 
     match load_config(&path) {
@@ -768,6 +826,176 @@ fn run_check_config() -> ExitCode {
             eprintln!("error: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// Run `--init-config`.
+fn run_init_config(path: &Path, force: bool) -> ExitCode {
+    if path.exists() && !force {
+        eprintln!("error: {} already exists", path.display());
+        eprintln!("Use --force to replace it.");
+        return ExitCode::FAILURE;
+    }
+
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            if let Err(error) = std::fs::create_dir_all(parent) {
+                eprintln!("error: cannot create {}: {error}", parent.display());
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    if let Err(error) = std::fs::write(path, default_toml()) {
+        eprintln!("error: cannot write {}: {error}", path.display());
+        return ExitCode::FAILURE;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(error) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
+            eprintln!(
+                "warning: cannot restrict permissions on {}: {error}",
+                path.display()
+            );
+        }
+    }
+
+    println!(
+        "Wrote the annotated default configuration to {}",
+        path.display()
+    );
+    println!(
+        "Validate it with: lumina --check-config --config \"{}\"",
+        path.display()
+    );
+    ExitCode::SUCCESS
+}
+
+/// Run `--print-config`.
+fn run_print_config() -> ExitCode {
+    print!("{}", default_toml());
+    ExitCode::SUCCESS
+}
+
+/// Run `--list-themes`.
+fn run_list_themes(config_file: &Path) -> ExitCode {
+    let directory = themes_directory(&config_directory(config_file));
+    let store = ThemeStore::load(&directory);
+    println!("Themes in {}:", directory.display());
+    for name in store.names() {
+        println!("  {name}");
+    }
+    println!("{} theme(s) available.", store.len());
+
+    if store.problems().is_empty() {
+        return ExitCode::SUCCESS;
+    }
+
+    eprintln!("Theme files that could not be loaded:");
+    for problem in store.problems() {
+        eprintln!("  {problem}");
+    }
+    ExitCode::FAILURE
+}
+
+/// Run `--export-theme`.
+fn run_export_theme(config_file: &Path, name: &str, output: Option<&Path>) -> ExitCode {
+    let directory = themes_directory(&config_directory(config_file));
+    let store = ThemeStore::load(&directory);
+    let Some(theme) = store.get(name) else {
+        eprintln!("error: theme {name:?} was not found");
+        eprintln!("Available themes: {}", store.names().join(", "));
+        return ExitCode::FAILURE;
+    };
+
+    let text = match theme.to_toml_string() {
+        Ok(text) => text,
+        Err(error) => {
+            eprintln!("error: cannot serialize theme {name:?}: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    if let Some(path) = output {
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                if let Err(error) = std::fs::create_dir_all(parent) {
+                    eprintln!("error: cannot create {}: {error}", parent.display());
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+        if let Err(error) = std::fs::write(path, &text) {
+            eprintln!("error: cannot write {}: {error}", path.display());
+            return ExitCode::FAILURE;
+        }
+        println!("Wrote theme {name:?} to {}", path.display());
+    } else {
+        print!("{text}");
+    }
+    ExitCode::SUCCESS
+}
+
+/// Run `--check-theme`.
+fn run_check_theme(config_file: &Path, theme_path: &Path) -> ExitCode {
+    let base = if config_file.exists() {
+        match load_config(config_file) {
+            Ok((config, report)) => {
+                if !report.is_clean() {
+                    eprintln!(
+                        "error: the base configuration has {} problem(s); run --check-config first",
+                        report.len()
+                    );
+                    return ExitCode::FAILURE;
+                }
+                config
+            }
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::FAILURE;
+            }
+        }
+    } else {
+        Config::default()
+    };
+
+    let text = match std::fs::read_to_string(theme_path) {
+        Ok(text) => text,
+        Err(error) => {
+            eprintln!("error: cannot read {}: {error}", theme_path.display());
+            return ExitCode::FAILURE;
+        }
+    };
+    let theme = match Theme::from_toml_str(&text) {
+        Ok(theme) => theme,
+        Err(error) => {
+            eprintln!(
+                "error: {} is not a valid theme: {error}",
+                theme_path.display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let name = theme.display_name(theme_path);
+    let directory = themes_directory(&config_directory(config_file));
+    let mut store = ThemeStore::load(&directory);
+    store.insert("__lumina_theme_check", theme);
+    let applied = store.apply(&base, "__lumina_theme_check");
+    let changed = diff_config(&base, &applied).len();
+    let (_, report) = validate(applied);
+
+    println!(
+        "Theme {name:?} applies {changed} change(s) to {}",
+        config_file.display()
+    );
+    println!("{}", report.render());
+    if report.is_clean() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }
 
@@ -819,6 +1047,61 @@ fn run_autostart(action: &str, hidden: bool) -> ExitCode {
     }
 }
 
+fn print_help() {
+    println!("Lumina {}", env!("CARGO_PKG_VERSION"));
+    println!();
+    println!("Usage: lumina [OPTIONS]");
+    println!();
+    println!("Information:");
+    println!("  -V, --version        Print version information");
+    println!("  -D, --diagnostics    Print the environment dump");
+    println!("  -h, --help           Print this help");
+    println!();
+    println!("Configuration:");
+    println!("  -C, --check-config   Validate the configuration file");
+    println!("      --config PATH    Use a specific configuration file");
+    println!("      --print-config   Print the annotated default configuration");
+    println!("      --init-config [PATH]");
+    println!("                       Write the default configuration");
+    println!("      --force          Replace an existing file with --init-config");
+    println!();
+    println!("Themes:");
+    println!("      --list-themes    List built-in and user themes");
+    println!("      --export-theme NAME [--output PATH]");
+    println!("                       Export a theme as TOML");
+    println!("      --check-theme PATH");
+    println!("                       Apply and validate a theme file");
+    println!();
+    println!("Diagnostics and automation:");
+    println!("      --self-test      Run headless environment and subsystem checks");
+    println!("      --benchmark      Run CPU microbenchmarks");
+    println!("      --output PATH    Write benchmark or theme output");
+    println!("      --baseline PATH  Compare against a recorded benchmark JSON");
+    println!("      --autostart [ACTION]");
+    println!("                       Manage autostart: status, install, remove");
+    println!("      --activate       Ask a running instance to show itself");
+    println!("      --hidden         Start hidden (used by autostart)");
+}
+
+fn runtime_unknown_argument(args: &[String]) -> Option<&str> {
+    let mut skip_value = false;
+    for arg in args {
+        if skip_value {
+            skip_value = false;
+            continue;
+        }
+        if arg == "--hidden" || arg.starts_with("--config=") {
+            continue;
+        }
+        if arg == "--config" {
+            skip_value = true;
+            continue;
+        }
+        return Some(arg);
+    }
+    None
+}
+
 /// Parse arguments and dispatch.
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -828,13 +1111,114 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    if args.iter().any(|a| a == "--diagnostics" || a == "-D") {
-        print_diagnostics();
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        print_help();
         return ExitCode::SUCCESS;
     }
 
+    if args.iter().any(|a| a == "--diagnostics" || a == "-D") {
+        return match selected_config(&args) {
+            Ok(path) => {
+                print_diagnostics(&path);
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("error: {error}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
     if args.iter().any(|a| a == "--check-config" || a == "-C") {
-        return run_check_config();
+        return match selected_config(&args) {
+            Ok(path) => run_check_config(&path),
+            Err(error) => {
+                eprintln!("error: {error}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if args.iter().any(|a| a == "--init-config") {
+        let path = match optional_path_argument(&args, "--init-config") {
+            Ok(Some(path)) => path,
+            Ok(None) => match selected_config(&args) {
+                Ok(path) => path,
+                Err(error) => {
+                    eprintln!("error: {error}");
+                    return ExitCode::from(2);
+                }
+            },
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::from(2);
+            }
+        };
+        let force = args.iter().any(|a| a == "--force");
+        return run_init_config(&path, force);
+    }
+
+    if args.iter().any(|a| a == "--print-config") {
+        return run_print_config();
+    }
+
+    if args.iter().any(|a| a == "--list-themes") {
+        return match selected_config(&args) {
+            Ok(path) => run_list_themes(&path),
+            Err(error) => {
+                eprintln!("error: {error}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if args.iter().any(|a| a == "--export-theme") {
+        let name = match value_argument(&args, "--export-theme") {
+            Ok(Some(name)) => name,
+            Ok(None) => {
+                eprintln!("error: --export-theme needs a theme name");
+                return ExitCode::from(2);
+            }
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::from(2);
+            }
+        };
+        let output = match output_argument(&args) {
+            Ok(output) => output,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::from(2);
+            }
+        };
+        return match selected_config(&args) {
+            Ok(path) => run_export_theme(&path, &name, output.as_deref()),
+            Err(error) => {
+                eprintln!("error: {error}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if args.iter().any(|a| a == "--check-theme") {
+        let theme_path = match path_argument(&args, "--check-theme") {
+            Ok(Some(path)) => path,
+            Ok(None) => {
+                eprintln!("error: --check-theme needs a file path");
+                return ExitCode::from(2);
+            }
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::from(2);
+            }
+        };
+        return match selected_config(&args) {
+            Ok(path) => run_check_theme(&path, &theme_path),
+            Err(error) => {
+                eprintln!("error: {error}");
+                ExitCode::from(2)
+            }
+        };
     }
 
     if args.iter().any(|a| a == "--self-test") {
@@ -853,31 +1237,13 @@ fn main() -> ExitCode {
         };
     }
 
-    if args.iter().any(|a| a == "--help" || a == "-h") {
-        println!("Lumina {}", env!("CARGO_PKG_VERSION"));
-        println!();
-        println!("Usage: lumina [OPTIONS]");
-        println!();
-        println!("Options:");
-        println!("  -V, --version        Print version information");
-        println!("  -D, --diagnostics    Print the environment dump");
-        println!("  -C, --check-config   Validate the configuration file");
-        println!("      --self-test      Run headless environment and subsystem checks");
-        println!("      --benchmark      Run CPU microbenchmarks");
-        println!("      --output PATH    Write benchmark results as JSON");
-        println!("      --baseline PATH  Compare against a recorded benchmark JSON");
-        println!("      --autostart [ACTION]");
-        println!("                       Manage autostart: status, install, remove");
-        println!("      --activate       Ask a running instance to show itself");
-        println!("      --hidden         Start hidden (used by autostart)");
-        println!("  -h, --help           Print this help");
-        return ExitCode::SUCCESS;
-    }
-
     let hidden = args.iter().any(|a| a == "--hidden");
 
     if let Some(index) = args.iter().position(|a| a == "--autostart") {
-        let action = args.get(index + 1).map_or("status", String::as_str);
+        let action = args
+            .get(index + 1)
+            .filter(|value| !value.starts_with('-'))
+            .map_or("status", String::as_str);
         return run_autostart(action, hidden);
     }
     if let Some(value) = args.iter().find_map(|a| a.strip_prefix("--autostart=")) {
@@ -895,7 +1261,7 @@ fn main() -> ExitCode {
             eprintln!("error: could not reach the running Lumina instance.");
             ExitCode::FAILURE
         }
-    } else if let Some(unknown) = args.iter().find(|a| a.as_str() != "--hidden") {
+    } else if let Some(unknown) = runtime_unknown_argument(&args) {
         eprintln!("error: unknown argument '{unknown}'");
         eprintln!("Try 'lumina --help' for more information.");
         ExitCode::from(2)
@@ -903,7 +1269,7 @@ fn main() -> ExitCode {
         // The island itself arrives in Phase 6. Until then, print the
         // environment so a user can confirm the binary runs and see what
         // the platform supports.
-        print_diagnostics();
+        print_diagnostics(&config_path());
         println!();
         println!("Lumina is not yet able to create its window. See PLAN.md Phase 6.");
         ExitCode::SUCCESS
@@ -948,6 +1314,97 @@ mod tests {
         assert!(output_argument(&args(&["--output"])).is_err());
         assert!(output_argument(&args(&["--output", "--baseline"])).is_err());
         assert!(baseline_argument(&args(&["--baseline="])).is_err());
+    }
+
+    #[test]
+    fn optional_paths_and_values_accept_both_spellings() {
+        assert_eq!(
+            optional_path_argument(&args(&["--init-config"]), "--init-config"),
+            Ok(None)
+        );
+        assert_eq!(
+            optional_path_argument(&args(&["--init-config", "custom.toml"]), "--init-config"),
+            Ok(Some(PathBuf::from("custom.toml")))
+        );
+        assert_eq!(
+            optional_path_argument(&args(&["--init-config", "--force"]), "--init-config"),
+            Ok(None)
+        );
+        assert_eq!(
+            value_argument(&args(&["--export-theme", "neon"]), "--export-theme"),
+            Ok(Some(String::from("neon")))
+        );
+        assert_eq!(
+            value_argument(&args(&["--export-theme=neon"]), "--export-theme"),
+            Ok(Some(String::from("neon")))
+        );
+        assert!(value_argument(&args(&["--export-theme"]), "--export-theme").is_err());
+        assert!(optional_path_argument(&args(&["--init-config="]), "--init-config").is_err());
+    }
+
+    #[test]
+    fn runtime_accepts_config_and_hidden_flags_only() {
+        assert_eq!(
+            runtime_unknown_argument(&args(&["--hidden", "--config", "custom.toml"])),
+            None
+        );
+        assert_eq!(
+            runtime_unknown_argument(&args(&["--config=custom.toml"])),
+            None
+        );
+        assert_eq!(
+            runtime_unknown_argument(&args(&["--mystery"])),
+            Some("--mystery")
+        );
+    }
+
+    #[test]
+    fn init_config_writes_defaults_and_refuses_to_overwrite() {
+        let directory = temporary_directory("init-config");
+        let path = directory.join("config.toml");
+
+        run_init_config(&path, false);
+        let first = std::fs::read_to_string(&path).expect("config was written");
+        assert_eq!(first, default_toml());
+
+        std::fs::write(&path, "version = 99\n").expect("write sentinel");
+        run_init_config(&path, false);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read sentinel"),
+            "version = 99\n"
+        );
+
+        run_init_config(&path, true);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read replaced config"),
+            default_toml()
+        );
+        std::fs::remove_dir_all(directory).ok();
+    }
+
+    #[test]
+    fn config_directory_is_safe_for_bare_filenames() {
+        assert_eq!(
+            config_directory(Path::new("config.toml")),
+            PathBuf::from("")
+        );
+        assert_eq!(
+            config_directory(Path::new("/home/user/lumina/config.toml")),
+            PathBuf::from("/home/user/lumina")
+        );
+    }
+
+    fn temporary_directory(label: &str) -> PathBuf {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static NEXT: AtomicU32 = AtomicU32::new(0);
+
+        let path = std::env::temp_dir().join(format!(
+            "lumina-{label}-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&path).expect("create temporary directory");
+        path
     }
 
     #[test]

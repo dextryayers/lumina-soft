@@ -91,9 +91,7 @@ fn run(args: Vec<String>) -> Result<(), String> {
             print_help();
             Ok(())
         }
-        other => Err(format!(
-            "unknown command `{other}`; run `cargo xtask help`"
-        )),
+        other => Err(format!("unknown command `{other}`; run `cargo xtask help`")),
     }
 }
 
@@ -118,7 +116,8 @@ fn write_docs(root: &Path) -> Result<(), String> {
     let generated = generate_config_doc(root)?;
     let path = root.join(CONFIG_DOC);
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
     }
     fs::write(&path, generated).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
     println!("wrote {}", path.display());
@@ -128,8 +127,12 @@ fn write_docs(root: &Path) -> Result<(), String> {
 fn check_docs(root: &Path) -> Result<(), String> {
     let expected = generate_config_doc(root)?;
     let path = root.join(CONFIG_DOC);
-    let actual = fs::read_to_string(&path)
-        .map_err(|e| format!("cannot read {}: {e}; run `cargo xtask docs`", path.display()))?;
+    let actual = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "cannot read {}: {e}; run `cargo xtask docs`",
+            path.display()
+        )
+    })?;
     if actual == expected {
         println!("{} is up to date", path.display());
         return Ok(());
@@ -151,8 +154,8 @@ fn check_docs(root: &Path) -> Result<(), String> {
 
 fn generate_config_doc(root: &Path) -> Result<String, String> {
     let path = root.join(CONFIG_SOURCE);
-    let source = fs::read_to_string(&path)
-        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let source =
+        fs::read_to_string(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let sections = parse_default_toml(&source);
     if sections.is_empty() {
         return Err(format!("{} contains no keys", path.display()));
@@ -220,11 +223,7 @@ fn generate_config_doc(root: &Path) -> Result<String, String> {
             } else {
                 markdown_cell(&entry.description.join("<br>"))
             };
-            let _ = writeln!(
-                out,
-                "| `{}` | `{}` | {} |",
-                entry.key, default, description
-            );
+            let _ = writeln!(out, "| `{}` | `{}` | {} |", entry.key, default, description);
         }
         out.push('\n');
     }
@@ -404,16 +403,17 @@ fn release_check(root: &Path) -> Result<(), String> {
     checks += 1;
     match fs::read_to_string(root.join("Cargo.lock")) {
         Ok(lock) if lock.contains("name = \"xtask\"") => {}
-        Ok(_) => problems.push(String::from("Cargo.lock does not contain the xtask package")),
+        Ok(_) => problems.push(String::from(
+            "Cargo.lock does not contain the xtask package",
+        )),
         Err(error) => problems.push(format!("cannot read Cargo.lock: {error}")),
     }
 
     checks += 1;
     match fs::read_to_string(root.join(".github/workflows/ci.yml")) {
         Ok(ci)
-            if ci.contains("cargo xtask docs --check") && ci.contains("cargo xtask release-check") =>
-        {
-        }
+            if ci.contains("cargo xtask docs --check")
+                && ci.contains("cargo xtask release-check") => {}
         Ok(_) => problems.push(String::from(
             "CI must run `cargo xtask docs --check` and `cargo xtask release-check`",
         )),
@@ -434,10 +434,7 @@ fn release_check(root: &Path) -> Result<(), String> {
                 ));
             }
         }
-        Err(error) => problems.push(format!(
-            "cannot read {}: {error}",
-            theme_dir.display()
-        )),
+        Err(error) => problems.push(format!("cannot read {}: {error}", theme_dir.display())),
     }
 
     let crates_dir = root.join("crates");
@@ -456,10 +453,9 @@ fn release_check(root: &Path) -> Result<(), String> {
                         "{} must inherit the workspace version",
                         manifest.display()
                     )),
-                    Err(error) => problems.push(format!(
-                        "cannot read {}: {error}",
-                        manifest.display()
-                    )),
+                    Err(error) => {
+                        problems.push(format!("cannot read {}: {error}", manifest.display()))
+                    }
                 }
             }
         }
@@ -548,7 +544,10 @@ font_size = 14.0\n";
                 );
             }
         }
-        assert!(keys > 100, "expected a substantial schema, found {keys} keys");
+        assert!(
+            keys > 100,
+            "expected a substantial schema, found {keys} keys"
+        );
         assert!(generated.contains("## Structured entries"));
     }
 

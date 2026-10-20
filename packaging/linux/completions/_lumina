@@ -1,0 +1,23 @@
+#compdef lumina
+_lumina() {
+    _arguments -s \
+        '(-V --version)'{-V,--version}'[print version information]' \
+        '(-h --help)'{-h,--help}'[print help]' \
+        '(-D --diagnostics)'{-D,--diagnostics}'[print the environment dump]' \
+        '(-C --check-config)'{-C,--check-config}'[validate the configuration file]' \
+        '--config[use a specific configuration file]:path:_files' \
+        '--init-config[write the default configuration]:path:_files' \
+        '--force[replace an existing file]' \
+        '--print-config[print the default configuration]' \
+        '--list-themes[list built-in and user themes]' \
+        '--export-theme[export a theme as TOML]:theme:(default midnight neon sunset mono glass nord catppuccin high-contrast)' \
+        '--check-theme[validate a theme file]:path:_files' \
+        '--self-test[run headless subsystem checks]' \
+        '--benchmark[run CPU microbenchmarks]' \
+        '--output[write command output to a file]:path:_files' \
+        '--baseline[compare against a benchmark JSON]:path:_files' \
+        '--autostart[manage the autostart entry]:action:(status install remove)' \
+        '--activate[ask a running instance to show itself]' \
+        '--hidden[start hidden]'
+}
+_lumina "$@"

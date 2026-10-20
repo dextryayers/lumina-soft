@@ -82,6 +82,9 @@ fn protocol_limits_match_the_documented_contract() {
         "8 concurrent connections",
         "one local control surface",
     ] {
-        assert!(docs.contains(fragment), "missing documented limit: {fragment}");
+        assert!(
+            docs.contains(fragment),
+            "missing documented limit: {fragment}"
+        );
     }
 }

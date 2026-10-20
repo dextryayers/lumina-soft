@@ -101,6 +101,12 @@ gate is complete.
 |---|---|
 | `lumina --version` | Version, crate versions, and target triple |
 | `lumina --check-config` | Parse, validate, and repair `config.toml` |
+| `lumina --config PATH --check-config` | Validate a specific configuration file |
+| `lumina --init-config [PATH]` | Write the annotated default configuration |
+| `lumina --print-config` | Print the default configuration to stdout |
+| `lumina --list-themes` | List built-in and user themes |
+| `lumina --export-theme NAME [--output PATH]` | Export a theme as TOML |
+| `lumina --check-theme PATH` | Apply and validate a theme file |
 | `lumina --diagnostics` | Environment dump designed for bug reports |
 | `lumina --self-test` | Exercise headless subsystem checks |
 | `lumina --benchmark` | Record CPU benchmarks as JSON |

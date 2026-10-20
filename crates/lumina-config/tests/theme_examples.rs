@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 use lumina_config::theme::builtin_themes;
 use lumina_config::theme::{Theme, ThemeStore};
-use lumina_config::Config;
 use lumina_config::validate::validate;
+use lumina_config::Config;
 
 fn examples_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/examples/themes")
@@ -26,7 +26,7 @@ fn examples() -> Vec<(String, Theme)> {
         .map(|path| {
             let text = fs::read_to_string(&path)
                 .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
-            let theme: Theme = toml::from_str(&text)
+            let theme = Theme::from_toml_str(&text)
                 .unwrap_or_else(|e| panic!("{} is not a valid theme: {e}", path.display()));
             let stem = path
                 .file_stem()
@@ -36,6 +36,12 @@ fn examples() -> Vec<(String, Theme)> {
             (stem, theme)
         })
         .collect()
+}
+
+fn applied(name: &str, theme: Theme, base: &Config) -> Config {
+    let mut store = ThemeStore::empty();
+    store.insert(name, theme);
+    store.apply(base, name)
 }
 
 #[test]
@@ -53,21 +59,26 @@ fn eight_theme_examples_ship_and_match_the_built_ins() {
             .get(stem.as_str())
             .unwrap_or_else(|| panic!("{stem}.toml has no matching built-in theme"));
         assert_eq!(
-            theme, *builtin,
+            theme, builtin,
             "{stem}.toml has drifted from the built-in theme"
         );
     }
 
-    let names: BTreeSet<&str> = examples.iter().map(|(_, theme)| theme.name.as_str()).collect();
-    assert_eq!(names.len(), examples.len(), "theme display names must be unique");
+    let names: BTreeSet<&str> = examples
+        .iter()
+        .map(|(_, theme)| theme.name.as_str())
+        .collect();
+    assert_eq!(
+        names.len(),
+        examples.len(),
+        "theme display names must be unique"
+    );
 }
 
 #[test]
 fn every_theme_example_applies_and_validates_cleanly() {
     for (stem, theme) in examples() {
-        let applied = ThemeStore::empty()
-            .with_theme(&stem, theme)
-            .apply(&Config::default(), &stem);
+        let applied = applied(&stem, theme, &Config::default());
         let (checked, report) = validate(applied.clone());
         assert!(
             report.is_clean(),
@@ -84,9 +95,7 @@ fn the_high_contrast_example_is_safe_and_legible() {
         .into_iter()
         .find(|(stem, _)| stem == "high-contrast")
         .expect("high-contrast example");
-    let applied = ThemeStore::empty()
-        .with_theme("high-contrast", theme)
-        .apply(&Config::default(), "high-contrast");
+    let applied = applied("high-contrast", theme, &Config::default());
 
     assert_eq!(applied.appearance.fill, "#000000");
     assert_eq!(applied.appearance.glow_spread, 0.0);
@@ -94,9 +103,11 @@ fn the_high_contrast_example_is_safe_and_legible() {
     assert_eq!(applied.accessibility.contrast_target, 7.0);
 }
 
-impl ThemeStore {
-    fn with_theme(mut self, name: &str, theme: Theme) -> Self {
-        self.insert(name, theme);
-        self
+#[test]
+fn exporting_a_theme_round_trips_through_toml() {
+    for (_, theme) in examples() {
+        let text = theme.to_toml_string().expect("theme serializes");
+        let parsed = Theme::from_toml_str(&text).expect("serialized theme parses");
+        assert_eq!(parsed, theme);
     }
 }
