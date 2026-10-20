@@ -25,4 +25,8 @@ lumina-audio = { workspace = true }
 lumina-platform = { workspace = true }
 lumina-render = { workspace = true }
 lumina-text = { workspace = true }
+lumina-ipc = { workspace = true }
 serde_json = { workspace = true }
+wgpu = { workspace = true }
+winit = { workspace = true }
+pollster = { workspace = true }

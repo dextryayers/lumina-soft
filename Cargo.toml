@@ -50,6 +50,7 @@ toml_edit = "0.22"
 winit = "0.30"
 raw-window-handle = "0.6"
 wgpu = "0.20"
+pollster = "0.4"
 naga = { version = "0.20", features = ["wgsl-in"] }
 
 # Audio analysis.
