@@ -26,9 +26,9 @@ use lumina_render::uniforms::{FrameParams, IslandUniforms};
 use pollster::block_on;
 use serde_json::{json, Value};
 use wgpu::{
-    Backends, CompositeAlphaMode, DeviceDescriptor, Instance, InstanceDescriptor, PresentMode,
-    RequestAdapterOptions, Surface, SurfaceConfiguration, SurfaceError, TextureFormat,
-    TextureUsages,
+    Backends, CompositeAlphaMode, CurrentSurfaceTexture, DeviceDescriptor, Instance,
+    InstanceDescriptor, PresentMode, RequestAdapterOptions, Surface, SurfaceConfiguration,
+    SurfaceColorSpace, TextureFormat, TextureUsages,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -177,9 +177,12 @@ fn maximal_logical_size(config: &Config) -> (Scalar, Scalar) {
     )
 }
 
-fn backend_candidates(backend: GpuBackend) -> Vec<(&'static str, Backends)> {
+fn backend_candidates(
+    backend: GpuBackend,
+    composition: bool,
+) -> Vec<(&'static str, Backends)> {
     match backend {
-        GpuBackend::Auto => auto_backend_candidates(),
+        GpuBackend::Auto => auto_backend_candidates(composition),
         GpuBackend::Vulkan => vec![("Vulkan", Backends::VULKAN)],
         GpuBackend::Dx12 => vec![("DX12", Backends::DX12)],
         GpuBackend::Metal => vec![("Metal", Backends::METAL)],
@@ -187,21 +190,23 @@ fn backend_candidates(backend: GpuBackend) -> Vec<(&'static str, Backends)> {
     }
 }
 
-fn auto_backend_candidates() -> Vec<(&'static str, Backends)> {
+fn auto_backend_candidates(composition: bool) -> Vec<(&'static str, Backends)> {
     #[cfg(target_os = "windows")]
     {
-        vec![
-            ("Vulkan", Backends::VULKAN),
-            ("DX12", Backends::DX12),
-            ("GL", Backends::GL),
-        ]
+        if composition {
+            vec![("DX12", Backends::DX12)]
+        } else {
+            vec![("Vulkan", Backends::VULKAN), ("GL", Backends::GL)]
+        }
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
+        let _ = composition;
         vec![("Vulkan", Backends::VULKAN), ("GL", Backends::GL)]
     }
     #[cfg(target_os = "macos")]
     {
+        let _ = composition;
         vec![("Metal", Backends::METAL)]
     }
 }
@@ -246,11 +251,11 @@ struct GpuState {
 }
 
 impl GpuState {
-    fn new(window: &Arc<Window>, config: &Config) -> Result<Self, String> {
+    fn new(window: &Arc<Window>, config: &Config, composition: bool) -> Result<Self, String> {
         let size = surface_size(window);
         let mut failures = Vec::new();
 
-        for (name, backends) in backend_candidates(config.advanced.gpu_backend) {
+        for (name, backends) in backend_candidates(config.advanced.gpu_backend, composition) {
             match Self::create(window, size, config, backends, name) {
                 Ok(state) => return Ok(state),
                 Err(error) => failures.push(format!("{name}: {error}")),
@@ -270,10 +275,14 @@ impl GpuState {
         backends: Backends,
         name: &'static str,
     ) -> Result<Self, String> {
-        let instance = Instance::new(InstanceDescriptor {
-            backends,
-            ..Default::default()
-        });
+        let mut descriptor = InstanceDescriptor::new_without_display_handle();
+        descriptor.backends = backends;
+        #[cfg(target_os = "windows")]
+        if backends.contains(Backends::DX12) {
+            descriptor.backend_options.dx12.presentation_system =
+                wgpu::Dx12SwapchainKind::DxgiFromVisual;
+        }
+        let instance = Instance::new(descriptor);
         let surface = instance
             .create_surface(Arc::clone(window))
             .map_err(|error| error.to_string())?;
@@ -286,8 +295,9 @@ impl GpuState {
             },
             force_fallback_adapter: false,
             compatible_surface: Some(&surface),
+            apply_limit_buckets: false,
         }))
-        .ok_or_else(|| "no adapter for this surface".to_string())?;
+        .map_err(|error| format!("no adapter for this surface: {error}"))?;
 
         let capabilities = surface.get_capabilities(&adapter);
         let format = choose_format(&capabilities.formats)
@@ -296,23 +306,24 @@ impl GpuState {
         let alpha_mode = choose_alpha_mode(&capabilities.alpha_modes)
             .ok_or_else(|| "no transparent composite mode".to_string())?;
 
-        let (device, queue) = block_on(adapter.request_device(
-            &DeviceDescriptor {
-                label: Some("lumina-device"),
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-            },
-            None,
-        ))
+        let (device, queue) = block_on(adapter.request_device(&DeviceDescriptor {
+            label: Some("lumina-device"),
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::default(),
+            experimental_features: wgpu::ExperimentalFeatures::disabled(),
+            memory_hints: wgpu::MemoryHints::default(),
+            trace: wgpu::Trace::Off,
+        }))
         .map_err(|error| error.to_string())?;
 
-        device.on_uncaptured_error(Box::new(|error| {
+        device.on_uncaptured_error(Arc::new(|error| {
             eprintln!("lumina: GPU error: {error}");
         }));
 
         let surface_config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
             format,
+            color_space: SurfaceColorSpace::Auto,
             width: size.0,
             height: size.1,
             present_mode,
@@ -321,9 +332,9 @@ impl GpuState {
             desired_maximum_frame_latency: 2,
         };
 
-        device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
         surface.configure(&device, &surface_config);
-        if let Some(error) = block_on(device.pop_error_scope()) {
+        if let Some(error) = block_on(error_scope.pop()) {
             return Err(format!("surface configuration failed: {error}"));
         }
 
@@ -361,18 +372,30 @@ impl GpuState {
         uniforms: &IslandUniforms,
     ) -> Result<RenderOutcome, String> {
         let frame = match self.surface.get_current_texture() {
-            Ok(frame) => frame,
-            Err(SurfaceError::Timeout) => return Ok(RenderOutcome::Skipped),
-            Err(SurfaceError::Outdated | SurfaceError::Lost) => {
+            CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => {
+                frame
+            }
+            CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded => {
+                return Ok(RenderOutcome::Skipped);
+            }
+            CurrentSurfaceTexture::Outdated | CurrentSurfaceTexture::Lost => {
                 self.surface.configure(&self.device, &self.config);
                 match self.surface.get_current_texture() {
-                    Ok(frame) => frame,
-                    Err(SurfaceError::Timeout) => return Ok(RenderOutcome::Skipped),
-                    Err(error) => return Err(format!("surface acquisition failed: {error}")),
+                    CurrentSurfaceTexture::Success(frame)
+                    | CurrentSurfaceTexture::Suboptimal(frame) => frame,
+                    CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded => {
+                        return Ok(RenderOutcome::Skipped);
+                    }
+                    CurrentSurfaceTexture::Validation => {
+                        return Err("surface acquisition failed validation".to_string());
+                    }
+                    CurrentSurfaceTexture::Outdated | CurrentSurfaceTexture::Lost => {
+                        return Err("the surface could not be reconfigured".to_string());
+                    }
                 }
             }
-            Err(SurfaceError::OutOfMemory) => {
-                return Err("the GPU ran out of memory".to_string());
+            CurrentSurfaceTexture::Validation => {
+                return Err("surface acquisition failed validation".to_string());
             }
         };
 
@@ -389,6 +412,7 @@ impl GpuState {
         {
             let color_attachment = Some(wgpu::RenderPassColorAttachment {
                 view: &view,
+                depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
@@ -401,6 +425,7 @@ impl GpuState {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             pass.set_pipeline(&self.pipeline.pipeline);
             pass.set_bind_group(0, &self.pipeline.bind_group, &[]);
@@ -409,7 +434,7 @@ impl GpuState {
 
         self.queue.submit(Some(encoder.finish()));
         window.pre_present_notify();
-        frame.present();
+        self.queue.present(frame);
         Ok(RenderOutcome::Presented)
     }
 }
@@ -422,6 +447,63 @@ enum RenderOutcome {
 fn surface_size(window: &Window) -> (u32, u32) {
     let size = window.inner_size();
     (size.width.max(MIN_SURFACE), size.height.max(MIN_SURFACE))
+}
+
+#[cfg(target_os = "windows")]
+fn window_hwnd(window: &Window) -> Option<isize> {
+    use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    match window.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Win32(handle) => Some(handle.hwnd.get()),
+        _ => None,
+    }
+}
+
+fn create_island_window(
+    event_loop: &ActiveEventLoop,
+    placement: &Placement,
+    composition: bool,
+) -> Result<Arc<Window>, String> {
+    let (width, height) = placement.size();
+    let bounds = placement.bounds();
+    let attributes = Window::default_attributes()
+        .with_title("Lumina")
+        .with_inner_size(PhysicalSize::new(
+            width.max(MIN_SURFACE as i32) as u32,
+            height.max(MIN_SURFACE as i32) as u32,
+        ))
+        .with_position(PhysicalPosition::new(
+            bounds.x.round() as i32,
+            bounds.y.round() as i32,
+        ))
+        .with_resizable(false)
+        .with_transparent(true)
+        .with_decorations(false)
+        .with_visible(false)
+        .with_window_level(WindowLevel::AlwaysOnTop);
+
+    #[cfg(target_os = "windows")]
+    let attributes = if composition {
+        use winit::platform::windows::WindowAttributesExtWindows;
+        attributes.with_no_redirection_bitmap(true)
+    } else {
+        attributes
+    };
+    #[cfg(not(target_os = "windows"))]
+    let _ = composition;
+
+    let window = Arc::new(
+        event_loop
+            .create_window(attributes)
+            .map_err(|error| format!("could not create the island window: {error}"))?,
+    );
+
+    #[cfg(target_os = "windows")]
+    {
+        use winit::platform::windows::WindowExtWindows;
+        window.set_skip_taskbar(true);
+    }
+
+    Ok(window)
 }
 
 struct Morph {
@@ -732,37 +814,26 @@ impl RuntimeApp {
 
     fn initialize(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {
         let (placement, monitor_name) = resolve_placement(event_loop, &self.config)?;
-        let (width, height) = placement.size();
         let bounds = placement.bounds();
-        let attributes = Window::default_attributes()
-            .with_title("Lumina")
-            .with_inner_size(PhysicalSize::new(
-                width.max(MIN_SURFACE as i32) as u32,
-                height.max(MIN_SURFACE as i32) as u32,
-            ))
-            .with_position(PhysicalPosition::new(
-                bounds.x.round() as i32,
-                bounds.y.round() as i32,
-            ))
-            .with_resizable(false)
-            .with_transparent(true)
-            .with_decorations(false)
-            .with_visible(false)
-            .with_window_level(WindowLevel::AlwaysOnTop);
-
-        let window = Arc::new(
-            event_loop
-                .create_window(attributes)
-                .map_err(|error| format!("could not create the island window: {error}"))?,
-        );
-
-        #[cfg(target_os = "windows")]
-        {
-            use winit::platform::windows::WindowExtWindows;
-            window.set_skip_taskbar(true);
-        }
-
-        let gpu = GpuState::new(&window, &self.config)?;
+        let composition = cfg!(target_os = "windows")
+            && matches!(
+                self.config.advanced.gpu_backend,
+                GpuBackend::Auto | GpuBackend::Dx12
+            );
+        let mut window = create_island_window(event_loop, &placement, composition)?;
+        let gpu = match GpuState::new(&window, &self.config, composition) {
+            Ok(gpu) => gpu,
+            Err(error) if composition && self.config.advanced.gpu_backend == GpuBackend::Auto => {
+                eprintln!(
+                    "lumina: DirectComposition is unavailable ({error}); retrying without it"
+                );
+                drop(window);
+                window = create_island_window(event_loop, &placement, false)?;
+                GpuState::new(&window, &self.config, false)
+                    .map_err(|fallback| format!("{error}; windowed fallback failed: {fallback}"))?
+            }
+            Err(error) => return Err(error),
+        };
         eprintln!(
             "lumina: {} backend, {}x{} at {},{}",
             gpu.backend, gpu.config.width, gpu.config.height, bounds.x, bounds.y
@@ -969,8 +1040,19 @@ impl RuntimeApp {
         let pass_through = self.state.current() == IslandState::Collapsed
             && self.config.general.click_through_when_collapsed
             && !self.config.general.always_clickable;
-        if let Err(error) = window.set_cursor_hittest(!pass_through) {
-            eprintln!("lumina: could not update click-through: {error}");
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(hwnd) = window_hwnd(window) {
+                if let Err(error) = lumina_platform::win32::set_click_through(hwnd, pass_through) {
+                    eprintln!("lumina: could not update click-through: {error}");
+                }
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            if let Err(error) = window.set_cursor_hittest(!pass_through) {
+                eprintln!("lumina: could not update click-through: {error}");
+            }
         }
     }
 
@@ -1389,13 +1471,19 @@ mod tests {
 
     #[test]
     fn auto_backend_order_is_platform_appropriate() {
-        let names: Vec<_> = backend_candidates(GpuBackend::Auto)
+        let composed: Vec<_> = backend_candidates(GpuBackend::Auto, true)
             .into_iter()
             .map(|(name, _)| name)
             .collect();
-        assert_ne!(names.len(), 0);
+        let windowed: Vec<_> = backend_candidates(GpuBackend::Auto, false)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        assert_ne!(composed.len(), 0);
+        assert_ne!(windowed.len(), 0);
         if cfg!(target_os = "windows") {
-            assert_eq!(names, ["Vulkan", "DX12", "GL"]);
+            assert_eq!(composed, ["DX12"]);
+            assert_eq!(windowed, ["Vulkan", "GL"]);
         }
     }
 

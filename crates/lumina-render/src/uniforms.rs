@@ -4,7 +4,7 @@
 //! `wgpu` uploads the struct as a byte buffer. A mismatch shows up as a silently
 //! wrong render, which is the worst kind of bug to track down.
 //!
-//! The struct is 128 bytes, comfortably inside the 64 KB uniform buffer limit,
+//! The struct is 144 bytes, comfortably inside the 64 KB uniform buffer limit,
 //! and is uploaded with a single `write_buffer` per frame.
 
 use lumina_core::color::Palette;
@@ -16,7 +16,7 @@ use lumina_core::state::IslandState;
 /// Marked `#[repr(C)]` so the field order is guaranteed. Every field is `f32`
 /// or a fixed array of `f32`, so there is no padding surprise.
 ///
-/// The struct is 136 bytes, comfortably inside the 64 KB uniform buffer limit,
+/// The struct is 144 bytes, comfortably inside the 64 KB uniform buffer limit,
 /// and is uploaded with a single `write_buffer` per frame.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(C)]
@@ -64,6 +64,8 @@ pub struct IslandUniforms {
     pub content_opacity: Scalar,
     /// Gradient strength between the fill and accent color.
     pub gradient_strength: Scalar,
+    /// Trailing padding to the uniform struct's 16 byte alignment.
+    pub _padding: [f32; 2],
 }
 
 /// The screen-space parameters for one frame's uniforms.
@@ -148,6 +150,7 @@ impl IslandUniforms {
             time_seconds: params.time_seconds,
             content_opacity: params.content_opacity.clamp(0.0, 1.0),
             gradient_strength: appearance.fill_gradient.clamp(0.0, 1.0),
+            _padding: [0.0; 2],
         }
     }
 
@@ -206,8 +209,8 @@ mod tests {
         // garbage.
         assert_eq!(
             IslandUniforms::SIZE,
-            136,
-            "the uniform struct must be 136 bytes"
+            144,
+            "the uniform struct must be 144 bytes"
         );
     }
 

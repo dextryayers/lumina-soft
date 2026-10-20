@@ -22,7 +22,9 @@ struct Uniforms {
     fill_accent_rgba: vec4<f32>,
     border_rgba: vec4<f32>,
     border_width: f32,
-    glow_rgb: vec3<f32>,
+    glow_r: f32,
+    glow_g: f32,
+    glow_b: f32,
     glow_intensity: f32,
     glow_falloff: f32,
     glow_spread: f32,
@@ -200,7 +202,8 @@ fn fs_main(input: VertexOutput) -> FragmentOutput {
     let noise = (hash(floor(frag_px / max(u.dpr, 1.0))) - 0.5) * u.noise_strength;
 
     var color = fill;
-    color = mix(color, vec4<f32>(u.glow_rgb, 1.0), clamp(glow_amount, 0.0, 1.0) * coverage(shape, glow_start));
+    let glow_rgb = vec3<f32>(u.glow_r, u.glow_g, u.glow_b);
+    color = mix(color, vec4<f32>(glow_rgb, 1.0), clamp(glow_amount, 0.0, 1.0) * coverage(shape, glow_start));
     color.r = color.r + noise;
     color.g = color.g + noise;
     color.b = color.b + noise;

@@ -156,7 +156,7 @@ impl IslandPipeline {
 
     /// Write the uniforms for the next draw.
     ///
-    /// One `write_buffer` per frame. The buffer is 128 bytes, so this is
+    /// One `write_buffer` per frame. The buffer is 144 bytes, so this is
     /// negligible next to the cost of presenting.
     pub fn write_uniforms(&self, queue: &wgpu::Queue, uniforms: &IslandUniforms) {
         queue.write_buffer(&self.uniform_buffer, 0, uniforms.as_bytes());
@@ -299,6 +299,6 @@ mod tests {
     fn the_uniform_buffer_size_matches_the_struct() {
         // A buffer smaller than the struct would read past the end, which is the
         // kind of bug that shows up as a randomly shaped island on some drivers.
-        assert_eq!(IslandUniforms::SIZE, 136);
+        assert_eq!(IslandUniforms::SIZE, 144);
     }
 }

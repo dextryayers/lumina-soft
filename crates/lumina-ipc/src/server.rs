@@ -147,6 +147,7 @@ impl Server {
         while !shutdown.load(Ordering::Acquire) {
             match listener.accept() {
                 Ok(Some(connection)) => {
+                    eprintln!("[ipc-debug] accepted a connection");
                     if clients.load(Ordering::Relaxed) >= max_clients {
                         reject_busy(connection, max_clients);
                         continue;
@@ -198,6 +199,7 @@ fn dispatch_loop(
     loop {
         match jobs.recv_timeout(poll) {
             Ok(job) => {
+                eprintln!("[ipc-debug] dispatching {}", job.command.name());
                 let quit = matches!(job.command, Command::Quit);
                 let result = handler.handle(job.command);
                 let succeeded = result.is_ok();
@@ -284,7 +286,10 @@ fn run_connection(
             break;
         }
         let line = match reader.read_line() {
-            Ok(Some(line)) => line,
+            Ok(Some(line)) => {
+                eprintln!("[ipc-debug] read line: {line}");
+                line
+            }
             Ok(None) | Err(FrameError::Io(_)) => break,
             Err(FrameError::TooLong) => {
                 send(
@@ -335,8 +340,14 @@ fn run_connection(
             break;
         }
         match reply_receiver.recv() {
-            Ok(Ok(data)) => send(&out_sender, &Response::success(request.id, data)),
-            Ok(Err(error)) => send(&out_sender, &Response::failure(request.id, error)),
+            Ok(Ok(data)) => {
+                eprintln!("[ipc-debug] replying with success");
+                send(&out_sender, &Response::success(request.id, data));
+            }
+            Ok(Err(error)) => {
+                eprintln!("[ipc-debug] replying with failure");
+                send(&out_sender, &Response::failure(request.id, error));
+            }
             Err(_) => {
                 send(
                     &out_sender,

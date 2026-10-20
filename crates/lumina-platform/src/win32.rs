@@ -22,7 +22,7 @@ use std::ffi::c_void;
 
 use lumina_core::geometry::Rect;
 use raw_window_handle::RawWindowHandle;
-use windows::Win32::Foundation::{HWND, RECT};
+use windows::Win32::Foundation::{GetLastError, SetLastError, ERROR_SUCCESS, HWND, RECT};
 use windows::Win32::Graphics::Dwm::{
     DwmExtendFrameIntoClientArea, DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
     DWMWCP_ROUND,
@@ -35,7 +35,7 @@ use windows::Win32::UI::HiDpi::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE,
-    HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE,
+    HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE,
     SW_SHOWNOACTIVATE, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW,
     WS_EX_TRANSPARENT,
 };
@@ -154,16 +154,7 @@ impl Win32Backend {
     /// legitimate previous value of zero.
     fn set_extended_style(&self, style: isize) -> Result<(), OverlayError> {
         let hwnd = self.hwnd.ok_or(OverlayError::NoWindowHandle)?;
-        let previous = unsafe { SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style) };
-        if previous == 0 {
-            let error = unsafe { windows::Win32::Foundation::GetLastError() };
-            if error.0 != 0 {
-                return Err(OverlayError::Platform(format!(
-                    "SetWindowLongPtrW(GWL_EXSTYLE) failed: {error:?}"
-                )));
-            }
-        }
-        Ok(())
+        write_extended_style(hwnd, style)
     }
 
     /// Apply the styles that keep the island out of the taskbar and give it
@@ -330,6 +321,58 @@ fn hwnd_from_raw(window: RawWindowHandle) -> Option<HWND> {
         RawWindowHandle::Win32(handle) => Some(HWND(handle.hwnd.get() as *mut c_void)),
         _ => None,
     }
+}
+
+fn hwnd_from_isize(hwnd: isize) -> HWND {
+    HWND(hwnd as *mut c_void)
+}
+
+fn write_extended_style(hwnd: HWND, style: isize) -> Result<(), OverlayError> {
+    unsafe { SetLastError(ERROR_SUCCESS) };
+    let previous = unsafe { SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style) };
+    if previous == 0 {
+        let error = unsafe { GetLastError() };
+        if error != ERROR_SUCCESS {
+            return Err(OverlayError::Platform(format!(
+                "SetWindowLongPtrW(GWL_EXSTYLE) failed: {error:?}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn refresh_window_frame(hwnd: HWND) {
+    unsafe {
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER | SWP_FRAMECHANGED,
+        );
+    }
+}
+
+/// Toggle click-through for a window that presents through DirectComposition.
+///
+/// Winit's `set_cursor_hittest` also sets `WS_EX_LAYERED`, which disables
+/// DirectComposition compositing. `WS_EX_TRANSPARENT` alone is sufficient for
+/// hit testing and leaves the composition target intact.
+pub fn set_click_through(hwnd: isize, enabled: bool) -> Result<(), OverlayError> {
+    let hwnd = hwnd_from_isize(hwnd);
+    let current = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
+    let desired = if enabled {
+        current | WS_EX_TRANSPARENT.0 as isize
+    } else {
+        current & !(WS_EX_TRANSPARENT.0 as isize)
+    };
+    if desired != current {
+        write_extended_style(hwnd, desired)?;
+        refresh_window_frame(hwnd);
+    }
+    Ok(())
 }
 
 /// Read a monitor's rectangle and primary flag in one call.
