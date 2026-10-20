@@ -1,0 +1,16 @@
+# Neutral greys, for users who want no color at all.
+name = "Mono"
+
+[appearance]
+fill = "#141414F0"
+border_color = "#FFFFFF30"
+corner_radius = 16.0
+glow_spread = 6.0
+glow_falloff = 12.0
+
+[rgb]
+mode = "static"
+primary = "#E8E8E8"
+secondary = "#A0A0A0"
+saturation = 0.0
+glow_intensity = 0.25

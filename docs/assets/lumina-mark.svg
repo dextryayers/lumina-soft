@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Lumina mark</title>
+  <desc id="desc">An inverse trapezoid island with a violet to cyan gradient.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#11101c"/>
+      <stop offset="1" stop-color="#07070d"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="0.48" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.55">
+      <stop offset="0" stop-color="#7c3aed" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <circle cx="256" cy="244" r="196" fill="url(#glow)"/>
+  <path d="M116 192c-7 0-12 6-11 13l16 124c1 9 8 15 17 15h236c9 0 16-6 17-15l16-124c1-7-4-13-11-13H116z" fill="#7c3aed" opacity="0.55" filter="url(#soft)"/>
+  <path d="M116 192c-7 0-12 6-11 13l16 124c1 9 8 15 17 15h236c9 0 16-6 17-15l16-124c1-7-4-13-11-13H116z" fill="url(#accent)"/>
+  <path d="M124 201h264l-4 27c-79-8-177-8-256 0l-4-27z" fill="#ffffff" opacity="0.22"/>
+  <circle cx="256" cy="279" r="18" fill="#ffffff" opacity="0.2"/>
+  <circle cx="256" cy="279" r="6" fill="#ffffff" opacity="0.85"/>
+</svg>

@@ -1,0 +1,15 @@
+# The Nord palette.
+name = "Nord"
+
+[appearance]
+fill = "#2E3440F2"
+border_color = "#81A1C166"
+corner_radius = 14.0
+glow_spread = 10.0
+glow_falloff = 9.0
+
+[rgb]
+mode = "static"
+primary = "#88C0D0"
+secondary = "#81A1C1"
+glow_intensity = 0.55

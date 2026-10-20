@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Lumina interface concept</title>
+  <desc id="desc">A translucent violet and cyan island showing album art, track metadata, playback progress, and a spectrum.</desc>
+  <defs>
+    <linearGradient id="desk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#141828"/>
+      <stop offset="0.55" stop-color="#0b0e18"/>
+      <stop offset="1" stop-color="#151022"/>
+    </linearGradient>
+    <radialGradient id="wall1" cx="0.2" cy="0.15" r="0.65">
+      <stop offset="0" stop-color="#2447a8" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#2447a8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="wall2" cx="0.85" cy="0.8" r="0.7">
+      <stop offset="0" stop-color="#7c3aed" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="island" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#171421" stop-opacity="0.97"/>
+      <stop offset="1" stop-color="#0a0b11" stop-opacity="0.97"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a78bfa" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#7c3aed" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#06b6d4" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="progress" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="0.55" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="art" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f472b6"/>
+      <stop offset="0.45" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </linearGradient>
+    <filter id="shadow" x="-40%" y="-80%" width="180%" height="260%">
+      <feGaussianBlur stdDeviation="32"/>
+    </filter>
+    <filter id="blur" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.1"/>
+    </filter>
+    <filter id="glow" x="-40%" y="-80%" width="180%" height="260%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="675" fill="url(#desk)"/>
+  <rect width="1200" height="675" fill="url(#wall1)"/>
+  <rect width="1200" height="675" fill="url(#wall2)"/>
+  <g opacity="0.18">
+    <path d="M0 540c170-70 310-46 462-104 190-72 308-166 480-142 110 16 180 54 258 66" fill="none" stroke="#9db4ff" stroke-width="1"/>
+    <path d="M0 575c170-70 310-46 462-104 190-72 308-166 480-142 110 16 180 54 258 66" fill="none" stroke="#9db4ff" stroke-width="1"/>
+    <path d="M0 610c170-70 310-46 462-104 190-72 308-166 480-142 110 16 180 54 258 66" fill="none" stroke="#9db4ff" stroke-width="1"/>
+  </g>
+
+  <g opacity="0.7">
+    <rect x="0" y="0" width="1200" height="42" fill="#080a12" opacity="0.58"/>
+    <circle cx="30" cy="21" r="5" fill="#7c3aed"/>
+    <rect x="48" y="17" width="74" height="8" rx="4" fill="#ffffff" opacity="0.4"/>
+    <rect x="1046" y="16" width="40" height="10" rx="5" fill="#ffffff" opacity="0.18"/>
+    <rect x="1096" y="16" width="26" height="10" rx="5" fill="#ffffff" opacity="0.18"/>
+    <text x="1132" y="26" fill="#ffffff" opacity="0.55" font-family="Segoe UI, Inter, sans-serif" font-size="11">10:42</text>
+  </g>
+
+  <rect x="282" y="58" width="636" height="112" rx="34" fill="#7c3aed" opacity="0.34" filter="url(#shadow)"/>
+  <rect x="288" y="58" width="624" height="108" rx="32" fill="url(#island)"/>
+  <rect x="289" y="59" width="622" height="106" rx="31" fill="none" stroke="url(#edge)" stroke-width="1.4"/>
+  <path d="M322 60h556c16 0 29 13 29 29v1c-195-14-419-14-614 0v-1c0-16 13-29 29-29z" fill="#ffffff" opacity="0.06"/>
+
+  <rect x="316" y="80" width="64" height="64" rx="14" fill="url(#art)"/>
+  <circle cx="348" cy="112" r="20" fill="#0b0b12" opacity="0.42"/>
+  <circle cx="348" cy="112" r="4" fill="#ffffff" opacity="0.8"/>
+  <path d="M373 96c7 0 12 5 12 12" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.55" stroke-linecap="round"/>
+
+  <text x="400" y="104" fill="#ffffff" opacity="0.96" font-family="Segoe UI, Inter, sans-serif" font-size="18" font-weight="600">Midnight City</text>
+  <text x="400" y="127" fill="#ffffff" opacity="0.52" font-family="Segoe UI, Inter, sans-serif" font-size="13">M83 - Hurry Up, We're Dreaming</text>
+  <rect x="400" y="146" width="332" height="3" rx="1.5" fill="#ffffff" opacity="0.14"/>
+  <rect x="400" y="146" width="146" height="3" rx="1.5" fill="url(#progress)"/>
+
+  <g transform="translate(754 86)">
+    <rect x="0" y="0" width="28" height="28" rx="9" fill="#ffffff" opacity="0.08"/>
+    <path d="M18 7 9 14l9 7z" fill="#ffffff" opacity="0.9"/>
+    <rect x="42" y="0" width="28" height="28" rx="9" fill="#ffffff" opacity="0.08"/>
+    <path d="M56 8v12M61 8v12" stroke="#ffffff" stroke-width="2" opacity="0.9" stroke-linecap="round"/>
+    <rect x="84" y="0" width="28" height="28" rx="9" fill="#ffffff" opacity="0.08"/>
+    <path d="M94 7l9 7-9 7z" fill="#ffffff" opacity="0.9"/>
+  </g>
+
+  <g transform="translate(872 94)">
+    <rect x="0" y="26" width="5" height="12" rx="2.5" fill="#a78bfa"/>
+    <rect x="11" y="18" width="5" height="20" rx="2.5" fill="#8b5cf6"/>
+    <rect x="22" y="8" width="5" height="30" rx="2.5" fill="#7c3aed"/>
+    <rect x="33" y="2" width="5" height="36" rx="2.5" fill="#22d3ee"/>
+    <rect x="44" y="12" width="5" height="26" rx="2.5" fill="#06b6d4"/>
+    <rect x="55" y="22" width="5" height="16" rx="2.5" fill="#0891b2"/>
+    <rect x="66" y="30" width="5" height="8" rx="2.5" fill="#06b6d4" opacity="0.7"/>
+  </g>
+
+  <g transform="translate(370 214)" opacity="0.9">
+    <rect x="0" y="0" width="460" height="57" rx="22" fill="#0c0d14" opacity="0.92"/>
+    <rect x="0.5" y="0.5" width="459" height="56" rx="21.5" fill="none" stroke="#ffffff" stroke-opacity="0.14"/>
+    <circle cx="28" cy="28.5" r="12" fill="#22d3ee" opacity="0.16"/>
+    <path d="M27 21c-3 0-5 2-5 5v5c0 3 2 5 5 5s5-2 5-5v-5c0-3-2-5-5-5zm-9 10c0 5 4 9 9 9s9-4 9-9" fill="none" stroke="#67e8f9" stroke-width="1.6" stroke-linecap="round"/>
+    <text x="50" y="24" fill="#ffffff" opacity="0.85" font-family="Segoe UI, Inter, sans-serif" font-size="11" font-weight="600">Focus mode</text>
+    <text x="50" y="40" fill="#ffffff" opacity="0.43" font-family="Segoe UI, Inter, sans-serif" font-size="11">Notifications paused for 25 minutes</text>
+    <rect x="308" y="18" width="132" height="22" rx="11" fill="#ffffff" opacity="0.08"/>
+    <text x="374" y="33" fill="#ffffff" opacity="0.7" text-anchor="middle" font-family="Segoe UI, Inter, sans-serif" font-size="10">Resume alerts</text>
+  </g>
+
+  <g opacity="0.52" font-family="Segoe UI, Inter, sans-serif">
+    <text x="54" y="596" fill="#ffffff" font-size="12" letter-spacing="2.2">LUMINA</text>
+    <text x="54" y="619" fill="#ffffff" opacity="0.55" font-size="11">Local-first dynamic island for Windows and Linux</text>
+    <text x="1146" y="619" fill="#ffffff" opacity="0.5" font-size="11" text-anchor="end">Interface concept - visual runtime pending</text>
+  </g>
+</svg>

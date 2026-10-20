@@ -1,4 +1,4 @@
-﻿[workspace]
+[workspace]
 resolver = "2"
 members = [
     "crates/lumina-core",
@@ -12,6 +12,7 @@ members = [
     "crates/lumina-audio",
     "crates/lumina-color",
     "crates/lumina-ipc",
+    "xtask",
 ]
 
 [workspace.package]

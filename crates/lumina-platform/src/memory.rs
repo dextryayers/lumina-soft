@@ -78,10 +78,12 @@ fn platform_memory() -> Option<ProcessMemory> {
     use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
     use windows::Win32::System::Threading::GetCurrentProcess;
 
-    let mut counters = PROCESS_MEMORY_COUNTERS::default();
-    counters.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
+    let mut counters = PROCESS_MEMORY_COUNTERS {
+        cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+        ..PROCESS_MEMORY_COUNTERS::default()
+    };
     unsafe {
-        GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb).ok()?;
+        GetProcessMemoryInfo(GetCurrentProcess(), &raw mut counters, counters.cb).ok()?;
     }
     Some(ProcessMemory::new(
         counters.WorkingSetSize as u64,

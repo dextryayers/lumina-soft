@@ -37,6 +37,8 @@ targets `7.0` with pure black and white.
   Shift+Tab traversal. A caller maps the platform keys.
 - `InputRouter::retain_focus` drops focus when a layout change removes the
   focused widget.
+- `InputRouter::activate_focused` maps Enter or Space to a primary click at the
+  focused widget's centre; `dismiss_focus` maps Escape.
 - `DrawList::push_focus_ring` emits a four-edge ring using the configured width,
   offset, and colour.
 
@@ -68,10 +70,13 @@ lumina --self-test
 lumina --benchmark --output benchmark.json
 ```
 
-`--diagnostics` includes platform capabilities, config validity, the resolved
-accessibility settings, and OS reduced-motion/screen-reader state. Paste it into
-the bug report template.
+`--diagnostics` includes platform capabilities, process resident memory, config
+validity, the resolved accessibility settings, and OS reduced-motion/screen-reader
+state. Paste it into the bug report template.
 
 `--self-test` covers defaults, shipped config, themes, all RGB engines, WCAG
-contrast, WGSL validation, shaping, layout caching, idle pacing, and platform
-capability consistency without needing a display or GPU.
+contrast, WGSL validation, shaping, layout caching, idle pacing, process memory,
+and platform capability consistency without needing a display or GPU.
+
+`--benchmark --baseline perf/baseline-<platform>.json` enforces the five percent
+CPU regression gate. See `perf/README.md` for the reference-machine procedure.

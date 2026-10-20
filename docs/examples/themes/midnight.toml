@@ -1,0 +1,15 @@
+# Cool, low contrast, easy on the eyes at night.
+name = "Midnight"
+
+[appearance]
+fill = "#0A0A14F2"
+border_color = "#3A3A5A66"
+corner_radius = 22.0
+glow_spread = 14.0
+glow_falloff = 10.0
+
+[rgb]
+mode = "breathing"
+primary = "#4C6EF5"
+secondary = "#7048E8"
+glow_intensity = 0.5

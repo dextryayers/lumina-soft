@@ -40,6 +40,24 @@ pub struct Theme {
 }
 
 impl Theme {
+    /// Parse a theme from TOML text.
+    ///
+    /// # Errors
+    ///
+    /// Returns the TOML parser error when the file is not a valid theme.
+    pub fn from_toml_str(text: &str) -> Result<Self, toml::de::Error> {
+        toml::from_str(text)
+    }
+
+    /// Serialize this theme as standalone TOML.
+    ///
+    /// # Errors
+    ///
+    /// Returns the serializer error when a value cannot be represented in TOML.
+    pub fn to_toml_string(&self) -> Result<String, toml::ser::Error> {
+        toml::to_string_pretty(self)
+    }
+
     /// Name to show in a menu, falling back to the filename stem.
     #[must_use]
     pub fn display_name(&self, path: &Path) -> String {

@@ -1,0 +1,17 @@
+# Warm oranges and pinks.
+name = "Sunset"
+
+[appearance]
+fill = "#1A1020EC"
+border_color = "#FF9E80AA"
+corner_radius = 20.0
+glow_spread = 12.0
+glow_falloff = 9.0
+
+[rgb]
+mode = "breathing"
+primary = "#FF7043"
+secondary = "#FFB300"
+breath_rate_hz = 0.18
+breath_depth = 0.22
+glow_intensity = 0.85

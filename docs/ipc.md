@@ -125,7 +125,7 @@ Events have no request id. They are pushed to every connected client.
 
 `set_rgb`
 
-- `mode` is an engine name such as `wave`, `reactive`, or `album`.
+- `mode` is one of `static`, `breathing`, `cycling`, `reactive`, or `album`.
 - `color` is `#rgb` or `#rrggbb`.
 - `speed` is between 0 and 10.
 
@@ -182,7 +182,7 @@ Events have no request id. They are pushed to every connected client.
     "scale": 1.5,
     "monitor": "DP-1"
   },
-  "rgb": {"mode": "wave", "color": "#5ac8fa", "speed": 1.0},
+  "rgb": {"mode": "reactive", "color": "#5ac8fa", "speed": 1.0},
   "media": {
     "player": "spotify",
     "title": "Track",

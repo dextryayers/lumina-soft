@@ -968,4 +968,76 @@ mod tests {
         assert_eq!(parsed["results"].as_array().expect("results").len(), 2);
         assert_eq!(parsed["results"][1]["name"], "text.shape");
     }
+
+    fn temporary_baseline(document: &str) -> PathBuf {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static NEXT: AtomicU32 = AtomicU32::new(0);
+
+        let path = std::env::temp_dir().join(format!(
+            "lumina-baseline-{}-{}.json",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::write(&path, document).expect("write the temporary baseline");
+        path
+    }
+
+    fn current(ns_per_op: f64) -> Vec<BenchResult> {
+        vec![BenchResult {
+            name: "color.static.update",
+            ns_per_op,
+        }]
+    }
+
+    fn baseline_document(platform: &str, entry: &str) -> String {
+        format!(
+            r#"{{"platform":"{platform}","profile":"{}","results":[{entry}]}}"#,
+            profile_name()
+        )
+    }
+
+    #[test]
+    fn a_baseline_within_five_percent_passes() {
+        let path = temporary_baseline(&baseline_document(
+            "windows",
+            r#"{"name":"color.static.update","ns_per_op":100.0}"#,
+        ));
+        let result = compare_baseline(&path, &current(104.9), Platform::Windows);
+        std::fs::remove_file(path).ok();
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn a_baseline_regression_beyond_five_percent_fails() {
+        let path = temporary_baseline(&baseline_document(
+            "windows",
+            r#"{"name":"color.static.update","ns_per_op":100.0}"#,
+        ));
+        let result = compare_baseline(&path, &current(105.1), Platform::Windows);
+        std::fs::remove_file(path).ok();
+        let message = result.expect_err("the regression must fail");
+        assert!(message.contains("color.static.update"), "{message}");
+        assert!(message.contains("5%"), "{message}");
+    }
+
+    #[test]
+    fn a_baseline_from_another_platform_is_skipped() {
+        let path = temporary_baseline(&baseline_document(
+            "linux",
+            r#"{"name":"color.static.update","ns_per_op":100.0}"#,
+        ));
+        let result = compare_baseline(&path, &current(1_000.0), Platform::Windows);
+        std::fs::remove_file(path).ok();
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn an_incomplete_baseline_is_rejected() {
+        let path = temporary_baseline(&baseline_document("windows", ""));
+        let result = compare_baseline(&path, &current(100.0), Platform::Windows);
+        std::fs::remove_file(path).ok();
+        assert!(result
+            .expect_err("missing metrics must fail")
+            .contains("no entry"));
+    }
 }

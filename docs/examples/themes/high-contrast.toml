@@ -1,0 +1,33 @@
+# Maximum legibility: opaque black, pure white text, no glow or translucency.
+name = "High Contrast"
+
+[appearance]
+fill = "#000000"
+border_color = "#FFFFFFFF"
+border_width = 2.0
+corner_radius = 8.0
+glow_spread = 0.0
+shadow_opacity = 0.0
+backdrop_blur = "off"
+backdrop_darken = 0.0
+noise_strength = 0.0
+
+[rgb]
+mode = "static"
+primary = "#FFFFFF"
+secondary = "#FFFFFF"
+brightness = 1.0
+saturation = 0.0
+glow_intensity = 0.0
+
+[accessibility]
+enforce_contrast = true
+contrast_target = 7.0
+keyboard_focus = true
+focus_ring_width = 3.0
+focus_ring_offset = 2.0
+focus_ring_color = "#FFFF00FF"
+
+[text]
+color = "#FFFFFFFF"
+dim_color = "#FFFFFFFF"

@@ -1,0 +1,18 @@
+# Heavy backdrop blur with a low fill, for a frosted look.
+name = "Glass"
+
+[appearance]
+fill = "#FFFFFF14"
+border_color = "#FFFFFF38"
+corner_radius = 26.0
+glow_spread = 6.0
+backdrop_blur = "on"
+backdrop_darken = 0.05
+shadow_opacity = 0.12
+
+[rgb]
+mode = "static"
+primary = "#FFFFFF"
+secondary = "#E0E0E0"
+saturation = 0.15
+glow_intensity = 0.3

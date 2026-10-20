@@ -1,0 +1,15 @@
+# Catppuccin Mocha.
+name = "Catppuccin Mocha"
+
+[appearance]
+fill = "#1E1E2EF2"
+border_color = "#CDD6F44D"
+corner_radius = 18.0
+glow_spread = 10.0
+glow_falloff = 9.0
+
+[rgb]
+mode = "static"
+primary = "#CBA6F7"
+secondary = "#89B4FA"
+glow_intensity = 0.7

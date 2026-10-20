@@ -1,0 +1,5 @@
+[alias]
+xtask = "run --package xtask --"
+docs = "run --package xtask -- docs"
+docs-check = "run --package xtask -- docs --check"
+release-check = "run --package xtask -- release-check"

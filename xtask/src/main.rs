@@ -1,0 +1,566 @@
+use std::env;
+use std::fmt::Write as _;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+
+const CONFIG_DOC: &str = "docs/configuration.md";
+const CONFIG_SOURCE: &str = "crates/lumina-config/assets/default.toml";
+const REQUIRED_DOCS: &[&str] = &[
+    "README.md",
+    "CHANGELOG.md",
+    "docs/accessibility.md",
+    "docs/architecture.md",
+    "docs/configuration.md",
+    "docs/integration.md",
+    "docs/ipc.md",
+    "docs/manual-test-matrix.md",
+    "docs/release-checklist.md",
+    "docs/script-widget.md",
+    "docs/themes.md",
+    "docs/troubleshooting.md",
+];
+const REQUIRED_PACKAGING: &[&str] = &[
+    "packaging/README.md",
+    "packaging/windows/build.ps1",
+    "packaging/windows/installer.nsi",
+    "packaging/windows/lumina.wxs",
+    "packaging/linux/build.sh",
+    "packaging/linux/AppRun",
+    "packaging/linux/lumina.desktop",
+    "packaging/linux/lumina.appdata.xml",
+    "packaging/linux/lumina.svg",
+    "packaging/linux/completions/lumina.bash",
+    "packaging/linux/completions/lumina.fish",
+    "packaging/linux/completions/_lumina",
+    "packaging/linux/completions/lumina-send.bash",
+    "packaging/linux/completions/lumina-send.fish",
+    "packaging/linux/completions/_lumina-send",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Entry {
+    key: String,
+    default: String,
+    description: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Section {
+    name: String,
+    entries: Vec<Entry>,
+}
+
+impl Section {
+    fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            entries: Vec::new(),
+        }
+    }
+}
+
+fn main() -> ExitCode {
+    match run(env::args().skip(1).collect()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(message) => {
+            eprintln!("xtask: {message}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run(args: Vec<String>) -> Result<(), String> {
+    let root = workspace_root()?;
+    let Some(command) = args.first().map(String::as_str) else {
+        print_help();
+        return Ok(());
+    };
+
+    match command {
+        "docs" => {
+            let check = args.iter().skip(1).any(|arg| arg == "--check");
+            if check {
+                check_docs(&root)
+            } else {
+                write_docs(&root)
+            }
+        }
+        "release-check" => release_check(&root),
+        "help" | "--help" | "-h" => {
+            print_help();
+            Ok(())
+        }
+        other => Err(format!(
+            "unknown command `{other}`; run `cargo xtask help`"
+        )),
+    }
+}
+
+fn print_help() {
+    println!("Lumina repository tasks");
+    println!();
+    println!("  cargo xtask docs             Regenerate docs/configuration.md");
+    println!("  cargo xtask docs --check     Fail when generated docs are stale");
+    println!("  cargo xtask release-check    Verify release metadata and artifacts");
+    println!("  cargo xtask help             Show this message");
+}
+
+fn workspace_root() -> Result<PathBuf, String> {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "xtask must live inside the workspace".to_string())
+}
+
+fn write_docs(root: &Path) -> Result<(), String> {
+    let generated = generate_config_doc(root)?;
+    let path = root.join(CONFIG_DOC);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
+    }
+    fs::write(&path, generated).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+    println!("wrote {}", path.display());
+    check_docs(root)
+}
+
+fn check_docs(root: &Path) -> Result<(), String> {
+    let expected = generate_config_doc(root)?;
+    let path = root.join(CONFIG_DOC);
+    let actual = fs::read_to_string(&path)
+        .map_err(|e| format!("cannot read {}: {e}; run `cargo xtask docs`", path.display()))?;
+    if actual == expected {
+        println!("{} is up to date", path.display());
+        return Ok(());
+    }
+
+    let expected_lines: Vec<&str> = expected.lines().collect();
+    let actual_lines: Vec<&str> = actual.lines().collect();
+    let first = expected_lines
+        .iter()
+        .zip(&actual_lines)
+        .position(|(a, b)| a != b)
+        .unwrap_or_else(|| expected_lines.len().min(actual_lines.len()));
+    Err(format!(
+        "{} is stale at line {}; run `cargo xtask docs`",
+        path.display(),
+        first + 1
+    ))
+}
+
+fn generate_config_doc(root: &Path) -> Result<String, String> {
+    let path = root.join(CONFIG_SOURCE);
+    let source = fs::read_to_string(&path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let sections = parse_default_toml(&source);
+    if sections.is_empty() {
+        return Err(format!("{} contains no keys", path.display()));
+    }
+
+    let mut out = String::new();
+    out.push_str(
+        "# Configuration reference\n\n\
+         <!-- Generated by `cargo xtask docs`. Do not edit this file by hand. -->\n\n\
+         Lumina reads one TOML file. Every key is optional, unknown keys produce a\n\
+         warning with a spelling suggestion, and invalid values are repaired\n\
+         individually instead of discarding the whole file. Run\n\
+         `lumina --check-config` after editing.\n\n\
+         This reference is generated from the same annotated file that Lumina\n\
+         installs on first run, so a key that exists in the product always appears\n\
+         here and a default can never silently drift.\n\n",
+    );
+
+    out.push_str(
+        "## Quick start\n\n\
+         ```toml\n\
+         [general]\n\
+         position = \"top-center\"\n\
+         offset_y = 12\n\n\
+         [appearance]\n\
+         fill = \"#12121ACC\"\n\
+         corner_radius = 18.0\n\
+         height = 36.0\n\n\
+         [rgb]\n\
+         mode = \"breathing\"\n\
+         primary = \"#7C3AED\"\n\
+         secondary = \"#06B6D4\"\n\
+         ```\n\n\
+         Colors accept `#RGB`, `#RGBA`, `#RRGGBB`, and `#RRGGBBAA`. Sizes are\n\
+         logical pixels and scale with the monitor DPI factor. Changes apply live\n\
+         unless the reference below says otherwise.\n\n",
+    );
+
+    out.push_str(
+        "## Precedence\n\n\
+         Values are merged from lowest to highest priority:\n\n\
+         1. Compiled defaults\n\
+         2. `config.toml`\n\
+         3. Active theme file\n\
+         4. Active profile, including inherited profiles\n\
+         5. Command line flags\n\
+         6. Session-only IPC changes\n\n\
+         A theme or profile only contains the keys it changes. See\n\
+         [themes](themes.md) for the authoring guide and examples.\n\n",
+    );
+
+    out.push_str("## Reference\n\n");
+    for section in &sections {
+        if section.name == "Top level" {
+            out.push_str("### Top level\n\n");
+        } else {
+            let _ = writeln!(out, "### `[{}]`\n", section.name);
+        }
+        out.push_str("| Key | Default | Description |\n");
+        out.push_str("|---|---|---|\n");
+        for entry in &section.entries {
+            let default = markdown_cell(&entry.default);
+            let description = if entry.description.is_empty() {
+                String::from("-")
+            } else {
+                markdown_cell(&entry.description.join("<br>"))
+            };
+            let _ = writeln!(
+                out,
+                "| `{}` | `{}` | {} |",
+                entry.key, default, description
+            );
+        }
+        out.push('\n');
+    }
+
+    out.push_str(
+        "## Structured entries\n\n\
+         Three sections contain arrays of tables that are empty by default. The\n\
+         examples below show every supported field.\n\n\
+         ### Shortcuts\n\n\
+         ```toml\n\
+         [[shortcuts.list]]\n\
+         id = \"screenshot\"\n\
+         label = \"Take a screenshot\"\n\
+         icon = \"camera\"\n\
+         command = \"flameshot\"\n\
+         args = [\"gui\"]\n\
+         cwd = \"\"\n\
+         hotkey = \"ctrl+alt+s\"\n\
+         show_in_island = true\n\
+         ipc_only = false\n\
+         ```\n\n\
+         `id` and `label` are required and must be unique. `command` must be a\n\
+         program name or path. It is executed directly, never through a shell.\n\n\
+         ### Script widgets\n\n\
+         ```toml\n\
+         [script]\n\
+         enabled = true\n\n\
+         [[script.entries]]\n\
+         id = \"uptime\"\n\
+         label = \"Uptime\"\n\
+         command = \"uptime\"\n\
+         args = [\"-p\"]\n\
+         cwd = \"\"\n\
+         interval_ms = 60000\n\
+         timeout_ms = 5000\n\
+         display_ms = 8000\n\
+         max_lines = 3\n\
+         display = \"text\"\n\
+         icon = \"terminal\"\n\
+         show_in_island = true\n\
+         ```\n\n\
+         Scripts run without a shell, have a hard timeout, and cap output at 120\n\
+         characters per line. Read [the script widget guide](script-widget.md)\n\
+         before enabling one.\n\n\
+         ### Per-widget overrides\n\n\
+         ```toml\n\
+         [widgets.media]\n\
+         enabled = true\n\
+         flex = 2.0\n\
+         margin_leading = 8.0\n\n\
+         [widgets.media.rgb]\n\
+         override_palette = true\n\
+         primary = \"#FF2D55\"\n\
+         glow_intensity = 1.0\n\
+         ```\n\n\
+         Valid widget ids are `clock`, `media`, `spectrum`, `metrics`, `battery`,\n\
+         `network`, `pomodoro`, `weather`, `notify`, `script`, and `shortcuts`.\n\n",
+    );
+
+    out.push_str(
+        "## Safety notes\n\n\
+         - `execute`, `notify.action`, shortcuts, and script widgets run local\n\
+           programs. They are user-controlled configuration, not a sandbox.\n\
+         - `[advanced].ipc_allow_exec` defaults to `false`; leave it off unless a\n\
+           local integration genuinely needs to launch processes.\n\
+         - `[advanced].experimental_wgsl` accepts arbitrary WGSL. It is validated\n\
+           with `naga`, but it still runs on your GPU driver.\n\
+         - Lumina has no telemetry. The optional weather widget is the only\n\
+           component that makes network requests.\n",
+    );
+
+    Ok(out)
+}
+
+fn parse_default_toml(source: &str) -> Vec<Section> {
+    let mut sections = Vec::new();
+    let mut current = Section::new("Top level");
+    let mut pending: Vec<String> = Vec::new();
+
+    for raw in source.lines() {
+        let line = raw.trim();
+        if line.is_empty() {
+            pending.clear();
+            continue;
+        }
+        if let Some(comment) = line.strip_prefix('#') {
+            let comment = comment.trim();
+            if comment.is_empty() {
+                pending.clear();
+            } else {
+                pending.push(comment.to_string());
+            }
+            continue;
+        }
+        if line.starts_with("[[") {
+            pending.clear();
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            let name = line.trim_matches(['[', ']']).trim().to_string();
+            if current.name != "Top level" || !current.entries.is_empty() {
+                sections.push(current);
+            }
+            current = Section::new(name);
+            pending.clear();
+            continue;
+        }
+        if let Some((key, value)) = line.split_once('=') {
+            current.entries.push(Entry {
+                key: key.trim().to_string(),
+                default: value.trim().to_string(),
+                description: pending.clone(),
+            });
+            pending.clear();
+            continue;
+        }
+        pending.clear();
+    }
+
+    if !current.entries.is_empty() {
+        sections.push(current);
+    }
+    sections
+}
+
+fn markdown_cell(text: &str) -> String {
+    text.replace('|', "\\|")
+        .replace('\n', "<br>")
+        .replace("`", "\\`")
+}
+
+fn release_check(root: &Path) -> Result<(), String> {
+    let version = workspace_version(root)?;
+    let mut problems = Vec::new();
+    let mut checks = 0usize;
+
+    for path in REQUIRED_DOCS {
+        checks += 1;
+        if !root.join(path).is_file() {
+            problems.push(format!("missing required documentation: {path}"));
+        }
+    }
+    for path in REQUIRED_PACKAGING {
+        checks += 1;
+        if !root.join(path).is_file() {
+            problems.push(format!("missing packaging file: {path}"));
+        }
+    }
+
+    checks += 1;
+    match check_docs(root) {
+        Ok(()) => {}
+        Err(error) => problems.push(error),
+    }
+
+    checks += 1;
+    match fs::read_to_string(root.join("CHANGELOG.md")) {
+        Ok(changelog) if changelog.contains(&format!("## [{version}]")) => {}
+        Ok(_) => problems.push(format!("CHANGELOG.md has no `## [{version}]` section")),
+        Err(error) => problems.push(format!("cannot read CHANGELOG.md: {error}")),
+    }
+
+    checks += 1;
+    match fs::read_to_string(root.join("README.md")) {
+        Ok(readme) if readme.to_ascii_lowercase().contains("privacy") => {}
+        Ok(_) => problems.push(String::from("README.md must contain a privacy statement")),
+        Err(error) => problems.push(format!("cannot read README.md: {error}")),
+    }
+
+    checks += 1;
+    match fs::read_to_string(root.join("LICENSE")) {
+        Ok(license) if license.contains("MIT License") => {}
+        Ok(_) => problems.push(String::from("LICENSE is not the expected MIT license")),
+        Err(error) => problems.push(format!("cannot read LICENSE: {error}")),
+    }
+
+    checks += 1;
+    match fs::read_to_string(root.join("Cargo.lock")) {
+        Ok(lock) if lock.contains("name = \"xtask\"") => {}
+        Ok(_) => problems.push(String::from("Cargo.lock does not contain the xtask package")),
+        Err(error) => problems.push(format!("cannot read Cargo.lock: {error}")),
+    }
+
+    checks += 1;
+    match fs::read_to_string(root.join(".github/workflows/ci.yml")) {
+        Ok(ci)
+            if ci.contains("cargo xtask docs --check") && ci.contains("cargo xtask release-check") =>
+        {
+        }
+        Ok(_) => problems.push(String::from(
+            "CI must run `cargo xtask docs --check` and `cargo xtask release-check`",
+        )),
+        Err(error) => problems.push(format!("cannot read CI workflow: {error}")),
+    }
+
+    checks += 1;
+    let theme_dir = root.join("docs/examples/themes");
+    match fs::read_dir(&theme_dir) {
+        Ok(entries) => {
+            let count = entries
+                .filter_map(Result::ok)
+                .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "toml"))
+                .count();
+            if count < 8 {
+                problems.push(format!(
+                    "docs/examples/themes must contain at least 8 themes, found {count}"
+                ));
+            }
+        }
+        Err(error) => problems.push(format!(
+            "cannot read {}: {error}",
+            theme_dir.display()
+        )),
+    }
+
+    let crates_dir = root.join("crates");
+    checks += 1;
+    match fs::read_dir(&crates_dir) {
+        Ok(entries) => {
+            for entry in entries.filter_map(Result::ok) {
+                let manifest = entry.path().join("Cargo.toml");
+                if !manifest.is_file() {
+                    continue;
+                }
+                checks += 1;
+                match fs::read_to_string(&manifest) {
+                    Ok(text) if text.contains("version.workspace = true") => {}
+                    Ok(_) => problems.push(format!(
+                        "{} must inherit the workspace version",
+                        manifest.display()
+                    )),
+                    Err(error) => problems.push(format!(
+                        "cannot read {}: {error}",
+                        manifest.display()
+                    )),
+                }
+            }
+        }
+        Err(error) => problems.push(format!("cannot read crates directory: {error}")),
+    }
+
+    if problems.is_empty() {
+        println!("release-check: {checks} checks passed for {version}");
+        Ok(())
+    } else {
+        let mut message = format!(
+            "release-check found {} problem(s) for {version}:\n",
+            problems.len()
+        );
+        for problem in problems {
+            let _ = writeln!(message, "  - {problem}");
+        }
+        Err(message)
+    }
+}
+
+fn workspace_version(root: &Path) -> Result<String, String> {
+    let manifest = fs::read_to_string(root.join("Cargo.toml"))
+        .map_err(|e| format!("cannot read Cargo.toml: {e}"))?;
+    let mut in_package = false;
+    for line in manifest.lines() {
+        let line = line.trim();
+        if line == "[workspace.package]" {
+            in_package = true;
+            continue;
+        }
+        if in_package && line.starts_with('[') {
+            break;
+        }
+        if in_package {
+            if let Some(value) = line.strip_prefix("version = ") {
+                return Ok(value.trim().trim_matches('"').to_string());
+            }
+        }
+    }
+    Err(String::from("Cargo.toml has no workspace.package version"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parser_keeps_sections_keys_defaults_and_comments() {
+        let source = "\
+# header\n\
+\n\
+version = 1\n\
+\n\
+[general]\n\
+# Where the island sits.\n\
+# One of: top-center, top-left.\n\
+position = \"top-center\"\n\
+\n\
+[text]\n\
+font_size = 14.0\n";
+        let sections = parse_default_toml(source);
+        assert_eq!(sections.len(), 3);
+        assert_eq!(sections[0].name, "Top level");
+        assert_eq!(sections[0].entries[0].key, "version");
+        assert_eq!(sections[1].name, "general");
+        assert_eq!(sections[1].entries[0].default, "\"top-center\"");
+        assert_eq!(sections[1].entries[0].description.len(), 2);
+        assert_eq!(sections[2].entries[0].key, "font_size");
+    }
+
+    #[test]
+    fn generated_document_covers_every_active_key() {
+        let root = workspace_root().expect("workspace root");
+        let source = fs::read_to_string(root.join(CONFIG_SOURCE)).expect("default toml");
+        let sections = parse_default_toml(&source);
+        let generated = generate_config_doc(&root).expect("generated doc");
+        let mut keys = 0usize;
+        for section in sections {
+            for entry in section.entries {
+                keys += 1;
+                assert!(
+                    generated.contains(&format!("| `{}` |", entry.key)),
+                    "missing key {}",
+                    entry.key
+                );
+            }
+        }
+        assert!(keys > 100, "expected a substantial schema, found {keys} keys");
+        assert!(generated.contains("## Structured entries"));
+    }
+
+    #[test]
+    fn markdown_cells_escape_pipes_and_backticks() {
+        assert_eq!(markdown_cell("a|b`c"), "a\\|b\\`c");
+    }
+
+    #[test]
+    fn workspace_version_is_not_empty() {
+        let root = workspace_root().expect("workspace root");
+        let version = workspace_version(&root).expect("version");
+        assert!(version.starts_with("0.1.0"));
+    }
+}
