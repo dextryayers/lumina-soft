@@ -415,15 +415,25 @@ struct BenchResult {
     ns_per_op: f64,
 }
 
-/// Measure a closure over a fixed number of iterations.
+/// Measure a closure over a fixed number of iterations, reporting the median
+/// of five rounds.
+///
+/// A single round is dominated by scheduler noise and frequency scaling on a
+/// shared runner. The median is stable enough for the 5% regression gate while
+/// remaining allocation free.
 fn measure(iterations: u32, mut operation: impl FnMut()) -> f64 {
+    const ROUNDS: usize = 5;
     let iterations = iterations.max(1);
-    let start = Instant::now();
-    for _ in 0..iterations {
-        operation();
+    let mut samples = [0.0f64; ROUNDS];
+    for sample in &mut samples {
+        let start = Instant::now();
+        for _ in 0..iterations {
+            operation();
+        }
+        *sample = start.elapsed().as_secs_f64() * 1.0e9 / f64::from(iterations);
     }
-    let elapsed = start.elapsed();
-    elapsed.as_secs_f64() * 1.0e9 / f64::from(iterations)
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    samples[ROUNDS / 2]
 }
 
 /// Run microbenchmarks that do not need a GPU or a window.
@@ -431,7 +441,7 @@ fn measure(iterations: u32, mut operation: impl FnMut()) -> f64 {
 /// These are CPU-side budgets: palette resolution, text shaping, layout, and
 /// shader validation. Frame time on a real GPU is measured by the renderer's
 /// own histogram once the orchestrator exists.
-fn run_benchmark(output: Option<&Path>) -> ExitCode {
+fn run_benchmark(output: Option<&Path>, baseline: Option<&Path>) -> ExitCode {
     let platform = Platform::detect();
     let config = Config::default();
     let audio = AudioAggregates {
@@ -528,6 +538,16 @@ fn run_benchmark(output: Option<&Path>) -> ExitCode {
         println!("  written   {}", path.display());
     }
 
+    if let Some(path) = baseline {
+        match compare_baseline(path, &results, platform) {
+            Ok(()) => {}
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
     ExitCode::SUCCESS
 }
 
@@ -560,20 +580,115 @@ fn benchmark_json(results: &[BenchResult], platform: Platform) -> String {
     json
 }
 
+/// Compare a benchmark run against a recorded baseline.
+///
+/// Returns an error when a metric regressed by more than five percent, or when
+/// the baseline is incomplete. A baseline from another platform is skipped
+/// rather than compared: CPU architecture changes every number.
+fn compare_baseline(
+    path: &Path,
+    current: &[BenchResult],
+    platform: Platform,
+) -> Result<(), String> {
+    const MAX_REGRESSION: f64 = 0.05;
+
+    let text = std::fs::read_to_string(path)
+        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    let document: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|error| format!("cannot parse {}: {error}", path.display()))?;
+
+    let baseline_platform = document["platform"].as_str().unwrap_or("unknown");
+    if baseline_platform != platform.id() {
+        println!(
+            "baseline: skipped ({baseline_platform} baseline, running on {})",
+            platform.id()
+        );
+        return Ok(());
+    }
+    let baseline_profile = document["profile"].as_str().unwrap_or("unknown");
+    if baseline_profile != profile_name() {
+        return Err(format!(
+            "baseline is recorded for the {baseline_profile} profile, but this run is {}",
+            profile_name()
+        ));
+    }
+
+    let mut recorded = std::collections::HashMap::new();
+    let entries = document["results"]
+        .as_array()
+        .ok_or_else(|| format!("{} has no results array", path.display()))?;
+    for entry in entries {
+        let Some(name) = entry["name"].as_str() else {
+            return Err(format!("{} has a result without a name", path.display()));
+        };
+        let Some(ns) = entry["ns_per_op"].as_f64() else {
+            return Err(format!("baseline {name} has no numeric ns_per_op"));
+        };
+        recorded.insert(name.to_string(), ns);
+    }
+
+    let mut regressions = Vec::new();
+    for result in current {
+        let Some(baseline_ns) = recorded.get(result.name) else {
+            return Err(format!(
+                "baseline has no entry for {}; regenerate it",
+                result.name
+            ));
+        };
+        if *baseline_ns <= 0.0 {
+            return Err(format!("baseline {} is not positive", result.name));
+        }
+        let ratio = result.ns_per_op / baseline_ns;
+        if ratio > 1.0 + MAX_REGRESSION {
+            regressions.push(format!(
+                "{}: {:.1} ns/op vs baseline {:.1} ns/op ({:+.1}%)",
+                result.name,
+                result.ns_per_op,
+                baseline_ns,
+                (ratio - 1.0) * 100.0
+            ));
+        }
+    }
+
+    if regressions.is_empty() {
+        println!(
+            "baseline: passed (all metrics within {:.0}%)",
+            MAX_REGRESSION * 100.0
+        );
+        Ok(())
+    } else {
+        Err(format!(
+            "performance regressed beyond {:.0}%:\n  {}",
+            MAX_REGRESSION * 100.0,
+            regressions.join("\n  ")
+        ))
+    }
+}
+
 /// Extract `--output PATH` or `--output=PATH`.
 fn output_argument(args: &[String]) -> Result<Option<PathBuf>, String> {
-    if let Some(value) = args.iter().find_map(|arg| arg.strip_prefix("--output=")) {
+    path_argument(args, "--output")
+}
+
+/// Extract `--baseline PATH` or `--baseline=PATH`.
+fn baseline_argument(args: &[String]) -> Result<Option<PathBuf>, String> {
+    path_argument(args, "--baseline")
+}
+
+fn path_argument(args: &[String], flag: &str) -> Result<Option<PathBuf>, String> {
+    let prefix = format!("{flag}=");
+    if let Some(value) = args.iter().find_map(|arg| arg.strip_prefix(&prefix)) {
         if value.is_empty() {
-            return Err("--output needs a file path".to_string());
+            return Err(format!("{flag} needs a file path"));
         }
         return Ok(Some(PathBuf::from(value)));
     }
-    if let Some(index) = args.iter().position(|arg| arg == "--output") {
+    if let Some(index) = args.iter().position(|arg| arg == flag) {
         let value = args
             .get(index + 1)
-            .ok_or_else(|| "--output needs a file path".to_string())?;
+            .ok_or_else(|| format!("{flag} needs a file path"))?;
         if value.starts_with("--") {
-            return Err("--output needs a file path".to_string());
+            return Err(format!("{flag} needs a file path"));
         }
         return Ok(Some(PathBuf::from(value)));
     }
@@ -705,9 +820,11 @@ fn main() -> ExitCode {
     }
 
     if args.iter().any(|a| a == "--benchmark") {
-        return match output_argument(&args) {
-            Ok(output) => run_benchmark(output.as_deref()),
-            Err(error) => {
+        let output = output_argument(&args);
+        let baseline = baseline_argument(&args);
+        return match (output, baseline) {
+            (Ok(output), Ok(baseline)) => run_benchmark(output.as_deref(), baseline.as_deref()),
+            (Err(error), _) | (_, Err(error)) => {
                 eprintln!("error: {error}");
                 ExitCode::from(2)
             }
@@ -726,6 +843,7 @@ fn main() -> ExitCode {
         println!("      --self-test      Run headless environment and subsystem checks");
         println!("      --benchmark      Run CPU microbenchmarks");
         println!("      --output PATH    Write benchmark results as JSON");
+        println!("      --baseline PATH  Compare against a recorded benchmark JSON");
         println!("      --autostart [ACTION]");
         println!("                       Manage autostart: status, install, remove");
         println!("      --activate       Ask a running instance to show itself");

@@ -1,0 +1,12 @@
+{
+  "version": "0.1.0-alpha.1",
+  "platform": "windows",
+  "profile": "release",
+  "results": [
+    {"name": "color.static.update", "ns_per_op": 1615.513},
+    {"name": "color.reactive.update", "ns_per_op": 1617.918},
+    {"name": "text.shape", "ns_per_op": 526.730},
+    {"name": "text.layout.cached", "ns_per_op": 15.309},
+    {"name": "shader.validate", "ns_per_op": 1172017.000}
+  ]
+}

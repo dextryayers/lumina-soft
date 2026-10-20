@@ -25,3 +25,4 @@ lumina-audio = { workspace = true }
 lumina-platform = { workspace = true }
 lumina-render = { workspace = true }
 lumina-text = { workspace = true }
+serde_json = { workspace = true }

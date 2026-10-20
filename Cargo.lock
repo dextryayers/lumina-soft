@@ -1548,6 +1548,7 @@ dependencies = [
  "lumina-platform",
  "lumina-render",
  "lumina-text",
+ "serde_json",
 ]
 
 [[package]]
