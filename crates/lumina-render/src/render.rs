@@ -232,7 +232,7 @@ impl FrameStats {
 }
 
 /// A frame batch is worth drawing when this is true.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FrameIntent {
     /// Something in the UI changed: a widget, a config value, a pointer move.
     pub dirty: bool,
