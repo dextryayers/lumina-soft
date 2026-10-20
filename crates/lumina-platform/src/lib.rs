@@ -51,6 +51,7 @@ pub mod accessibility;
 pub mod autostart;
 pub mod capability;
 pub mod hotkey;
+pub mod memory;
 pub mod monitor;
 pub mod overlay;
 pub mod placement;
@@ -84,6 +85,7 @@ pub use hotkey::{
     hotkey_problems, Hotkey, HotkeyBinding, HotkeyConflict, HotkeyError, HotkeyEvent,
     HotkeyParseError, HotkeyRegistry, Key, Modifiers, NullHotkeyRegistry,
 };
+pub use memory::{process_memory, ProcessMemory};
 pub use monitor::{Monitor, MonitorSource, ScaleFactor};
 pub use overlay::{OverlayBackend, OverlayError};
 pub use placement::{compute_placement, fit_inside, Placement, WindowGeometry};

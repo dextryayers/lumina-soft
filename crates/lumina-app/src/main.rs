@@ -78,6 +78,10 @@ fn print_diagnostics() {
     println!("  click_through {}", caps.click_through);
     println!("  global_hotkeys {}", caps.global_hotkeys);
     println!("  multi_monitor {}", caps.multi_monitor);
+    match lumina_platform::process_memory() {
+        Some(memory) => println!("  memory       {}", memory.diagnostic_line()),
+        None => println!("  memory       unavailable"),
+    }
 
     let config_path = config_path();
     println!("  config_path  {}", config_path.display());
@@ -169,6 +173,7 @@ fn run_self_test() -> ExitCode {
         "platform capability matrix",
         platform_matrix_is_consistent(),
     );
+    test.check("process memory probe", process_memory_is_plausible());
 
     println!();
     println!("self-test: {} passed, {} failed", test.passed, test.failed);
@@ -389,6 +394,21 @@ fn accessibility_probes() -> Result<(), String> {
     }
     if gate.should_announce(now) {
         return Err("the rate limit did not suppress a duplicate".to_string());
+    }
+    Ok(())
+}
+
+fn process_memory_is_plausible() -> Result<(), String> {
+    let Some(memory) = lumina_platform::process_memory() else {
+        return Err("the platform did not report process memory".to_string());
+    };
+    if memory.resident_bytes() == 0 {
+        return Err("resident memory is zero".to_string());
+    }
+    if let Some(peak) = memory.peak_bytes() {
+        if peak < memory.resident_bytes() {
+            return Err("peak resident memory is below the current reading".to_string());
+        }
     }
     Ok(())
 }
