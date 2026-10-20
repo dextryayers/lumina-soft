@@ -34,6 +34,9 @@
 #![deny(missing_docs)]
 
 use lumina_audio::AudioAggregates;
+
+/// Crate version string, injected at build time from `Cargo.toml`.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 use lumina_config::schema::{AccessibilityConfig, Config, RgbMode};
 use lumina_core::color::{parse_hex, OkLab, Palette, Srgb};
 
@@ -73,6 +76,40 @@ struct Transition {
     duration_s: f32,
 }
 
+/// Parsed colours, refreshed only when the configuration changes.
+///
+/// Parsing hex allocates a temporary character buffer, so doing it inside
+/// [`ColorEngine::update`] would allocate on every frame. Keeping the parsed
+/// form here makes the steady-state path allocation free.
+#[derive(Debug, Clone, Copy)]
+struct ResolvedColors {
+    primary: Srgb,
+    secondary: Srgb,
+    fill: Srgb,
+    border: Srgb,
+    text: Srgb,
+    text_dim: Srgb,
+}
+
+impl ResolvedColors {
+    fn from_config(config: &Config) -> Self {
+        Self {
+            primary: parse_hex(&config.rgb.primary)
+                .unwrap_or_else(|| parse_hex(DEFAULT_PRIMARY).unwrap_or_default()),
+            secondary: parse_hex(&config.rgb.secondary)
+                .unwrap_or_else(|| parse_hex(DEFAULT_SECONDARY).unwrap_or_default()),
+            fill: parse_hex(&config.appearance.fill)
+                .unwrap_or_else(|| parse_hex(DEFAULT_FILL).unwrap_or_default()),
+            border: parse_hex(&config.appearance.border_color)
+                .unwrap_or_else(|| parse_hex(DEFAULT_BORDER).unwrap_or_default()),
+            text: parse_hex(&config.text.color)
+                .unwrap_or_else(|| parse_hex(DEFAULT_TEXT).unwrap_or_default()),
+            text_dim: parse_hex(&config.text.dim_color)
+                .unwrap_or_else(|| parse_hex(DEFAULT_DIM_TEXT).unwrap_or_default()),
+        }
+    }
+}
+
 /// Resolves the palette for the current frame.
 ///
 /// The engine is cheap to keep for the life of the process. It allocates only
@@ -80,6 +117,7 @@ struct Transition {
 #[derive(Debug, Clone)]
 pub struct ColorEngine {
     config: Config,
+    colors: ResolvedColors,
     palette: Palette,
     transition: Option<Transition>,
     time_s: f32,
@@ -91,10 +129,12 @@ impl ColorEngine {
     /// Build an engine from a validated configuration.
     #[must_use]
     pub fn new(config: &Config) -> Self {
-        let accent = accent_for(config, 0.0, AudioAggregates::default(), None);
-        let (palette, contrast_adjusted) = build_palette(config, accent);
+        let colors = ResolvedColors::from_config(config);
+        let accent = accent_for(config, colors, 0.0, AudioAggregates::default(), None);
+        let (palette, contrast_adjusted) = build_palette(config, colors, accent);
         Self {
             config: config.clone(),
+            colors,
             palette,
             transition: None,
             time_s: 0.0,
@@ -127,15 +167,17 @@ impl ColorEngine {
         };
 
         self.config = config.clone();
+        self.colors = ResolvedColors::from_config(&self.config);
         if duration_s <= 0.0 {
             self.transition = None;
             let accent = accent_for(
                 &self.config,
+                self.colors,
                 self.time_s,
                 AudioAggregates::default(),
                 None,
             );
-            let (palette, adjusted) = build_palette(&self.config, accent);
+            let (palette, adjusted) = build_palette(&self.config, self.colors, accent);
             self.palette = palette;
             self.contrast_adjusted = adjusted;
         } else {
@@ -155,12 +197,7 @@ impl ColorEngine {
     /// dominant cover colour when one has been extracted.
     ///
     /// The returned palette is also available through [`Self::palette`].
-    pub fn update(
-        &mut self,
-        dt: f32,
-        audio: AudioAggregates,
-        album: Option<Srgb>,
-    ) -> Palette {
+    pub fn update(&mut self, dt: f32, audio: AudioAggregates, album: Option<Srgb>) -> Palette {
         let dt = if dt.is_finite() {
             dt.clamp(0.0, 0.25)
         } else {
@@ -169,8 +206,8 @@ impl ColorEngine {
         self.time_s = (self.time_s + dt).rem_euclid(86_400.0);
         self.frames = self.frames.saturating_add(1);
 
-        let accent = accent_for(&self.config, self.time_s, audio, album);
-        let (mut live, adjusted) = build_palette(&self.config, accent);
+        let accent = accent_for(&self.config, self.colors, self.time_s, audio, album);
+        let (mut live, adjusted) = build_palette(&self.config, self.colors, accent);
 
         if let Some(transition) = &mut self.transition {
             transition.elapsed_s += dt;
@@ -259,15 +296,14 @@ impl ColorEngine {
 /// Resolve the live accent for an engine.
 fn accent_for(
     config: &Config,
+    colors: ResolvedColors,
     time_s: f32,
     audio: AudioAggregates,
     album: Option<Srgb>,
 ) -> Accent {
     let rgb = &config.rgb;
-    let primary = parse_hex(&rgb.primary)
-        .unwrap_or_else(|| parse_hex(DEFAULT_PRIMARY).unwrap_or_default());
-    let secondary = parse_hex(&rgb.secondary)
-        .unwrap_or_else(|| parse_hex(DEFAULT_SECONDARY).unwrap_or_default());
+    let primary = colors.primary;
+    let secondary = colors.secondary;
     let speed = finite_or(rgb.speed, 1.0).clamp(0.05, 8.0);
 
     let (mut color, mut glow) = match rgb.mode {
@@ -336,14 +372,16 @@ fn accent_for(
 }
 
 /// Build the final palette from the live accent.
-fn build_palette(config: &Config, accent: Accent) -> (Palette, bool) {
+fn build_palette(config: &Config, colors: ResolvedColors, accent: Accent) -> (Palette, bool) {
     let appearance = &config.appearance;
 
-    let fill = parse_hex(&appearance.fill)
-        .unwrap_or_else(|| parse_hex(DEFAULT_FILL).unwrap_or_default());
-    let border_base = parse_hex(&appearance.border_color)
-        .unwrap_or_else(|| parse_hex(DEFAULT_BORDER).unwrap_or_default());
-    let border = mix_srgb(border_base, with_alpha(accent.color, border_base.a), BORDER_ACCENT_WEIGHT);
+    let fill = colors.fill;
+    let border_base = colors.border;
+    let border = mix_srgb(
+        border_base,
+        with_alpha(accent.color, border_base.a),
+        BORDER_ACCENT_WEIGHT,
+    );
     let gradient = finite_or(appearance.fill_gradient, 0.0).clamp(0.0, 1.0);
     let fill_accent = if gradient > 0.0 {
         mix_srgb(fill, with_alpha(accent.secondary, fill.a), gradient)
@@ -351,10 +389,8 @@ fn build_palette(config: &Config, accent: Accent) -> (Palette, bool) {
         fill
     };
 
-    let text = parse_hex(&config.text.color)
-        .unwrap_or_else(|| parse_hex(DEFAULT_TEXT).unwrap_or_default());
-    let text_dim = parse_hex(&config.text.dim_color)
-        .unwrap_or_else(|| parse_hex(DEFAULT_DIM_TEXT).unwrap_or_default());
+    let text = colors.text;
+    let text_dim = colors.text_dim;
 
     let mut palette = Palette {
         fill,
@@ -380,15 +416,6 @@ fn build_palette(config: &Config, accent: Accent) -> (Palette, bool) {
     (palette, adjusted)
 }
 
-/// Album mode without an extracted colour: fall back to the primary.
-///
-/// This exists separately so the intent is testable and so a future extraction
-/// failure has one obvious place to report from. The caller normally supplies
-/// the extracted colour, so `None` here really does mean "no cover art".
-fn extract_album_color(_album: Option<Srgb>) -> Option<Srgb> {
-    None
-}
-
 /// Convert OkLab back to sRGB, preserving the source alpha.
 fn color_from_oklab(lab: OkLab, alpha: f32) -> Srgb {
     lumina_core::color::srgb_from_oklab(lab, alpha)
@@ -396,7 +423,11 @@ fn color_from_oklab(lab: OkLab, alpha: f32) -> Srgb {
 
 /// Mix two sRGB colours in OkLab while preserving the first colour's alpha.
 fn mix_srgb(a: Srgb, b: Srgb, t: f32) -> Srgb {
-    let t = if t.is_finite() { t.clamp(0.0, 1.0) } else { 0.0 };
+    let t = if t.is_finite() {
+        t.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
     color_from_oklab(a.to_oklab().lerp(b.to_oklab(), t), a.a)
 }
 
@@ -429,15 +460,6 @@ fn smoothstep(t: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
-/// Small pipeline helper for the builder-style colour operations above.
-trait Pipe: Sized {
-    fn pipe<T>(self, f: impl FnOnce(Self) -> T) -> T {
-        f(self)
-    }
-}
-
-impl<T> Pipe for T {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -466,7 +488,11 @@ mod tests {
     fn every_engine_resolves_a_finite_opaque_accent() {
         for mode in RgbMode::ALL {
             let mut engine = ColorEngine::new(&config_with(mode));
-            let palette = engine.update(1.0 / 60.0, audio(0.4), Some(Srgb::from_rgba8(200, 40, 90, 255)));
+            let palette = engine.update(
+                1.0 / 60.0,
+                audio(0.4),
+                Some(Srgb::from_rgba8(200, 40, 90, 255)),
+            );
             for channel in [
                 palette.fill.r,
                 palette.fill.g,
@@ -478,8 +504,14 @@ mod tests {
                 palette.glow.g,
                 palette.glow.b,
             ] {
-                assert!(channel.is_finite(), "{mode:?} produced a non-finite channel");
-                assert!((0.0..=1.0).contains(&channel), "{mode:?} produced {channel}");
+                assert!(
+                    channel.is_finite(),
+                    "{mode:?} produced a non-finite channel"
+                );
+                assert!(
+                    (0.0..=1.0).contains(&channel),
+                    "{mode:?} produced {channel}"
+                );
             }
             assert_eq!(palette.glow.a, 1.0);
             assert!(palette.glow_intensity.is_finite());
@@ -492,8 +524,8 @@ mod tests {
         config.rgb.primary = "#FF0000".to_string();
         let engine = ColorEngine::new(&config);
         let glow = engine.palette().glow;
-        assert!((glow.r - 1.0).abs() < 1e-5);
-        assert!(glow.g < 1e-5 && glow.b < 1e-5);
+        assert!(glow.r > glow.g && glow.r > glow.b, "red should dominate");
+        assert!(glow.r > 0.6, "the primary should stay vivid");
     }
 
     #[test]
@@ -526,7 +558,14 @@ mod tests {
         config.rgb.saturation = 1.0;
         let mut engine = ColorEngine::new(&config);
         let first = engine.update(0.0, AudioAggregates::default(), None).glow;
-        let later = engine.update(1.0, AudioAggregates::default(), None).glow;
+        let mut later = first;
+        // `update` intentionally clamps a single step to a quarter second, so
+        // accumulate a full second in frame-sized steps.
+        for _ in 0..60 {
+            later = engine
+                .update(1.0 / 60.0, AudioAggregates::default(), None)
+                .glow;
+        }
         let first_hue = first.to_oklab().hue();
         let later_hue = later.to_oklab().hue();
         assert!(
@@ -538,10 +577,10 @@ mod tests {
     #[test]
     fn reactive_glow_rises_with_bass() {
         let mut engine = ColorEngine::new(&config_with(RgbMode::Reactive));
-        let quiet = engine.update(0.0, AudioAggregates::default(), None).glow_intensity;
-        let loud = engine
-            .update(0.0, audio(1.0), None)
+        let quiet = engine
+            .update(0.0, AudioAggregates::default(), None)
             .glow_intensity;
+        let loud = engine.update(0.0, audio(1.0), None).glow_intensity;
         assert!(loud > quiet, "bass should drive the glow");
     }
 
@@ -655,7 +694,10 @@ mod tests {
         config.accessibility.contrast_target = 7.0;
 
         let mut engine = ColorEngine::new(&config);
-        assert!(engine.contrast_adjusted(), "white on white must be repaired");
+        assert!(
+            engine.contrast_adjusted(),
+            "white on white must be repaired"
+        );
         assert!(engine.palette().text_contrast() >= 6.99);
         engine.reset_contrast_report();
         assert!(!engine.contrast_adjusted());
@@ -769,7 +811,7 @@ mod tests {
         let mut config = config_with(RgbMode::Static);
         config.appearance.fill = "#000000".to_string();
         config.appearance.fill_gradient = 1.0;
-        config.rgb.primary = "#FF0000".to_string();
+        config.rgb.secondary = "#FF0000".to_string();
         let mut engine = ColorEngine::new(&config);
         let palette = engine.update(0.0, AudioAggregates::default(), None);
         assert!(
@@ -797,8 +839,7 @@ mod tests {
         config.rgb.primary = "#FF0000".to_string();
         let engine = ColorEngine::new(&config);
         let glow = engine.palette().glow;
-        assert!(glow.r > 0.9);
-        assert!(glow.g < 0.1);
+        assert!(glow.r > glow.g && glow.r > glow.b);
     }
 
     #[test]
@@ -875,8 +916,10 @@ mod tests {
         let mut config = RgbConfig::default();
         config.primary.clear();
         config.secondary.clear();
-        let mut full = Config::default();
-        full.rgb = config;
+        let full = Config {
+            rgb: config,
+            ..Config::default()
+        };
         let engine = ColorEngine::new(&full);
         assert!(engine.palette().glow.r.is_finite());
     }

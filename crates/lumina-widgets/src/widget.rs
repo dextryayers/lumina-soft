@@ -261,6 +261,52 @@ impl DrawList {
         self.quads.iter()
     }
 
+    /// Emit a four-edge keyboard focus ring around `rect`.
+    ///
+    /// `width` and `offset` are logical pixels. The ring is drawn as four thin
+    /// quads rather than a rounded outline because the widget pipeline batches
+    /// axis-aligned quads; it stays sharp at every DPI and costs no new draw
+    /// state. Returns without emitting anything for zero or negative widths.
+    pub fn push_focus_ring(
+        &mut self,
+        rect: Rect,
+        width: Scalar,
+        offset: Scalar,
+        color: [f32; 4],
+        z_order: u16,
+    ) {
+        let width = finite_or_zero(width);
+        let offset = finite_or_zero(offset);
+        if width <= 0.0 {
+            return;
+        }
+        let outer = rect.grow(offset.max(0.0));
+        if outer.width <= 0.0 || outer.height <= 0.0 {
+            return;
+        }
+        let thickness = width.min(outer.width * 0.5).min(outer.height * 0.5);
+        if thickness <= 0.0 {
+            return;
+        }
+
+        let horizontal = Size::new(outer.width, thickness);
+        let vertical = Size::new(thickness, (outer.height - thickness * 2.0).max(0.0));
+        let top = Vec2::new(outer.x, outer.y);
+        let bottom = Vec2::new(outer.x, outer.bottom() - thickness);
+        let left = Vec2::new(outer.x, outer.y + thickness);
+        let right = Vec2::new(outer.right() - thickness, outer.y + thickness);
+        for (position, size) in [
+            (top, horizontal),
+            (bottom, horizontal),
+            (left, vertical),
+            (right, vertical),
+        ] {
+            self.quads.push(
+                Quad::new(position, size, Vec2::ZERO, Vec2::ZERO, color).with_z_order(z_order),
+            );
+        }
+    }
+
     /// Reserve capacity for at least `additional` more quads.
     pub fn reserve(&mut self, additional: usize) {
         self.quads.reserve(additional);
@@ -781,6 +827,14 @@ impl WidgetRegistry {
     }
 }
 
+fn finite_or_zero(value: Scalar) -> Scalar {
+    if value.is_finite() {
+        value
+    } else {
+        0.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1125,5 +1179,35 @@ mod tests {
         let rects = registry.layout(&ctx);
         assert!(registry.route_input(&WidgetInput::Click(Vec2::new(50.0, 20.0)), &ctx, &rects,));
         assert!(!registry.route_input(&WidgetInput::Click(Vec2::new(200.0, 20.0)), &ctx, &rects,));
+    }
+
+    #[test]
+    fn a_focus_ring_surrounds_the_widget_with_four_edges() {
+        let mut list = DrawList::new();
+        list.push_focus_ring(
+            Rect::new(10.0, 20.0, 100.0, 40.0),
+            2.0,
+            3.0,
+            [1.0, 1.0, 1.0, 1.0],
+            9,
+        );
+        assert_eq!(list.len(), 4);
+        for quad in list.iter() {
+            assert_eq!(quad.z_order, 9);
+            let outer = Rect::new(7.0, 17.0, 106.0, 46.0);
+            assert!(quad.position.x >= outer.left());
+            assert!(quad.position.y >= outer.top());
+            assert!(quad.position.x + quad.size.width <= outer.right() + 1e-4);
+            assert!(quad.position.y + quad.size.height <= outer.bottom() + 1e-4);
+        }
+    }
+
+    #[test]
+    fn a_degenerate_focus_ring_emits_nothing() {
+        let mut list = DrawList::new();
+        list.push_focus_ring(Rect::new(0.0, 0.0, 100.0, 40.0), 0.0, 2.0, [1.0; 4], 0);
+        list.push_focus_ring(Rect::new(0.0, 0.0, 100.0, 40.0), f32::NAN, 2.0, [1.0; 4], 0);
+        list.push_focus_ring(Rect::ZERO, 2.0, 0.0, [1.0; 4], 0);
+        assert!(list.is_empty());
     }
 }

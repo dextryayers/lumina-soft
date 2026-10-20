@@ -20,6 +20,8 @@ path = "src/main.rs"
 [dependencies]
 lumina-core = { workspace = true }
 lumina-config = { workspace = true }
+lumina-color = { workspace = true }
+lumina-audio = { workspace = true }
 lumina-platform = { workspace = true }
 lumina-render = { workspace = true }
 lumina-text = { workspace = true }

@@ -34,7 +34,7 @@ pub mod msdf;
 pub mod shaping;
 
 pub use atlas::{Atlas, GlyphEntry};
-pub use layout::Layout;
+pub use layout::{Layout, LayoutCacheStats, TextLayoutCache};
 pub use msdf::coverage_from_msdf;
 pub use shaping::{ShapedText, Shaper, TextMetrics};
 

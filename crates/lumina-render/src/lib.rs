@@ -40,7 +40,7 @@ pub mod shaders;
 pub mod uniforms;
 
 pub use device::{GpuDevice, GpuError, GpuInfo};
-pub use render::{FrameStats, RenderLoop};
+pub use render::{FrameHistogram, FrameStats, RenderLoop, FRAME_HISTORY};
 
 /// Crate version string, injected at build time from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

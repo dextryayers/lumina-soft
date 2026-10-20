@@ -1541,6 +1541,8 @@ dependencies = [
 name = "lumina-app"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "lumina-audio",
+ "lumina-color",
  "lumina-config",
  "lumina-core",
  "lumina-platform",

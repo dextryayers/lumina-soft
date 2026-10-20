@@ -27,6 +27,131 @@ use lumina_core::time::FramePacer;
 
 use crate::uniforms::IslandUniforms;
 
+/// Number of frame times retained for percentile calculations.
+///
+/// At 60 fps this is roughly eight and a half seconds of samples: long enough
+/// for a hitch to appear in p99 without holding minutes of history for a debug
+/// overlay.
+pub const FRAME_HISTORY: usize = 512;
+
+/// A fixed-capacity ring of frame times, used for p50/p95/p99.
+///
+/// The histogram allocates nothing while recording. Percentile calculation
+/// copies the live samples and sorts them, which is acceptable because it is
+/// only done when a diagnostics surface asks for the numbers, not per frame.
+#[derive(Debug, Clone)]
+pub struct FrameHistogram {
+    samples: [Scalar; FRAME_HISTORY],
+    len: usize,
+    next: usize,
+    recorded: u64,
+}
+
+impl Default for FrameHistogram {
+    fn default() -> Self {
+        Self {
+            samples: [0.0; FRAME_HISTORY],
+            len: 0,
+            next: 0,
+            recorded: 0,
+        }
+    }
+}
+
+impl FrameHistogram {
+    /// Record one frame time in milliseconds.
+    ///
+    /// Non-finite and negative values are ignored, so a misbehaving timer cannot
+    /// poison every percentile.
+    pub fn record(&mut self, milliseconds: Scalar) {
+        if !milliseconds.is_finite() || milliseconds < 0.0 {
+            return;
+        }
+        self.samples[self.next] = milliseconds;
+        self.next = (self.next + 1) % FRAME_HISTORY;
+        self.len = (self.len + 1).min(FRAME_HISTORY);
+        self.recorded = self.recorded.saturating_add(1);
+    }
+
+    /// Number of samples currently retained, at most [`FRAME_HISTORY`].
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// True when no frame time has been recorded.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Total frame times recorded, including those evicted from the ring.
+    #[must_use]
+    pub fn recorded(&self) -> u64 {
+        self.recorded
+    }
+
+    /// Forget all samples.
+    pub fn clear(&mut self) {
+        self.samples.fill(0.0);
+        self.len = 0;
+        self.next = 0;
+        self.recorded = 0;
+    }
+
+    /// Percentile in `0.0..=100.0`, using the nearest-rank definition.
+    ///
+    /// Returns zero when no samples are available. p50 is the median; p100 is
+    /// the worst retained frame.
+    #[must_use]
+    pub fn percentile(&self, percentile: f32) -> Scalar {
+        if self.len == 0 {
+            return 0.0;
+        }
+        let percentile = if percentile.is_finite() {
+            percentile.clamp(0.0, 100.0)
+        } else {
+            0.0
+        };
+        let mut sorted = [0.0; FRAME_HISTORY];
+        sorted[..self.len].copy_from_slice(&self.samples[..self.len]);
+        let samples = &mut sorted[..self.len];
+        samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+        let rank = ((percentile / 100.0) * self.len as f32).ceil() as usize;
+        let index = rank.saturating_sub(1).min(self.len - 1);
+        samples[index]
+    }
+
+    /// Median frame time in milliseconds.
+    #[must_use]
+    pub fn p50(&self) -> Scalar {
+        self.percentile(50.0)
+    }
+
+    /// 95th percentile frame time in milliseconds.
+    #[must_use]
+    pub fn p95(&self) -> Scalar {
+        self.percentile(95.0)
+    }
+
+    /// 99th percentile frame time in milliseconds.
+    #[must_use]
+    pub fn p99(&self) -> Scalar {
+        self.percentile(99.0)
+    }
+
+    /// Arithmetic mean of the retained samples.
+    #[must_use]
+    pub fn mean(&self) -> Scalar {
+        if self.len == 0 {
+            return 0.0;
+        }
+        let sum: Scalar = self.samples[..self.len].iter().sum();
+        sum / self.len as Scalar
+    }
+}
+
 /// Counters for one frame batch, read by the diagnostics command.
 #[derive(Debug, Default)]
 pub struct FrameStats {
@@ -38,6 +163,8 @@ pub struct FrameStats {
     pub worst_frame_ms: Scalar,
     /// The last frame time, in milliseconds.
     pub last_frame_ms: Scalar,
+    /// Recent frame times for percentiles and the debug overlay.
+    pub histogram: FrameHistogram,
 }
 
 impl FrameStats {
@@ -65,6 +192,24 @@ impl FrameStats {
         } else {
             self.rendered as f32 / total as f32
         }
+    }
+
+    /// Median frame time in milliseconds over the retained window.
+    #[must_use]
+    pub fn p50_ms(&self) -> Scalar {
+        self.histogram.p50()
+    }
+
+    /// 95th percentile frame time in milliseconds.
+    #[must_use]
+    pub fn p95_ms(&self) -> Scalar {
+        self.histogram.p95()
+    }
+
+    /// 99th percentile frame time in milliseconds.
+    #[must_use]
+    pub fn p99_ms(&self) -> Scalar {
+        self.histogram.p99()
     }
 }
 
@@ -168,6 +313,7 @@ impl RenderLoop {
         if ms > self.stats.worst_frame_ms {
             self.stats.worst_frame_ms = ms;
         }
+        self.stats.histogram.record(ms);
     }
 
     /// Statistics so far.
@@ -335,6 +481,58 @@ mod tests {
         loop_.record_frame_time(std::time::Duration::from_millis(9));
         assert!((loop_.stats().worst_frame_ms - 17.0).abs() < 0.01);
         assert!((loop_.stats().last_frame_ms - 9.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn frame_percentiles_use_nearest_rank() {
+        let mut histogram = FrameHistogram::default();
+        for value in 1..=100 {
+            histogram.record(value as f32);
+        }
+        assert_eq!(histogram.len(), 100);
+        assert_eq!(histogram.p50(), 50.0);
+        assert_eq!(histogram.p95(), 95.0);
+        assert_eq!(histogram.p99(), 99.0);
+        assert_eq!(histogram.percentile(100.0), 100.0);
+        assert_eq!(histogram.percentile(0.0), 1.0);
+    }
+
+    #[test]
+    fn the_histogram_is_bounded_and_reports_evictions() {
+        let mut histogram = FrameHistogram::default();
+        for value in 0..(FRAME_HISTORY + 50) {
+            histogram.record(value as f32);
+        }
+        assert_eq!(histogram.len(), FRAME_HISTORY);
+        assert_eq!(histogram.recorded(), (FRAME_HISTORY + 50) as u64);
+        // Only the most recent window survives, so the oldest frames are gone.
+        assert!(histogram.percentile(0.0) >= 50.0);
+        histogram.clear();
+        assert!(histogram.is_empty());
+        assert_eq!(histogram.p95(), 0.0);
+    }
+
+    #[test]
+    fn invalid_frame_times_are_ignored() {
+        let mut histogram = FrameHistogram::default();
+        histogram.record(f32::NAN);
+        histogram.record(f32::INFINITY);
+        histogram.record(-1.0);
+        assert!(histogram.is_empty());
+        histogram.record(4.0);
+        assert_eq!(histogram.len(), 1);
+        assert_eq!(histogram.mean(), 4.0);
+    }
+
+    #[test]
+    fn frame_stats_expose_the_histogram_percentiles() {
+        let mut loop_ = RenderLoop::new(60, true);
+        for millis in [4, 8, 16, 33] {
+            loop_.record_frame_time(std::time::Duration::from_millis(millis));
+        }
+        assert_eq!(loop_.stats().p50_ms(), 8.0);
+        assert_eq!(loop_.stats().p95_ms(), 33.0);
+        assert_eq!(loop_.stats().p99_ms(), 33.0);
     }
 
     #[test]

@@ -519,9 +519,7 @@ fn diff_accessibility(
         || from.contrast_target != to.contrast_target
         || from.respect_os_reduced_motion != to.respect_os_reduced_motion
     {
-        out.push(ConfigChange::Accessibility(
-            AccessibilityChange::Contrast,
-        ));
+        out.push(ConfigChange::Accessibility(AccessibilityChange::Contrast));
     }
     if from.keyboard_focus != to.keyboard_focus
         || from.focus_ring_width != to.focus_ring_width

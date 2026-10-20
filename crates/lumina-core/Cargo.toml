@@ -19,6 +19,10 @@ serde = { workspace = true }
 [dev-dependencies]
 serde_json = { workspace = true }
 
+[[bench]]
+name = "animation"
+harness = false
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

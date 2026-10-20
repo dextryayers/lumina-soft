@@ -139,18 +139,15 @@ impl InputRouter {
         self.pointer_inside = true;
 
         let new_hovered = self.hit_test(pos);
-        if new_hovered
-            != self
-                .hovered_id
-                .as_ref()
-                .and_then(|id| Self::widget_index(id, widgets))
-        {
+        let old_hovered = self
+            .hovered_id
+            .as_ref()
+            .and_then(|id| Self::widget_index(id, widgets));
+        if new_hovered != old_hovered {
             // Leave the old widget
-            if let Some(old_id) = &self.hovered_id {
-                if let Some(idx) = Self::widget_index(old_id, widgets) {
-                    if let Some(rect) = self.rects.get(idx) {
-                        widgets[idx].on_input(&WidgetInput::PointerLeave, ctx, *rect);
-                    }
+            if let Some(idx) = old_hovered {
+                if let Some(rect) = self.rects.get(idx) {
+                    widgets[idx].on_input(&WidgetInput::PointerLeave, ctx, *rect);
                 }
             }
             // Enter the new widget
@@ -159,7 +156,10 @@ impl InputRouter {
                     widgets[new_idx].on_input(&WidgetInput::PointerEnter, ctx, *rect);
                 }
             }
-            self.hovered_id = new_hovered.map(|i| format!("widget_{i}"));
+            // Store the widget's own id, not a positional placeholder. The
+            // placeholder does not match `Widget::id`, so leave events and
+            // focused input would be dropped on every subsequent frame.
+            self.hovered_id = new_hovered.map(|i| widgets[i].id().to_string());
         }
 
         // Send the move event to the hovered widget
@@ -197,7 +197,7 @@ impl InputRouter {
         if let Some(hit_idx) = self.hit_test(pos) {
             if let Some(rect) = self.rects.get(hit_idx) {
                 if widgets[hit_idx].on_input(&WidgetInput::Click(pos), ctx, *rect) {
-                    self.focused_id = Some(format!("widget_{hit_idx}"));
+                    self.focused_id = Some(widgets[hit_idx].id().to_string());
                     return true;
                 }
             }
@@ -293,6 +293,58 @@ impl InputRouter {
         self.focused_id = Some(id.to_string());
     }
 
+    /// Move focus to the next widget in registration order, wrapping at the end.
+    ///
+    /// The caller maps Tab and Shift+Tab to this and [`Self::focus_previous`].
+    /// Returns the newly focused id, or `None` when there are no widgets.
+    pub fn focus_next(&mut self, widgets: &[Box<dyn Widget>]) -> Option<&str> {
+        if widgets.is_empty() {
+            self.focused_id = None;
+            return None;
+        }
+        let current = self
+            .focused_id
+            .as_ref()
+            .and_then(|id| Self::widget_index(id, widgets));
+        let next = current.map_or(0, |index| (index + 1) % widgets.len());
+        self.focused_id = Some(widgets[next].id().to_string());
+        self.focused_id.as_deref()
+    }
+
+    /// Move focus to the previous widget in registration order, wrapping at the start.
+    ///
+    /// Returns the newly focused id, or `None` when there are no widgets.
+    pub fn focus_previous(&mut self, widgets: &[Box<dyn Widget>]) -> Option<&str> {
+        if widgets.is_empty() {
+            self.focused_id = None;
+            return None;
+        }
+        let current = self
+            .focused_id
+            .as_ref()
+            .and_then(|id| Self::widget_index(id, widgets));
+        let previous = current.map_or(widgets.len() - 1, |index| {
+            (index + widgets.len() - 1) % widgets.len()
+        });
+        self.focused_id = Some(widgets[previous].id().to_string());
+        self.focused_id.as_deref()
+    }
+
+    /// Clear focus when the focused widget is no longer registered.
+    ///
+    /// Layout rebuilds can remove a widget while it holds focus. Calling this
+    /// after updating rects and widgets keeps key events from being routed to a
+    /// stale id forever.
+    pub fn retain_focus(&mut self, widgets: &[Box<dyn Widget>]) {
+        if self
+            .focused_id
+            .as_ref()
+            .is_some_and(|id| Self::widget_index(id, widgets).is_none())
+        {
+            self.focused_id = None;
+        }
+    }
+
     /// Hit test: find the widget index under the given position.
     fn hit_test(&self, pos: Vec2) -> Option<usize> {
         for (i, rect) in self.rects.iter().enumerate() {
@@ -367,7 +419,12 @@ mod tests {
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
         let hovered = router.route_pointer_move(Vec2::new(50.0, 20.0), &mut widgets, &ctx);
         assert!(router.pointer_inside());
-        assert!(hovered.is_some());
+        assert_eq!(hovered, Some(0));
+        assert_eq!(
+            router.hovered_id(),
+            Some("clock"),
+            "hover must store the widget's real id, not a positional placeholder"
+        );
     }
 
     #[test]
@@ -390,7 +447,42 @@ mod tests {
         let ctx = WidgetContext::new(IslandState::Clock, Size::new(200.0, 40.0));
         let consumed = router.route_click(Vec2::new(50.0, 20.0), &mut widgets, &ctx);
         assert!(consumed);
-        assert!(router.focused_id().is_some());
+        assert_eq!(router.focused_id(), Some("clickable"));
+        assert!(router.route_key_press(65, &mut widgets, &ctx));
+    }
+
+    #[test]
+    fn tab_traversal_cycles_forward_and_backward() {
+        let mut router = InputRouter::new();
+        let widgets: Vec<Box<dyn Widget>> =
+            vec![Box::new(ClickableWidget), Box::new(ClockWidget::new())];
+
+        assert_eq!(router.focus_next(&widgets), Some("clickable"));
+        assert_eq!(router.focus_next(&widgets), Some("clock"));
+        assert_eq!(
+            router.focus_next(&widgets),
+            Some("clickable"),
+            "focus wraps at the end"
+        );
+        assert_eq!(
+            router.focus_previous(&widgets),
+            Some("clock"),
+            "reverse traversal wraps at the start"
+        );
+        assert_eq!(router.focus_next(&[]), None);
+        assert!(router.focused_id().is_none());
+    }
+
+    #[test]
+    fn focus_is_dropped_when_its_widget_is_removed() {
+        let mut router = InputRouter::new();
+        let widgets: Vec<Box<dyn Widget>> = vec![Box::new(ClickableWidget)];
+        router.set_focus("clickable");
+        router.retain_focus(&widgets);
+        assert_eq!(router.focused_id(), Some("clickable"));
+
+        router.retain_focus(&[]);
+        assert!(router.focused_id().is_none());
     }
 
     #[test]

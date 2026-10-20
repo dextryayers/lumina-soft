@@ -147,6 +147,195 @@ impl Layout {
     }
 }
 
+/// Cache statistics for diagnostics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LayoutCacheStats {
+    /// Number of lookups served from the cache.
+    pub hits: u64,
+    /// Number of lookups that required shaping and layout.
+    pub misses: u64,
+    /// Entries currently retained.
+    pub entries: usize,
+    /// Maximum entries the cache will retain.
+    pub capacity: usize,
+}
+
+impl LayoutCacheStats {
+    /// Fraction of lookups served from the cache, in `0.0..=1.0`.
+    #[must_use]
+    pub fn hit_rate(&self) -> f32 {
+        let total = self.hits + self.misses;
+        if total == 0 {
+            0.0
+        } else {
+            self.hits as f32 / total as f32
+        }
+    }
+}
+
+/// A bounded cache of measured strings to positioned glyphs.
+///
+/// Widgets ask for the same label every frame, so caching the full layout
+/// removes repeated shaping, atlas lookups, and glyph allocation from steady
+/// state. The key includes the text, font size, container width, alignment,
+/// overflow mode, and shaper flags. A new atlas (different glyph count or
+/// storage) also produces a miss.
+///
+/// The cache is intentionally a small linear structure: with the default 64
+/// entries, scanning keys is cheaper than hashing long strings and requires no
+/// per-lookup allocation. Eviction removes the least recently used entry.
+///
+/// The returned reference points into the cache. Callers must re-borrow on the
+/// next lookup rather than holding it across another call that may evict it.
+#[derive(Debug)]
+pub struct TextLayoutCache {
+    entries: Vec<CacheEntry>,
+    capacity: usize,
+    clock: u64,
+    hits: u64,
+    misses: u64,
+}
+
+#[derive(Debug)]
+struct CacheEntry {
+    key: CacheKey,
+    layout: Layout,
+    last_used: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CacheKey {
+    text: String,
+    font_size_bits: u32,
+    available_width_bits: u32,
+    alignment: TextAlignment,
+    overflow: Overflow,
+    apply_kerning: bool,
+    atlas_len: usize,
+    atlas_ptr: usize,
+}
+
+impl TextLayoutCache {
+    /// Create a cache retaining at most `capacity` layouts.
+    ///
+    /// A capacity of zero is promoted to one so insertion always succeeds.
+    #[must_use]
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            entries: Vec::with_capacity(capacity.min(64)),
+            capacity: capacity.max(1),
+            clock: 0,
+            hits: 0,
+            misses: 0,
+        }
+    }
+
+    /// Lay out `text`, reusing a cached result when the inputs are unchanged.
+    #[allow(clippy::too_many_arguments)]
+    pub fn layout(
+        &mut self,
+        text: &str,
+        shaper: &super::shaping::Shaper,
+        atlas: &super::atlas::Atlas,
+        font_size: Scalar,
+        available_width: Scalar,
+        alignment: TextAlignment,
+        overflow: Overflow,
+    ) -> &Layout {
+        let font_size_bits = font_size.to_bits();
+        let available_width_bits = available_width.to_bits();
+        let atlas_len = atlas.glyphs.len();
+        let atlas_ptr = atlas.glyphs.as_ptr() as usize;
+
+        let stamp = self.clock;
+        self.clock = self.clock.wrapping_add(1);
+
+        // Compare against borrowed fields so a hit does not allocate a key.
+        let cached = self.entries.iter().position(|entry| {
+            let key = &entry.key;
+            key.text == text
+                && key.font_size_bits == font_size_bits
+                && key.available_width_bits == available_width_bits
+                && key.alignment == alignment
+                && key.overflow == overflow
+                && key.apply_kerning == shaper.apply_kerning
+                && key.atlas_len == atlas_len
+                && key.atlas_ptr == atlas_ptr
+        });
+        if let Some(index) = cached {
+            self.entries[index].last_used = stamp;
+            self.hits = self.hits.saturating_add(1);
+            return &self.entries[index].layout;
+        }
+
+        self.misses = self.misses.saturating_add(1);
+        let shaped = shaper.shape(text, atlas, font_size);
+        let layout = Layout::new(
+            &shaped,
+            atlas,
+            font_size,
+            available_width,
+            alignment,
+            overflow,
+        );
+
+        if self.entries.len() >= self.capacity {
+            if let Some((index, _)) = self
+                .entries
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, entry)| entry.last_used)
+            {
+                self.entries.swap_remove(index);
+            }
+        }
+
+        self.entries.push(CacheEntry {
+            key: CacheKey {
+                text: text.to_owned(),
+                font_size_bits,
+                available_width_bits,
+                alignment,
+                overflow,
+                apply_kerning: shaper.apply_kerning,
+                atlas_len,
+                atlas_ptr,
+            },
+            layout,
+            last_used: stamp,
+        });
+        &self.entries.last().expect("entry was just pushed").layout
+    }
+
+    /// Drop every cached layout, for example after hot-reloading a font.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    /// Cache statistics since the last [`Self::reset_stats`].
+    #[must_use]
+    pub fn stats(&self) -> LayoutCacheStats {
+        LayoutCacheStats {
+            hits: self.hits,
+            misses: self.misses,
+            entries: self.entries.len(),
+            capacity: self.capacity,
+        }
+    }
+
+    /// Reset hit and miss counters without evicting layouts.
+    pub fn reset_stats(&mut self) {
+        self.hits = 0;
+        self.misses = 0;
+    }
+}
+
+impl Default for TextLayoutCache {
+    fn default() -> Self {
+        Self::new(64)
+    }
+}
+
 /// Marquee animation state.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Marquee {
@@ -427,5 +616,145 @@ mod tests {
         let marquee = Marquee::default();
         assert!(marquee.speed > 0.0);
         assert!(marquee.gap > 0.0);
+    }
+
+    #[test]
+    fn a_repeated_layout_is_served_from_the_cache() {
+        let mut cache = TextLayoutCache::default();
+        let atlas = empty_atlas();
+        let shaper = crate::shaping::Shaper::new();
+
+        let first = cache
+            .layout(
+                "Now playing",
+                &shaper,
+                &atlas,
+                14.0,
+                300.0,
+                TextAlignment::Left,
+                Overflow::Ellipsis,
+            )
+            .clone();
+        let second = cache
+            .layout(
+                "Now playing",
+                &shaper,
+                &atlas,
+                14.0,
+                300.0,
+                TextAlignment::Left,
+                Overflow::Ellipsis,
+            )
+            .clone();
+
+        assert_eq!(first, second);
+        let stats = cache.stats();
+        assert_eq!(stats.misses, 1);
+        assert_eq!(stats.hits, 1);
+        assert!(stats.hit_rate() > 0.49);
+    }
+
+    #[test]
+    fn a_changed_layout_input_misses_the_cache() {
+        let mut cache = TextLayoutCache::new(8);
+        let atlas = empty_atlas();
+        let shaper = crate::shaping::Shaper::new();
+
+        let inputs = [
+            (
+                "Title",
+                14.0,
+                300.0,
+                TextAlignment::Left,
+                Overflow::Ellipsis,
+            ),
+            (
+                "Title",
+                16.0,
+                300.0,
+                TextAlignment::Left,
+                Overflow::Ellipsis,
+            ),
+            (
+                "Title",
+                14.0,
+                200.0,
+                TextAlignment::Left,
+                Overflow::Ellipsis,
+            ),
+            (
+                "Title",
+                14.0,
+                300.0,
+                TextAlignment::Center,
+                Overflow::Ellipsis,
+            ),
+            ("Title", 14.0, 300.0, TextAlignment::Left, Overflow::Clip),
+            (
+                "Other",
+                14.0,
+                300.0,
+                TextAlignment::Left,
+                Overflow::Ellipsis,
+            ),
+        ];
+        for (text, size, width, alignment, overflow) in inputs {
+            cache.layout(text, &shaper, &atlas, size, width, alignment, overflow);
+        }
+        assert_eq!(cache.stats().misses, inputs.len() as u64);
+        assert_eq!(cache.stats().entries, inputs.len());
+    }
+
+    #[test]
+    fn the_cache_is_bounded_and_evicts_the_least_recently_used_entry() {
+        let mut cache = TextLayoutCache::new(2);
+        let atlas = empty_atlas();
+        let shaper = crate::shaping::Shaper::new();
+        let layout = |cache: &mut TextLayoutCache, text: &str| {
+            cache.layout(
+                text,
+                &shaper,
+                &atlas,
+                14.0,
+                300.0,
+                TextAlignment::Left,
+                Overflow::Ellipsis,
+            );
+        };
+
+        layout(&mut cache, "A");
+        layout(&mut cache, "B");
+        layout(&mut cache, "A"); // A becomes most recently used
+        layout(&mut cache, "C"); // evicts B
+        assert_eq!(cache.stats().entries, 2);
+
+        layout(&mut cache, "A");
+        assert_eq!(cache.stats().hits, 2);
+        layout(&mut cache, "B");
+        assert_eq!(cache.stats().misses, 4);
+    }
+
+    #[test]
+    fn clearing_the_cache_forces_a_new_measurement() {
+        let mut cache = TextLayoutCache::new(1);
+        let atlas = empty_atlas();
+        let shaper = crate::shaping::Shaper::new();
+        let layout = |cache: &mut TextLayoutCache| {
+            cache.layout(
+                "A",
+                &shaper,
+                &atlas,
+                14.0,
+                300.0,
+                TextAlignment::Left,
+                Overflow::Ellipsis,
+            );
+        };
+        layout(&mut cache);
+        layout(&mut cache);
+        cache.clear();
+        layout(&mut cache);
+        assert_eq!(cache.stats().misses, 2);
+        assert_eq!(cache.stats().entries, 1);
     }
 }

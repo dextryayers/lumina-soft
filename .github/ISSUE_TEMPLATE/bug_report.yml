@@ -1,0 +1,91 @@
+name: Bug report
+description: Report a reproducible problem with Lumina.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. Please run
+        `lumina --diagnostics` and paste the complete output below; it answers
+        most environment questions in one step.
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Output of `lumina --diagnostics`.
+      render: text
+      placeholder: |
+        Lumina 0.1.0-alpha.1
+          target       ...
+          platform     ...
+          config_path  ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and the exact steps that reproduce it.
+      placeholder: |
+        1. Set the following configuration...
+        2. Press...
+        3. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect instead?
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `lumina --version`, or the artifact name if the binary cannot start.
+      placeholder: "0.1.0-alpha.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: Redact tokens and personal paths. Include the `[accessibility]` section if the issue is focus, contrast, motion, or screen-reader related.
+      render: toml
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or crash output
+      description: Paste the last lines of the log file, or a crash report. Set `RUST_BACKTRACE=1` for a backtrace.
+      render: text
+
+  - type: dropdown
+    id: display
+    attributes:
+      label: Display server
+      options:
+        - Windows
+        - X11
+        - Wayland with layer-shell
+        - Wayland without layer-shell
+        - Other / unknown
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I removed secrets and personal information from diagnostics and logs.
+          required: true

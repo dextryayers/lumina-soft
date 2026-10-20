@@ -47,6 +47,7 @@
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
 
+pub mod accessibility;
 pub mod autostart;
 pub mod capability;
 pub mod hotkey;
@@ -72,6 +73,10 @@ pub mod win32_hotkeys;
 
 pub mod null;
 
+pub use accessibility::{
+    os_reduced_motion, os_screen_reader_active, screen_reader_enabled, AnnouncementGate,
+    REDUCED_MOTION_ENV, SCREEN_READER_ENV,
+};
 pub use autostart::{AutostartError, WINDOWS_RUN_KEY, WINDOWS_VALUE_NAME};
 pub use capability::{Capabilities, Platform, PlatformKind};
 pub use hotkey::{

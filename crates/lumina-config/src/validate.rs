@@ -17,9 +17,8 @@
 use lumina_core::color::parse_hex;
 
 use crate::schema::{
-    AudioConfig, Config, FftSize, GeneralConfig, HotkeysConfig, LayoutConfig, MediaConfig,
-    AccessibilityConfig, MotionConfig, Position, RgbMode, TextConfig, VisualizerStyle,
-    KNOWN_WIDGET_IDS,
+    AccessibilityConfig, AudioConfig, Config, FftSize, GeneralConfig, HotkeysConfig, LayoutConfig,
+    MediaConfig, MotionConfig, Position, RgbMode, TextConfig, VisualizerStyle, KNOWN_WIDGET_IDS,
 };
 
 /// How serious a problem is.
